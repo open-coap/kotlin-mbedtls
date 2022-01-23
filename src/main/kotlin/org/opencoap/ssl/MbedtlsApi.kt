@@ -1,0 +1,110 @@
+/*
+ * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.opencoap.ssl
+
+import com.sun.jna.*
+import com.sun.jna.Function
+import org.slf4j.LoggerFactory
+
+/*
+Defines mbedtls native functions that can be used from jvm.
+ */
+internal object MbedtlsApi {
+    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.1.0")
+
+    init {
+        Native.register(LIB_MBEDTLS)
+        configureLogThreshold()
+    }
+
+    // mbedtls/ssl.h
+    external fun mbedtls_ssl_conf_authmode(mbedtlsSslConfig: Pointer, authmode: Int)
+    external fun mbedtls_ssl_conf_ciphersuites(sslConfig: Pointer, cipherSuiteIds: Memory): Int
+    external fun mbedtls_ssl_conf_dbg(mbedtlsSslConfig: Pointer, callback: Callback, pDbg: Pointer?)
+    external fun mbedtls_ssl_conf_dtls_cookies(mbedtlsSslConfig: Pointer, fCookieWrite: Function?, fCookieCheck: Function?, pCookie: Pointer?)
+    external fun mbedtls_ssl_conf_min_version(mbedtlsSslConfig: Pointer, major: Int, minor: Int)
+    external fun mbedtls_ssl_conf_psk(conf: Pointer, psk: ByteArray, pskLen: Int, pskIdentity: ByteArray, pskIdentityLen: Int): Int
+    external fun mbedtls_ssl_conf_rng(sslContext: Pointer, mbedtlsCtrDrbgRandom: Pointer, ctrDrbg: Pointer)
+    external fun mbedtls_ssl_config_defaults(mbedtlsSslConfig: Pointer, endpoint: Int, transport: Int, preset: Int): Int
+    external fun mbedtls_ssl_config_free(sslContext: Pointer)
+    external fun mbedtls_ssl_config_init(sslContext: Pointer)
+    external fun mbedtls_ssl_free(sslContext: Pointer)
+    external fun mbedtls_ssl_get_ciphersuite(sslContext: Pointer): String
+    external fun mbedtls_ssl_get_ciphersuite_id(name: String): Int
+    external fun mbedtls_ssl_handshake(sslContext: Pointer): Int
+    external fun mbedtls_ssl_init(sslContext: Pointer)
+    external fun mbedtls_ssl_read(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_set_bio(sslContext: Pointer, pBaseIO: Pointer?, fSend: Callback, fRecv: Callback?, fRecvTimeout: Callback?)
+    external fun mbedtls_ssl_set_timer_cb(ssl: Pointer, timer: Pointer?, timingSetDelay: Callback, timingGetDelay: Callback)
+    external fun mbedtls_ssl_setup(sslContext: Pointer, mbedtlsSslConfig: Pointer): Int
+    external fun mbedtls_ssl_write(sslContext: Pointer, buf: Pointer, len: Int): Int
+
+    const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
+    const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
+    const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880
+    const val MBEDTLS_SSL_IS_CLIENT = 0
+    const val MBEDTLS_SSL_IS_SERVER = 1
+    const val MBEDTLS_SSL_MAJOR_VERSION_3 = 3
+    const val MBEDTLS_SSL_MINOR_VERSION_3 = 3
+    const val MBEDTLS_SSL_PRESET_DEFAULT = 0
+    const val MBEDTLS_SSL_TRANSPORT_DATAGRAM = 1
+    const val MBEDTLS_SSL_VERIFY_NONE = 0
+    const val MBEDTLS_SSL_VERIFY_REQUIRED = 2
+
+    // mbedtls/entropy.h
+    external fun mbedtls_entropy_free(entropy: Pointer)
+    external fun mbedtls_entropy_init(entropy: Pointer)
+    internal val mbedtls_entropy_func = LIB_MBEDTLS.getFunction("mbedtls_entropy_func")
+
+    // mbedtls/ctr_drbg.h
+    external fun mbedtls_ctr_drbg_free(ctrDrbg: Pointer)
+    external fun mbedtls_ctr_drbg_init(ctrDrbg: Pointer)
+    external fun mbedtls_ctr_drbg_seed(mbedtlsCtrDrbgContext: Pointer, fEntropy: Pointer, pEntropyCtx: Pointer, custom: Pointer?, len: Int): Int
+    internal val mbedtls_ctr_drbg_random = LIB_MBEDTLS.getFunction("mbedtls_ctr_drbg_random")
+
+    // mbedtls/error.h
+    external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
+
+    //----- net_sockets.h -----
+    val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
+    val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
+
+    // mbedtls/debug.h
+    external fun mbedtls_debug_set_threshold(threshold: Int)
+
+    // -------------------------
+
+    internal fun Int.verify(): Int {
+        if (this >= 0) return this
+
+        throw SslException.from(this)
+    }
+
+
+    private fun configureLogThreshold() {
+        val logger = LoggerFactory.getLogger(javaClass)
+        if (logger.isTraceEnabled) {
+            mbedtls_debug_set_threshold(3)
+        } else if (logger.isDebugEnabled) {
+            mbedtls_debug_set_threshold(2)
+        } else if (logger.isWarnEnabled) {
+            mbedtls_debug_set_threshold(1)
+        } else {
+            mbedtls_debug_set_threshold(0)
+        }
+    }
+}
