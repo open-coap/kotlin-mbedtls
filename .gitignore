@@ -2,3 +2,4 @@
 build
 .idea
 !.idea/codeStyles
+!.idea/copyright
