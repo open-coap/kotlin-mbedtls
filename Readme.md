@@ -24,8 +24,11 @@ clientSession.send("request".encodeToByteArray())
 val response: CompletableFuture<ByteArray> = clientSession.read()
 ```
 
-## Build mbedtls binaries
+## Useful commands
 
-```
- ./compileMbedtls.sh
-```
+- `./gradlew build -i`             compile and test
+- `./gradlew publishToMavenLocal`  publish artifact to local maven repository
+- `./gradlew currentVersion`       show current version
+
+
+- `./compileMbedtls.sh`            clone and compile mbedtls
