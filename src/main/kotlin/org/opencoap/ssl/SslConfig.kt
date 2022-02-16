@@ -22,6 +22,7 @@ import com.sun.jna.Pointer
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_random
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_seed
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_authmode
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_ciphersuites
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dbg
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dtls_cookies
@@ -29,8 +30,10 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_min_version
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_psk
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_rng
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_defaults
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_load
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_bio
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
 import org.opencoap.ssl.MbedtlsApi.verify
@@ -38,6 +41,7 @@ import org.slf4j.LoggerFactory
 
 class SslConfig(
     private val conf: Memory,
+    private val cid: ByteArray?,
     private val allocated: Array<Memory> //keep in memory to prevent GC
 ) {
 
@@ -49,26 +53,46 @@ class SslConfig(
 
         val sendCallback = SendCallback(trans)
         val receiveCallback = ReceiveCallback()
+
+        if (cid != null) {
+            mbedtls_ssl_set_cid(sslContext, 1, cid, cid.size).verify()
+        }
+
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
 
         return SslHandshakeContext(this, sslContext, trans, receiveCallback, sendCallback)
+    }
+
+    fun newContext(trans: IOTransport, session: ByteArray): SslSession {
+        val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
+
+        mbedtls_ssl_setup(sslContext, conf).verify()
+        val buffer = Memory(session.size.toLong())
+        buffer.write(0, session, 0, session.size)
+        mbedtls_ssl_context_load(sslContext, buffer, buffer.size().toInt()).verify()
+
+        val sendCallback = SendCallback(trans)
+        val receiveCallback = ReceiveCallback()
+        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
+
+        return SslSession(this, sslContext, trans, receiveCallback, sendCallback)
     }
 
     companion object {
 
         @JvmStatic
         @JvmOverloads
-        fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList()): SslConfig {
-            return create(false, pskId, pskSecret, cipherSuites);
+        fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cid: ByteArray? = ByteArray(0)): SslConfig {
+            return create(false, pskId, pskSecret, cipherSuites, cid);
         }
 
         @JvmStatic
         @JvmOverloads
-        fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList()): SslConfig {
-            return create(true, pskId, pskSecret, cipherSuites);
+        fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cid: ByteArray? = null): SslConfig {
+            return create(true, pskId, pskSecret, cipherSuites, cid);
         }
 
-        private fun create(isServer: Boolean = false, pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String>): SslConfig {
+        private fun create(isServer: Boolean = false, pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String>, cid: ByteArray?): SslConfig {
             val sslConfig = initMemory(MbedtlsSizeOf.mbedtls_ssl_config, MbedtlsApi::mbedtls_ssl_config_init)
             val entropy = initMemory(MbedtlsSizeOf.mbedtls_entropy_context, MbedtlsApi::mbedtls_entropy_init)
             val ctrDrbg = initMemory(MbedtlsSizeOf.mbedtls_ctr_drbg_context, MbedtlsApi::mbedtls_ctr_drbg_init)
@@ -88,10 +112,13 @@ class SslConfig(
                 mbedtls_ssl_conf_ciphersuites(sslConfig, mapCipherSuites(cipherSuites)).verify()
             }
 
+            if (cid != null) {
+                mbedtls_ssl_conf_cid(sslConfig, cid.size, 0)
+            }
             // Logging
             mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)
 
-            return SslConfig(sslConfig, arrayOf(entropy, ctrDrbg))
+            return SslConfig(sslConfig, cid, arrayOf(entropy, ctrDrbg))
         }
 
 

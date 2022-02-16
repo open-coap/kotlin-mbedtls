@@ -18,7 +18,9 @@ package org.opencoap.ssl
 
 import com.sun.jna.Callback
 import com.sun.jna.Memory
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
@@ -71,6 +73,18 @@ class SslSession(
     private val sendCallback: Callback, //keep in memory to prevent GC
 ) : SslContext {
 
+    fun getPeerCid(): ByteArray? {
+        val mem = Memory(16 + 64 /* max cid len */)
+        mbedtls_ssl_get_peer_cid(sslContext, mem, mem.share(16), mem.share(8))
+
+        if (mem.getInt(0) == 0) {
+            return null
+        }
+        val size = mem.getInt(8)
+
+        return mem.getByteArray(16, size);
+    }
+
     fun getCipherSuite(): String {
         return mbedtls_ssl_get_ciphersuite(sslContext)
     }
@@ -92,5 +106,13 @@ class SslSession(
                 recvCallback.localReadBuffer.remove()
                 buffer.getByteArray(0, size)
             }
+    }
+
+    fun save(): ByteArray {
+        val buffer = Memory(512)
+        val outputLen = Memory(8)
+        mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify();
+
+        return buffer.getByteArray(0, outputLen.getLong(0).toInt())
     }
 }

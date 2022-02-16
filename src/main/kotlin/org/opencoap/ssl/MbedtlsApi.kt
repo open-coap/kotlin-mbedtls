@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.1.0")
+    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.0.0-rfc9146")
 
     init {
         Native.register(LIB_MBEDTLS)
@@ -52,6 +52,11 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_set_timer_cb(ssl: Pointer, timer: Pointer?, timingSetDelay: Callback, timingGetDelay: Callback)
     external fun mbedtls_ssl_setup(sslContext: Pointer, mbedtlsSslConfig: Pointer): Int
     external fun mbedtls_ssl_write(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_conf_cid(mbedtlsSslConfig: Pointer, len: Int, ignoreOtherCids: Int): Int
+    external fun mbedtls_ssl_set_cid(sslContext: Pointer, enable: Int, ownCid: ByteArray, ownCidLen: Int): Int
+    external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
+    external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: Pointer, bufLen: Int, outputLen: Pointer): Int
+    external fun mbedtls_ssl_context_load(sslContext: Pointer, buf: Pointer, len: Int): Int
 
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900

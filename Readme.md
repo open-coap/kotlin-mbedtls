@@ -6,6 +6,7 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 ## Features:
 
 - Client DTLS with PSK authentication
+- DTLS CID support (RFC 9146)
 
 ## Supported OS
 

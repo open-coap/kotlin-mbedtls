@@ -1,17 +1,19 @@
 #!/bin/bash
-MBEDTLS_VERSION=v3.1.0
+MBEDTLS_VERSION=v3.0.0-rfc9146
 BUILD_DIR=build/mbedtls
 
 
 # clone
 rm -rf ${BUILD_DIR}
 mkdir -p ${BUILD_DIR}
-git -C ${BUILD_DIR} clone --depth 1 --branch ${MBEDTLS_VERSION} git@github.com:ArmMbed/mbedtls.git .
+git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146' git@github.com:hannestschofenig/mbedtls.git .
 git -C ${BUILD_DIR} submodule update --init --recommend-shallow
 
 # configure
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH
+${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
+# ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_TLS_EXT_CID 54
 
 
 ## compile

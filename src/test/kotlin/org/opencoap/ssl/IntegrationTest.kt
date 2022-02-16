@@ -16,7 +16,9 @@
 
 package org.opencoap.ssl
 
+import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.toHex
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
 import kotlin.test.*
@@ -24,7 +26,7 @@ import kotlin.test.*
 
 class IntegrationTest {
 
-    private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
+    private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cid = "db04684e33424e42801f0e38023d2438".decodeHex())
     private val serverChannel = DatagramChannel.open().bind(localAddress(1_5684))
 
     @AfterTest
@@ -65,6 +67,61 @@ class IntegrationTest {
                 .exceptionOrNull()?.cause?.message?.startsWith("SSL - A fatal alert message was received from our peer") == true
         )
 
+    }
+
+    @Test
+    fun `should use CID`() {
+        val client = SslConfig.client(
+            pskId = "dupa".encodeToByteArray(),
+            pskSecret = byteArrayOf(0x01, 0x02),
+            cid = byteArrayOf(0x01),
+            cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
+        ).newContext(DatagramChannelTransport.create(6003, localAddress(1_5684)))
+
+        val serverSession = serverConf
+            .newContext(DatagramChannelTransport(serverChannel, localAddress(6003)))
+            .handshake()
+
+
+        // when
+        val clientSession = client.handshake().join()
+
+        // then
+        clientSession.send("dupa".encodeToByteArray())
+        assertEquals("dupa", serverSession.get().read().join().decodeToString())
+
+        assertEquals("01", serverSession.join().getPeerCid()?.toHex())
+    }
+
+    @Test
+    fun `should reuse session`() {
+        val clientConf = SslConfig.client(
+            pskId = "dupa".encodeToByteArray(),
+            pskSecret = byteArrayOf(0x01, 0x02),
+            cid = byteArrayOf(0x01),
+            cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
+        )
+        val clientTransport = DatagramChannelTransport.create(6004, localAddress(1_5684))
+        val client = clientConf.newContext(clientTransport)
+
+        val serverSession = serverConf
+            .newContext(DatagramChannelTransport(serverChannel, localAddress(6004)))
+            .handshake()
+
+        // and
+        val clientSession = client.handshake().join()
+
+        // when
+        val storedSession: ByteArray = clientSession.save()
+        assertTrue(storedSession.isNotEmpty())
+        println(storedSession.size)
+        val clientSession2: SslSession = clientConf.newContext(clientTransport, storedSession)
+
+        // then
+        clientSession2.send("dupa".encodeToByteArray())
+        assertEquals("dupa", serverSession.get().read().join().decodeToString())
+
+        assertEquals("01", serverSession.join().getPeerCid()?.toHex())
     }
 
     @Test
