@@ -56,10 +56,14 @@ class SslConfig(
 
     companion object {
 
+        @JvmStatic
+        @JvmOverloads
         fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList()): SslConfig {
             return create(false, pskId, pskSecret, cipherSuites);
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList()): SslConfig {
             return create(true, pskId, pskSecret, cipherSuites);
         }

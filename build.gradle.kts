@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.5.31"
     id("java-library")
@@ -21,6 +23,15 @@ dependencies {
     // TESTS
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("ch.qos.logback:logback-classic:1.2.7")
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType<KotlinCompile> {
+    kotlinOptions.jvmTarget = "1.8"
 }
 
 kewtVersioning.configuration {
