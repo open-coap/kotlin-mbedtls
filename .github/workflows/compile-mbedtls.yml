@@ -1,0 +1,33 @@
+name: compile
+
+on:
+  push:
+    paths:
+      - 'compileMbedtls.sh'
+      - '.github/workflows/compile-mbedtls.yml'
+
+jobs:
+  compile:
+
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            binary: src/main/resources/**/*.so
+          - platform: macos-latest
+            binary: src/main/resources/**/*.dylib
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - run: pip3 install Jinja2
+      - uses: actions/checkout@v2
+      - name: Compile
+        shell: bash
+        run: ./compileMbedtls.sh
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          path: ${{ matrix.binary }}
+          if-no-files-found: error

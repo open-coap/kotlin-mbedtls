@@ -6,7 +6,7 @@ BUILD_DIR=build/mbedtls
 # clone
 rm -rf ${BUILD_DIR}
 mkdir -p ${BUILD_DIR}
-git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146' git@github.com:hannestschofenig/mbedtls.git .
+git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146' https://github.com/hannestschofenig/mbedtls.git .
 git -C ${BUILD_DIR} submodule update --init --recommend-shallow
 
 # configure
