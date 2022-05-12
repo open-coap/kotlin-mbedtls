@@ -20,6 +20,8 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import org.slf4j.LoggerFactory
+import java.io.Closeable
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -27,6 +29,7 @@ import java.nio.channels.DatagramChannel
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /*
 DTLS transmitter based on DatagramChannel. Uses blocking calls.
@@ -34,9 +37,16 @@ DTLS transmitter based on DatagramChannel. Uses blocking calls.
 class DtlsTransmitter private constructor(
     internal val channel: DatagramChannel,
     private val sslSession: SslSession,
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
-) {
+    private val executor: ExecutorService
+) : Closeable {
     companion object {
+        private val logger = LoggerFactory.getLogger(DtlsTransmitter::class.java)
+
+        private val threadIndex = AtomicInteger(0)
+        private fun newSingleExecutor(): ExecutorService {
+            return Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
+        }
+
         fun connect(server: DtlsServer, conf: SslConfig): CompletableFuture<DtlsTransmitter> {
             return connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf)
         }
@@ -50,7 +60,7 @@ class DtlsTransmitter private constructor(
         }
 
         fun connect(dest: InetSocketAddress, conf: SslConfig, channel: DatagramChannel): CompletableFuture<DtlsTransmitter> {
-            val executor = Executors.newSingleThreadExecutor()
+            val executor = newSingleExecutor()
             return executor.supply {
                 val sslSession = handshake(conf.newContext(), channel, dest)
                 DtlsTransmitter(channel, sslSession, executor)
@@ -58,7 +68,10 @@ class DtlsTransmitter private constructor(
         }
 
         private fun handshake(handshakeCtx: SslHandshakeContext, channel: DatagramChannel, dest: InetSocketAddress): SslSession {
-            val send: (ByteBuffer) -> Unit = { channel.send(it, dest) }
+            val send: (ByteBuffer) -> Unit = {
+                channel.send(it, dest)
+                logger.debug("[{}] DTLS handshake sent {} bytes", dest, it.position())
+            }
 
             val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
             buffer.clear().flip()
@@ -68,6 +81,7 @@ class DtlsTransmitter private constructor(
                 buffer.clear()
                 channel.receive(buffer)
                 buffer.flip()
+                logger.debug("[{}] DTLS handshake recv {} bytes", dest, buffer.remaining())
                 sslContext = handshakeCtx.step(buffer, send)
             }
             return sslContext as SslSession
@@ -78,11 +92,11 @@ class DtlsTransmitter private constructor(
                 .bind(InetSocketAddress("0.0.0.0", bindPort))
                 .connect(dest)
 
-            return DtlsTransmitter(channel, sslSession, Executors.newSingleThreadExecutor())
+            return DtlsTransmitter(channel, sslSession, newSingleExecutor())
         }
     }
 
-    fun close() {
+    override fun close() {
         channel.close()
         executor.supply(sslSession::close).join()
     }

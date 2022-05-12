@@ -25,6 +25,7 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.runGC
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
 import kotlin.random.Random
@@ -144,11 +145,5 @@ class DtlsTransmitterTest {
 
         assertEquals("01", server.await().getPeerCid()?.toHex())
         clientConf.close()
-    }
-
-    private fun runGC() {
-        System.gc()
-        Thread.sleep(100)
-        System.gc()
     }
 }

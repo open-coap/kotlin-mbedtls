@@ -61,6 +61,9 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
     external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: Pointer, bufLen: Int, outputLen: Pointer): Int
     external fun mbedtls_ssl_context_load(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_conf_ca_chain(sslConfig: Pointer, caChain: Pointer, caCrl: Pointer?)
+    external fun mbedtls_ssl_conf_own_cert(sslConfig: Pointer, ownCert: Memory, pkKey: Pointer): Int
+    external fun mbedtls_ssl_set_mtu(sslContext: Pointer, mtu: Int)
 
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
@@ -94,6 +97,16 @@ internal object MbedtlsApi {
 
     // mbedtls/debug.h
     external fun mbedtls_debug_set_threshold(threshold: Int)
+
+    // mbedtls/x509_crt.h
+    external fun mbedtls_x509_crt_init(cert: Pointer)
+    external fun mbedtls_x509_crt_free(cert: Pointer)
+    external fun mbedtls_x509_crt_parse_der(chain: Pointer, buf: ByteArray, len: Int): Int
+
+    // mbedtls/pk.h
+    external fun mbedtls_pk_init(ctx: Pointer)
+    external fun mbedtls_pk_free(ctx: Pointer)
+    external fun mbedtls_pk_parse_key(ctx: Pointer, key: ByteArray, keyLen: Int, pwd: Pointer?, pwdLen: Int, fRng: Pointer, pRbg: Pointer): Int
 
     // -------------------------
 

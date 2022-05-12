@@ -6,4 +6,6 @@ internal object MbedtlsSizeOf {
     const val mbedtls_entropy_context = 1032L
     const val mbedtls_ctr_drbg_context = 344L
     const val mbedtls_ssl_context = 552L
+    const val mbedtls_pk_context = 16L
+    const val mbedtls_x509_crt = 616L
 }
