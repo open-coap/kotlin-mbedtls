@@ -16,10 +16,17 @@
 
 package org.opencoap.ssl
 
+import kotlin.random.Random
+
 fun interface CidSupplier {
     fun next(): ByteArray
 }
 
 object EmptyCidSupplier : CidSupplier {
     override fun next(): ByteArray = byteArrayOf()
+}
+
+class RandomCidSupplier(private val size: Int) : CidSupplier {
+
+    override fun next(): ByteArray = Random.nextBytes(size)
 }

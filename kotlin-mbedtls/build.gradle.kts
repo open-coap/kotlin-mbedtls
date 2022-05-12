@@ -26,6 +26,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("ch.qos.logback:logback-classic:1.2.11")
+    testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
 }
 
 java {

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.await
@@ -35,6 +36,7 @@ class DtlsServerTest {
 
     private val psk = Pair("dupa".encodeToByteArray(), byteArrayOf(1))
     private val conf: SslConfig = SslConfig.server(psk.first, psk.second)
+    private val certConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
     private val clientConfig = SslConfig.client(psk.first, psk.second)
     private lateinit var server: DtlsServer
     private val echoHandler: (InetSocketAddress, ByteArray) -> Unit = { adr: InetSocketAddress, packet: ByteArray ->
@@ -149,5 +151,30 @@ class DtlsServerTest {
         cliChannel.configureBlocking(false)
         assertEquals(0, cliChannel.read("aaa".toByteBuffer()))
         cliChannel.close()
+    }
+
+    @Test
+    fun `should successfully handshake with certificate`() {
+        server = DtlsServer.create(certConf).listen(echoHandler)
+        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()))
+
+        // when
+        val client = DtlsTransmitter.connect(server, clientConf).await()
+        client.send("12345")
+
+        // then
+        assertEquals("12345:resp", client.receiveString())
+    }
+
+    @Test
+    fun `should fail handshake when non trusted certificate`() {
+        server = DtlsServer.create(certConf).listen(echoHandler)
+        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.rootRsa.asX509()))
+
+        // when
+        val result = runCatching { DtlsTransmitter.connect(server, clientConf).await() }
+
+        // then
+        assertEquals("X509 - Certificate verification failed, e.g. CRL, CA or signature check failed [-9984]", result.exceptionOrNull()?.cause?.message)
     }
 }

@@ -5,7 +5,7 @@ on:
     paths:
       - 'compileMbedtls.sh'
       - '.github/workflows/compile-mbedtls.yml'
-
+      - '**/src/**/*.c'
 jobs:
   compile:
 

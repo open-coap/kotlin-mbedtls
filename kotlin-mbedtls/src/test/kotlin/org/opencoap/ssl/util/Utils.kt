@@ -52,3 +52,9 @@ fun String.toMemory(): Memory {
         it.write(0, this.encodeToByteArray(), 0, this.length)
     }
 }
+
+internal fun runGC() {
+    System.gc()
+    Thread.sleep(100)
+    System.gc()
+}
