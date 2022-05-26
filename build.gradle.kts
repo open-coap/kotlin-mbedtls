@@ -5,6 +5,7 @@ plugins {
     id("java-library")
     id("maven-publish")
     id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
+    id("org.jlleitschuh.gradle.ktlint") version "10.2.1"
 }
 version = kewtVersioning.version
 
@@ -18,7 +19,6 @@ dependencies {
 
     implementation("org.slf4j:slf4j-api:1.7.32")
     implementation("net.java.dev.jna:jna:5.10.0")
-
 
     // TESTS
     testImplementation("org.jetbrains.kotlin:kotlin-test")
@@ -40,7 +40,6 @@ kewtVersioning.configuration {
 
 // --- PUBLISHING ---
 val repoName = System.getenv("GITHUB_REPOSITORY") ?: "open-coap/kotlin-mbedtls"
-
 
 publishing {
     repositories {

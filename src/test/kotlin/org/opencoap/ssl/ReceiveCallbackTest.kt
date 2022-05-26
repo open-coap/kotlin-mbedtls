@@ -22,7 +22,6 @@ import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-
 internal class ReceiveCallbackTest {
 
     private val recv = ReceiveCallback()

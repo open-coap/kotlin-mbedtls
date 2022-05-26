@@ -28,7 +28,7 @@ class ReceiveCallback : Callback {
         try {
             val buffer = localReadBuffer.get()
             if (buffer == null || !buffer.hasRemaining()) {
-                return MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ;
+                return MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
             }
 
             val size = buffer.remaining()
@@ -38,7 +38,7 @@ class ReceiveCallback : Callback {
 
             return size
         } catch (e: Exception) {
-            //need to catch all exceptions to avoid crashing
+            // need to catch all exceptions to avoid crashing
             // TlsContext.LOGGER.error("TLS failed to read: {}", e.toString())
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_RECV_FAILED
@@ -51,7 +51,7 @@ class SendCallback(private val trans: IOTransport) : Callback {
             trans.send(buf.getByteBuffer(0, len.toLong()))
             return len
         } catch (e: java.lang.Exception) {
-            //need to catch all exceptions to avoid crashing
+            // need to catch all exceptions to avoid crashing
             // TlsContext.LOGGER.error("TLS failed to write: {} (cause: {})", e.toString(), e.cause)
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED

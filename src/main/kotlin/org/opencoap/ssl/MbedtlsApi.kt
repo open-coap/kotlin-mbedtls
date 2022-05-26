@@ -16,8 +16,12 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.*
+import com.sun.jna.Callback
 import com.sun.jna.Function
+import com.sun.jna.Memory
+import com.sun.jna.Native
+import com.sun.jna.NativeLibrary
+import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 
 /*
@@ -84,7 +88,7 @@ internal object MbedtlsApi {
     // mbedtls/error.h
     external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
 
-    //----- net_sockets.h -----
+    // ----- net_sockets.h -----
     val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
     val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
 
@@ -98,7 +102,6 @@ internal object MbedtlsApi {
 
         throw SslException.from(this)
     }
-
 
     private fun configureLogThreshold() {
         val logger = LoggerFactory.getLogger(javaClass)

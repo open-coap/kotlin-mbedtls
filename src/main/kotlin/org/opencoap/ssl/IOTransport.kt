@@ -24,5 +24,4 @@ interface IOTransport {
     fun send(buf: ByteBuffer)
 
     fun receive(): CompletableFuture<ByteBuffer>
-
 }

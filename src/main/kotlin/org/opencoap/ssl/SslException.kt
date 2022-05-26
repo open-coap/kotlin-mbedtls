@@ -29,5 +29,4 @@ class SslException(message: String) : Exception(message) {
             return buffer.getString(0).trim()
         }
     }
-
 }

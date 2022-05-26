@@ -21,8 +21,11 @@ import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.toHex
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
-import kotlin.test.*
-
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class IntegrationTest {
 
@@ -42,7 +45,6 @@ class IntegrationTest {
         val serverSession = serverConf
             .newContext(DatagramChannelTransport(serverChannel, localAddress(6001)))
             .handshake()
-
 
         val clientSession = client.handshake().join()
 
@@ -66,7 +68,6 @@ class IntegrationTest {
             runCatching { client.handshake().join() }
                 .exceptionOrNull()?.cause?.message?.startsWith("SSL - A fatal alert message was received from our peer") == true
         )
-
     }
 
     @Test
@@ -81,7 +82,6 @@ class IntegrationTest {
         val serverSession = serverConf
             .newContext(DatagramChannelTransport(serverChannel, localAddress(6003)))
             .handshake()
-
 
         // when
         val clientSession = client.handshake().join()
@@ -132,7 +132,6 @@ class IntegrationTest {
             "dupa".encodeToByteArray()
         }.start()
 
-
         Thread.sleep(100)
 
         val client = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(1))
@@ -150,5 +149,4 @@ class IntegrationTest {
         Thread.sleep(100)
         System.gc()
     }
-
 }

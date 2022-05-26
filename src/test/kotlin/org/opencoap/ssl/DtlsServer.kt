@@ -40,8 +40,8 @@ class DtlsServer(
     private val executor = Executors.newSingleThreadExecutor()
 
     fun start(): DtlsServer {
-        executor.execute(this::run);
-        return this;
+        executor.execute(this::run)
+        return this
     }
 
     fun stop() {
@@ -64,14 +64,13 @@ class DtlsServer(
 
             require(readPromises.remove(peerAddress)?.complete(buffer) == true) { "Promise was already completed" }
         }
-
     }
 
     private fun receive(adr: InetSocketAddress): CompletableFuture<ByteBuffer> {
         val promise = CompletableFuture<ByteBuffer>()
         val prev = readPromises.put(adr, promise)
         require(prev == null || prev.isDone)
-        return promise;
+        return promise
     }
 
     private fun createContext(peerAddress: InetSocketAddress): SslContext {
@@ -106,6 +105,5 @@ class DtlsServer(
         }
 
         override fun receive(): CompletableFuture<ByteBuffer> = receiveFun.invoke(peerAddress)
-
     }
 }

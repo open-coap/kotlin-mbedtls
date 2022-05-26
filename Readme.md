@@ -30,6 +30,7 @@ val response: CompletableFuture<ByteArray> = clientSession.read()
 - `./gradlew build -i`             compile and test
 - `./gradlew publishToMavenLocal`  publish artifact to local maven repository
 - `./gradlew currentVersion`       show current version
+- `./gradlew ktlintFormat`         format kotlin files
 
 
 - `./compileMbedtls.sh`            clone and compile mbedtls

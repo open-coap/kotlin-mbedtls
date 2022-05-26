@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory
 class SslConfig(
     private val conf: Memory,
     private val cid: ByteArray?,
-    private val allocated: Array<Memory> //keep in memory to prevent GC
+    private val allocated: Array<Memory> // keep in memory to prevent GC
 ) {
 
     fun newContext(trans: IOTransport): SslHandshakeContext {
@@ -83,13 +83,13 @@ class SslConfig(
         @JvmStatic
         @JvmOverloads
         fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cid: ByteArray? = ByteArray(0)): SslConfig {
-            return create(false, pskId, pskSecret, cipherSuites, cid);
+            return create(false, pskId, pskSecret, cipherSuites, cid)
         }
 
         @JvmStatic
         @JvmOverloads
         fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cid: ByteArray? = null): SslConfig {
-            return create(true, pskId, pskSecret, cipherSuites, cid);
+            return create(true, pskId, pskSecret, cipherSuites, cid)
         }
 
         private fun create(isServer: Boolean = false, pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String>, cid: ByteArray?): SslConfig {
@@ -102,7 +102,7 @@ class SslConfig(
             mbedtls_ssl_conf_min_version(sslConfig, MbedtlsApi.MBEDTLS_SSL_MAJOR_VERSION_3, MbedtlsApi.MBEDTLS_SSL_MINOR_VERSION_3)
 
             mbedtls_ctr_drbg_seed(ctrDrbg, MbedtlsApi.mbedtls_entropy_func, entropy, Pointer.NULL, 0).verify()
-            mbedtls_ssl_conf_rng(sslConfig, mbedtls_ctr_drbg_random, ctrDrbg);
+            mbedtls_ssl_conf_rng(sslConfig, mbedtls_ctr_drbg_random, ctrDrbg)
             mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
 
             // PSK
@@ -121,14 +121,13 @@ class SslConfig(
             return SslConfig(sslConfig, cid, arrayOf(entropy, ctrDrbg))
         }
 
-
         private fun mapCipherSuites(cipherSuites: List<String>): Memory {
             val ids = cipherSuites.map(Companion::getCipherSuiteId).toIntArray()
 
-            val cipherSuiteList = Memory(((ids.size + 1) * 4).toLong());
-            cipherSuiteList.write(0, ids, 0, ids.size);
-            cipherSuiteList.setInt(cipherSuiteList.size() - 4, 0);
-            return cipherSuiteList;
+            val cipherSuiteList = Memory(((ids.size + 1) * 4).toLong())
+            cipherSuiteList.write(0, ids, 0, ids.size)
+            cipherSuiteList.setInt(cipherSuiteList.size() - 4, 0)
+            return cipherSuiteList
         }
 
         private fun getCipherSuiteId(cipherSuite: String): Int {

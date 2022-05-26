@@ -31,17 +31,17 @@ import java.util.concurrent.CompletableFuture.completedFuture
 sealed interface SslContext
 
 class SslHandshakeContext(
-    private val conf: SslConfig, //keep in memory to prevent GC
+    private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
     private val transport: IOTransport,
     private val recvCallback: ReceiveCallback,
-    private val sendCallback: Callback, //keep in memory to prevent GC
+    private val sendCallback: Callback, // keep in memory to prevent GC
 ) : SslContext {
 
     fun handshake(): CompletableFuture<SslSession> {
         val ret = mbedtls_ssl_handshake(sslContext)
         if (ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ) {
-            return continueHandshake();
+            return continueHandshake()
         } else {
             throw SslException.from(ret)
         }
@@ -61,16 +61,15 @@ class SslHandshakeContext(
                     else -> throw SslException.from(ret)
                 }
             }
-
     }
 }
 
 class SslSession(
-    private val conf: SslConfig, //keep in memory to prevent GC
+    private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
     private val transport: IOTransport,
     private val recvCallback: ReceiveCallback,
-    private val sendCallback: Callback, //keep in memory to prevent GC
+    private val sendCallback: Callback, // keep in memory to prevent GC
 ) : SslContext {
 
     fun getPeerCid(): ByteArray? {
@@ -82,7 +81,7 @@ class SslSession(
         }
         val size = mem.getInt(8)
 
-        return mem.getByteArray(16, size);
+        return mem.getByteArray(16, size)
     }
 
     fun getCipherSuite(): String {
@@ -111,7 +110,7 @@ class SslSession(
     fun save(): ByteArray {
         val buffer = Memory(512)
         val outputLen = Memory(8)
-        mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify();
+        mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify()
 
         return buffer.getByteArray(0, outputLen.getLong(0).toInt())
     }
