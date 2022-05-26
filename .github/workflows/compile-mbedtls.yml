@@ -13,9 +13,9 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-latest
-            binary: src/main/resources/**/*.so
+            binary: kotlin-mbedtls/src/main/resources/**/*.so
           - platform: macos-latest
-            binary: src/main/resources/**/*.dylib
+            binary: kotlin-mbedtls/src/main/resources/**/*.dylib
 
     runs-on: ${{ matrix.platform }}
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 MBEDTLS_VERSION=v3.0.0-rfc9146
-BUILD_DIR=build/mbedtls
-
+BUILD_DIR=kotlin-mbedtls/build/mbedtls
+SRC=kotlin-mbedtls/src
 
 # clone
 rm -rf ${BUILD_DIR}
@@ -24,11 +24,11 @@ ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h
 # copy binaries
 # make a single dylib/so file, to enable loading from jar file
 if [[ "$(uname)" == 'Darwin' ]]; then
-  rm src/main/resources/darwin/*
-  OUTPUT_LIB="src/main/resources/darwin/libmbedtls-${MBEDTLS_VERSION}.dylib"
+  rm $SRC/main/resources/darwin/*
+  OUTPUT_LIB="$SRC/main/resources/darwin/libmbedtls-${MBEDTLS_VERSION}.dylib"
 elif [[ "$(uname)" == 'Linux' ]]; then
-  rm src/main/resources/linux-x86-64/*
-  OUTPUT_LIB="src/main/resources/linux-x86-64/libmbedtls-${MBEDTLS_VERSION}.so"
+  rm $SRC/main/resources/linux-x86-64/*
+  OUTPUT_LIB="$SRC/main/resources/linux-x86-64/libmbedtls-${MBEDTLS_VERSION}.so"
 else
   echo "Failure: unsupported platform: $(uname)"
   exit 1
@@ -38,5 +38,5 @@ g++ -shared ${BUILD_DIR}/library/CMakeFiles/*/*.o -o ${OUTPUT_LIB}
 
 
 # generate kotlin object with memory sizes
-gcc src/test/c/mbedtls_sizeof_generator.c -I${BUILD_DIR}/include -I${BUILD_DIR}/crypto/include -o build/mbedtls_sizeof_generator
-./build/mbedtls_sizeof_generator > src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
+gcc $SRC/test/c/mbedtls_sizeof_generator.c -I${BUILD_DIR}/include -I${BUILD_DIR}/crypto/include -o kotlin-mbedtls/build/mbedtls_sizeof_generator
+./kotlin-mbedtls/build/mbedtls_sizeof_generator > $SRC/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
