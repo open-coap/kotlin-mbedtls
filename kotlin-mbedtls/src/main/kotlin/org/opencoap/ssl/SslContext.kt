@@ -16,7 +16,6 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.Callback
 import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
@@ -25,6 +24,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
 import org.opencoap.ssl.MbedtlsApi.verify
+import java.nio.ByteBuffer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 
@@ -35,15 +35,25 @@ class SslHandshakeContext(
     private val sslContext: Memory,
     private val transport: IOTransport,
     private val recvCallback: ReceiveCallback,
-    private val sendCallback: Callback, // keep in memory to prevent GC
+    private val sendCallback: SendCallback,
 ) : SslContext {
 
     fun handshake(): CompletableFuture<SslSession> {
         val ret = mbedtls_ssl_handshake(sslContext)
+        sendOutgoing()
+
         if (ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ) {
             return continueHandshake()
         } else {
             throw SslException.from(ret)
+        }
+    }
+
+    private fun sendOutgoing() {
+        val handshakeBuffer: ByteBuffer? = sendCallback.localWriteBuffer.get()
+        if (handshakeBuffer != null) {
+            transport.send(handshakeBuffer)
+            sendCallback.localWriteBuffer.remove()
         }
     }
 
@@ -54,10 +64,11 @@ class SslHandshakeContext(
                 recvCallback.localReadBuffer.set(it)
                 val ret = mbedtls_ssl_handshake(sslContext)
                 recvCallback.localReadBuffer.remove()
+                sendOutgoing()
 
                 when (ret) {
                     MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> continueHandshake()
-                    0 -> completedFuture(SslSession(conf, sslContext, transport, recvCallback, sendCallback))
+                    0 -> completedFuture(SslSession(conf, sslContext, recvCallback, sendCallback))
                     else -> throw SslException.from(ret)
                 }
             }
@@ -67,9 +78,8 @@ class SslHandshakeContext(
 class SslSession(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
-    private val transport: IOTransport,
     private val recvCallback: ReceiveCallback,
-    private val sendCallback: Callback, // keep in memory to prevent GC
+    private val sendCallback: SendCallback,
 ) : SslContext {
 
     fun getPeerCid(): ByteArray? {
@@ -88,23 +98,21 @@ class SslSession(
         return mbedtls_ssl_get_ciphersuite(sslContext)
     }
 
-    fun send(data: ByteArray) {
+    fun encrypt(data: ByteArray): ByteBuffer {
         val buffer = Memory(data.size.toLong())
         buffer.write(0, data, 0, data.size)
         mbedtls_ssl_write(sslContext, buffer, data.size).verify()
+
+        return sendCallback.localWriteBuffer.get()
     }
 
-    fun read(): CompletableFuture<ByteArray> {
-        return transport
-            .receive()
-            .thenApply {
-                recvCallback.localReadBuffer.set(it)
+    fun decrypt(encBuffer: ByteBuffer): ByteArray {
+        recvCallback.localReadBuffer.set(encBuffer)
 
-                val buffer = Memory(it.remaining().toLong())
-                val size = mbedtls_ssl_read(sslContext, buffer, buffer.size().toInt()).verify()
-                recvCallback.localReadBuffer.remove()
-                buffer.getByteArray(0, size)
-            }
+        val plainBuffer = Memory(encBuffer.remaining().toLong())
+        val size = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.size().toInt()).verify()
+        recvCallback.localReadBuffer.remove()
+        return plainBuffer.getByteArray(0, size)
     }
 
     fun save(): ByteArray {

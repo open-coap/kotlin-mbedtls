@@ -14,30 +14,21 @@
  * limitations under the License.
  */
 
-package org.opencoap.ssl
+package org.opencoap.ssl.transport
 
+import org.opencoap.ssl.IOTransport
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class DatagramChannelTransport(
-    private val channel: DatagramChannel,
-    private val peerAddress: InetSocketAddress
+    val channel: DatagramChannel,
+    private val peerAddress: InetSocketAddress,
+    val executor: ExecutorService = Executors.newSingleThreadExecutor()
 ) : IOTransport {
-    private val executor = Executors.newSingleThreadExecutor()
-
-    companion object {
-
-        fun create(bindPort: Int, peerAddress: InetSocketAddress): DatagramChannelTransport {
-            val channel: DatagramChannel = DatagramChannel.open()
-                .bind(InetSocketAddress("0.0.0.0", bindPort))
-                .connect(peerAddress)
-
-            return DatagramChannelTransport(channel, peerAddress)
-        }
-    }
 
     override fun send(buf: ByteBuffer) {
         channel.send(buf, peerAddress)

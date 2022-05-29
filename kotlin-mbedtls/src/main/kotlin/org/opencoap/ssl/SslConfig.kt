@@ -51,7 +51,7 @@ class SslConfig(
         mbedtls_ssl_setup(sslContext, conf).verify()
         mbedtls_ssl_set_timer_cb(sslContext, Pointer.NULL, NoOpsSetDelayCallback, NoOpsGetDelayCallback)
 
-        val sendCallback = SendCallback(trans)
+        val sendCallback = SendCallback()
         val receiveCallback = ReceiveCallback()
 
         if (cid != null) {
@@ -63,7 +63,7 @@ class SslConfig(
         return SslHandshakeContext(this, sslContext, trans, receiveCallback, sendCallback)
     }
 
-    fun newContext(trans: IOTransport, session: ByteArray): SslSession {
+    fun newContext(session: ByteArray): SslSession {
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
@@ -71,11 +71,11 @@ class SslConfig(
         buffer.write(0, session, 0, session.size)
         mbedtls_ssl_context_load(sslContext, buffer, buffer.size().toInt()).verify()
 
-        val sendCallback = SendCallback(trans)
+        val sendCallback = SendCallback()
         val receiveCallback = ReceiveCallback()
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
 
-        return SslSession(this, sslContext, trans, receiveCallback, sendCallback)
+        return SslSession(this, sslContext, receiveCallback, sendCallback)
     }
 
     companion object {

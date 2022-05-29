@@ -83,10 +83,12 @@ class DtlsServer(
     }
 
     private fun readNext(ctx: SslSession, peerAddress: InetSocketAddress) {
-        ctx.read().thenAccept { buf ->
-            val resp = handler.invoke(peerAddress, buf)
+        receive(peerAddress).thenAccept { buf ->
+            val plainBuf = ctx.decrypt(buf)
+            val resp = handler.invoke(peerAddress, plainBuf)
             if (resp.isNotEmpty()) {
-                ctx.send(resp)
+                val encBuf = ctx.encrypt(resp)
+                channel.send(encBuf, peerAddress)
             }
             readNext(ctx, peerAddress)
         }

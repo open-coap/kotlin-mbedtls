@@ -39,20 +39,22 @@ class ReceiveCallback : Callback {
             return size
         } catch (e: Exception) {
             // need to catch all exceptions to avoid crashing
-            // TlsContext.LOGGER.error("TLS failed to read: {}", e.toString())
+            e.printStackTrace()
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_RECV_FAILED
     }
 }
 
-class SendCallback(private val trans: IOTransport) : Callback {
+class SendCallback : Callback {
+    val localWriteBuffer = ThreadLocal<ByteBuffer>()
+
     fun callback(ctx: Pointer?, buf: Pointer, len: Int): Int {
         try {
-            trans.send(buf.getByteBuffer(0, len.toLong()))
+            localWriteBuffer.set(buf.getByteBuffer(0, len.toLong()))
             return len
         } catch (e: java.lang.Exception) {
             // need to catch all exceptions to avoid crashing
-            // TlsContext.LOGGER.error("TLS failed to write: {} (cause: {})", e.toString(), e.cause)
+            e.printStackTrace()
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED
     }
