@@ -17,7 +17,10 @@
 package org.opencoap.ssl.transport
 
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.SslContext
+import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
@@ -29,11 +32,15 @@ import java.util.concurrent.Executors
 DTLS transmitter based on DatagramChannel. Uses blocking calls.
  */
 class DtlsTransmitter private constructor(
-    private val channel: DatagramChannel,
+    internal val channel: DatagramChannel,
     private val sslSession: SslSession,
-    private val executor: ExecutorService
+    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
 ) {
     companion object {
+        fun connect(server: DtlsServer, conf: SslConfig): CompletableFuture<DtlsTransmitter> {
+            return connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf)
+        }
+
         fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
             val channel: DatagramChannel = DatagramChannel.open()
                 .bind(InetSocketAddress("0.0.0.0", bindPort))
@@ -43,12 +50,27 @@ class DtlsTransmitter private constructor(
         }
 
         fun connect(dest: InetSocketAddress, conf: SslConfig, channel: DatagramChannel): CompletableFuture<DtlsTransmitter> {
-            val trans = DatagramChannelTransport(channel, dest)
-            val client = conf.newContext(trans)
-
-            return client.handshake().thenApply {
-                DtlsTransmitter(trans.channel, it, trans.executor)
+            val executor = Executors.newSingleThreadExecutor()
+            return executor.supply {
+                val sslSession = handshake(conf.newContext(), channel, dest)
+                DtlsTransmitter(channel, sslSession, executor)
             }
+        }
+
+        private fun handshake(handshakeCtx: SslHandshakeContext, channel: DatagramChannel, dest: InetSocketAddress): SslSession {
+            val send: (ByteBuffer) -> Unit = { channel.send(it, dest) }
+
+            val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
+            buffer.clear().flip()
+            var sslContext: SslContext = handshakeCtx.step(buffer, send)
+
+            while (sslContext is SslHandshakeContext) {
+                buffer.clear()
+                channel.receive(buffer)
+                buffer.flip()
+                sslContext = handshakeCtx.step(buffer, send)
+            }
+            return sslContext as SslSession
         }
 
         fun create(dest: InetSocketAddress, sslSession: SslSession, bindPort: Int = 0): DtlsTransmitter {
@@ -65,9 +87,7 @@ class DtlsTransmitter private constructor(
     }
 
     fun send(data: ByteArray) {
-        CompletableFuture
-            .runAsync({ channel.write(sslSession.encrypt(data)) }, executor)
-            .join()
+        executor.supply { channel.write(sslSession.encrypt(data)) }.join()
     }
 
     fun send(text: String) = send(text.encodeToByteArray())
@@ -78,9 +98,7 @@ class DtlsTransmitter private constructor(
         channel.receive(buffer)
         buffer.flip()
 
-        return CompletableFuture
-            .supplyAsync({ sslSession.decrypt(buffer) }, executor)
-            .join()
+        return executor.supply { sslSession.decrypt(buffer) }.join()
     }
 
     fun receiveString(): String = receive().decodeToString()

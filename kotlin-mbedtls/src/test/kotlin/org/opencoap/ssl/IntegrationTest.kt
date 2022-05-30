@@ -17,9 +17,9 @@
 package org.opencoap.ssl
 
 import org.opencoap.ssl.transport.DtlsTransmitter
+import org.opencoap.ssl.transport.toHex
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
-import org.opencoap.ssl.util.toHex
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
 import kotlin.test.AfterTest
@@ -112,23 +112,6 @@ class IntegrationTest {
         assertEquals("dupa", server.join().receiveString())
 
         assertEquals("01", server.join().getPeerCid()?.toHex())
-    }
-
-    @Test
-    fun testServer() {
-        val conf: SslConfig = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(1))
-
-        val server = DtlsServer(6100, conf) { _: InetSocketAddress, _: ByteArray ->
-            "dupa".encodeToByteArray()
-        }.start()
-
-        val clientConf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(1))
-        val client = DtlsTransmitter.connect(localAddress(6100), clientConf, 6101).join()
-
-        client.send("perse")
-        assertEquals("dupa", client.receiveString())
-
-        server.stop()
     }
 
     private fun runGC() {

@@ -20,13 +20,19 @@ import com.sun.jna.Callback
 import com.sun.jna.Pointer
 import java.nio.ByteBuffer
 
-class ReceiveCallback : Callback {
+internal class ReceiveCallback : Callback {
 
-    val localReadBuffer = ThreadLocal<ByteBuffer>()
+    private var buffer: ByteBuffer? = null
+
+    fun setBuffer(buf: ByteBuffer) {
+        buffer = buf
+    }
 
     fun callback(ctx: Pointer?, bufPointer: Pointer, len: Int, timeout: Int): Int {
         try {
-            val buffer = localReadBuffer.get()
+            val buffer = this.buffer
+            this.buffer = null
+
             if (buffer == null || !buffer.hasRemaining()) {
                 return MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
             }
@@ -45,13 +51,21 @@ class ReceiveCallback : Callback {
     }
 }
 
-class SendCallback : Callback {
-    val localWriteBuffer = ThreadLocal<ByteBuffer>()
+internal class SendCallback : Callback {
+    private var buffer: ByteBuffer? = null
+
+    fun removeBuffer(): ByteBuffer? {
+        val buf = buffer
+        buffer = null
+        return buf
+    }
 
     fun callback(ctx: Pointer?, buf: Pointer, len: Int): Int {
         try {
-            localWriteBuffer.set(buf.getByteBuffer(0, len.toLong()))
-            return len
+            if (buffer == null) {
+                buffer = buf.getByteBuffer(0, len.toLong())
+                return len
+            }
         } catch (e: java.lang.Exception) {
             // need to catch all exceptions to avoid crashing
             e.printStackTrace()

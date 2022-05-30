@@ -45,7 +45,7 @@ class SslConfig(
     private val allocated: Array<Memory> // keep in memory to prevent GC
 ) {
 
-    fun newContext(trans: IOTransport): SslHandshakeContext {
+    fun newContext(): SslHandshakeContext {
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
@@ -60,7 +60,7 @@ class SslConfig(
 
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
 
-        return SslHandshakeContext(this, sslContext, trans, receiveCallback, sendCallback)
+        return SslHandshakeContext(this, sslContext, receiveCallback, sendCallback)
     }
 
     fun newContext(session: ByteArray): SslSession {

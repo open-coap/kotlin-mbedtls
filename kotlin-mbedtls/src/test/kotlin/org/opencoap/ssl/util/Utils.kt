@@ -18,6 +18,7 @@ package org.opencoap.ssl.util
 
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 
 fun localAddress(port: Int): InetSocketAddress {
     return InetSocketAddress(InetAddress.getLocalHost(), port)
@@ -31,6 +32,4 @@ fun String.decodeHex(): ByteArray {
         .toByteArray()
 }
 
-fun ByteArray.toHex(): String {
-    return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-}
+fun String.toByteBuffer(): ByteBuffer = ByteBuffer.wrap(this.encodeToByteArray())

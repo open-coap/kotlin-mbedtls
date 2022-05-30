@@ -22,6 +22,7 @@ dependencies {
 
     // TESTS
     testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("ch.qos.logback:logback-classic:1.2.7")
 }
 

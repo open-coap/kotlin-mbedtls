@@ -24,58 +24,43 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
 import org.opencoap.ssl.MbedtlsApi.verify
+import org.opencoap.ssl.transport.toHex
+import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletableFuture.completedFuture
 
 sealed interface SslContext
 
-class SslHandshakeContext(
+class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
-    private val transport: IOTransport,
     private val recvCallback: ReceiveCallback,
     private val sendCallback: SendCallback,
 ) : SslContext {
+    private val logger = LoggerFactory.getLogger(javaClass)
+    private var startTimestamp: Long = System.currentTimeMillis()
 
-    fun handshake(): CompletableFuture<SslSession> {
+    fun step(receivedBuf: ByteBuffer, send: (ByteBuffer) -> Unit): SslContext {
+        recvCallback.setBuffer(receivedBuf)
         val ret = mbedtls_ssl_handshake(sslContext)
-        sendOutgoing()
 
-        if (ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ) {
-            return continueHandshake()
-        } else {
-            throw SslException.from(ret)
-        }
-    }
+        // send outgoing (if any)
+        sendCallback.removeBuffer()?.also(send)
 
-    private fun sendOutgoing() {
-        val handshakeBuffer: ByteBuffer? = sendCallback.localWriteBuffer.get()
-        if (handshakeBuffer != null) {
-            transport.send(handshakeBuffer)
-            sendCallback.localWriteBuffer.remove()
-        }
-    }
-
-    private fun continueHandshake(): CompletableFuture<SslSession> {
-        return transport
-            .receive()
-            .thenCompose {
-                recvCallback.localReadBuffer.set(it)
-                val ret = mbedtls_ssl_handshake(sslContext)
-                recvCallback.localReadBuffer.remove()
-                sendOutgoing()
-
-                when (ret) {
-                    MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> continueHandshake()
-                    0 -> completedFuture(SslSession(conf, sslContext, recvCallback, sendCallback))
-                    else -> throw SslException.from(ret)
+        return when (ret) {
+            MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
+            0 -> {
+                SslSession(conf, sslContext, recvCallback, sendCallback).also {
+                    logger.info("Connected in {}ms {}", System.currentTimeMillis() - startTimestamp, it)
                 }
             }
+            else -> throw SslException.from(ret).also {
+                logger.warn("Failed handshake: {}" + it.message)
+            }
+        }
     }
 }
 
-class SslSession(
+class SslSession internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
     private val recvCallback: ReceiveCallback,
@@ -103,15 +88,14 @@ class SslSession(
         buffer.write(0, data, 0, data.size)
         mbedtls_ssl_write(sslContext, buffer, data.size).verify()
 
-        return sendCallback.localWriteBuffer.get()
+        return sendCallback.removeBuffer() ?: ByteBuffer.allocate(0)
     }
 
     fun decrypt(encBuffer: ByteBuffer): ByteArray {
-        recvCallback.localReadBuffer.set(encBuffer)
+        recvCallback.setBuffer(encBuffer)
 
         val plainBuffer = Memory(encBuffer.remaining().toLong())
         val size = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.size().toInt()).verify()
-        recvCallback.localReadBuffer.remove()
         return plainBuffer.getByteArray(0, size)
     }
 
@@ -121,5 +105,9 @@ class SslSession(
         mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify()
 
         return buffer.getByteArray(0, outputLen.getLong(0).toInt())
+    }
+
+    override fun toString(): String {
+        return "[cid:${getPeerCid()?.toHex()}, cipher-suite:${getCipherSuite()}]"
     }
 }

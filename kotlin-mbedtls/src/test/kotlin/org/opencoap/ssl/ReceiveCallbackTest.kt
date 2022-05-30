@@ -17,14 +17,17 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import com.sun.jna.Native
 import com.sun.jna.Pointer
 import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 internal class ReceiveCallbackTest {
 
     private val recv = ReceiveCallback()
+    private val send = SendCallback()
 
     @Test
     fun noDataAvailable() {
@@ -40,7 +43,7 @@ internal class ReceiveCallbackTest {
         val buf = ByteBuffer.allocate(10)
         buf.put("dupa".encodeToByteArray())
         buf.flip()
-        recv.localReadBuffer.set(buf)
+        recv.setBuffer(buf)
 
         // when
         val mem = Memory(100)
@@ -58,7 +61,7 @@ internal class ReceiveCallbackTest {
         buf.put("aaadupa".encodeToByteArray())
         buf.flip()
         buf.position(3)
-        recv.localReadBuffer.set(buf)
+        recv.setBuffer(buf)
 
         // when
         val mem = Memory(100)
@@ -67,5 +70,25 @@ internal class ReceiveCallbackTest {
         // then
         assertEquals(4, ret)
         assertEquals("dupa", mem.getByteArray(0, 4).decodeToString())
+
+        // and
+        assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, recv.callback(Pointer.NULL, mem, 100, 0))
+    }
+
+    @Test
+    fun `should recv callback`() {
+        val mem = Memory(100)
+        mem.write(0, "dupa".encodeToByteArray(), 0, 4)
+
+        // when
+        val ret = send.callback(Pointer.NULL, mem, 4)
+        val ret2 = send.callback(Pointer.NULL, mem, 4)
+
+        // then
+        assertEquals(4, ret)
+        assertEquals(MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED, ret2)
+        assertEquals(mem, Native.getDirectBufferPointer(send.removeBuffer()))
+        // and
+        assertNull(send.removeBuffer())
     }
 }
