@@ -65,10 +65,9 @@ class DtlsTransmitter private constructor(
     }
 
     fun send(data: ByteArray) {
-        CompletableFuture.runAsync {
-            val encBytes = sslSession.encrypt(data)
-            channel.write(encBytes)
-        }.join()
+        CompletableFuture
+            .runAsync({ channel.write(sslSession.encrypt(data)) }, executor)
+            .join()
     }
 
     fun send(text: String) = send(text.encodeToByteArray())
