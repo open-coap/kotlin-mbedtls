@@ -1,6 +1,9 @@
 Kotlin + mbedtls integration
 ==========================
 
+[![Release](https://jitpack.io/v/open-coap/kotlin-mbedtls.svg)](https://jitpack.io/#open-coap/kotlin-mbedtls)
+[![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](LICENSE)
+
 Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
 ## Features:
