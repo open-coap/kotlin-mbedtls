@@ -10,10 +10,8 @@ git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146' https://github.com/hannes
 git -C ${BUILD_DIR} submodule update --init --recommend-shallow
 
 # configure
-${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
-${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH
+${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
-# ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_TLS_EXT_CID 54
 
 
 ## compile
