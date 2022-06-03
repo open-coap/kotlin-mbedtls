@@ -18,6 +18,7 @@ package org.opencoap.ssl
 
 import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
@@ -26,9 +27,10 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
+import java.io.Closeable
 import java.nio.ByteBuffer
 
-sealed interface SslContext
+sealed interface SslContext : Closeable
 
 class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
@@ -54,9 +56,13 @@ class SslHandshakeContext internal constructor(
                 }
             }
             else -> throw SslException.from(ret).also {
-                logger.warn("Failed handshake: {}" + it.message)
+                logger.warn("Failed handshake: {}", it.message)
             }
         }
+    }
+
+    override fun close() {
+        mbedtls_ssl_free(sslContext)
     }
 }
 
@@ -65,7 +71,7 @@ class SslSession internal constructor(
     private val sslContext: Memory,
     private val recvCallback: ReceiveCallback,
     private val sendCallback: SendCallback,
-) : SslContext {
+) : SslContext, Closeable {
 
     fun getPeerCid(): ByteArray? {
         val mem = Memory(16 + 64 /* max cid len */)
@@ -99,15 +105,20 @@ class SslSession internal constructor(
         return plainBuffer.getByteArray(0, size)
     }
 
-    fun save(): ByteArray {
+    fun saveAndClose(): ByteArray {
         val buffer = Memory(512)
         val outputLen = Memory(8)
         mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify()
+        close()
 
         return buffer.getByteArray(0, outputLen.getLong(0).toInt())
     }
 
     override fun toString(): String {
         return "[cid:${getPeerCid()?.toHex()}, cipher-suite:${getCipherSuite()}]"
+    }
+
+    override fun close() {
+        mbedtls_ssl_free(sslContext)
     }
 }

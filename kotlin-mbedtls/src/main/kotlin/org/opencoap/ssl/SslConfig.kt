@@ -19,8 +19,10 @@ package org.opencoap.ssl
 import com.sun.jna.Callback
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_random
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_seed
+import org.opencoap.ssl.MbedtlsApi.mbedtls_entropy_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_authmode
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_ciphersuites
@@ -30,6 +32,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_min_version
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_psk
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_rng
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_defaults
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_load
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_bio
@@ -38,12 +41,13 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
+import java.io.Closeable
 
 class SslConfig(
     private val conf: Memory,
     private val cid: ByteArray?,
-    private val allocated: Array<Memory> // keep in memory to prevent GC
-) {
+    private val close: Closeable
+) : Closeable by close {
 
     fun newContext(): SslHandshakeContext {
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
@@ -93,9 +97,9 @@ class SslConfig(
         }
 
         private fun create(isServer: Boolean = false, pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String>, cid: ByteArray?): SslConfig {
-            val sslConfig = initMemory(MbedtlsSizeOf.mbedtls_ssl_config, MbedtlsApi::mbedtls_ssl_config_init)
-            val entropy = initMemory(MbedtlsSizeOf.mbedtls_entropy_context, MbedtlsApi::mbedtls_entropy_init)
-            val ctrDrbg = initMemory(MbedtlsSizeOf.mbedtls_ctr_drbg_context, MbedtlsApi::mbedtls_ctr_drbg_init)
+            val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
+            val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi::mbedtls_entropy_init)
+            val ctrDrbg = Memory(MbedtlsSizeOf.mbedtls_ctr_drbg_context).also(MbedtlsApi::mbedtls_ctr_drbg_init)
 
             val endpointType = if (isServer) MbedtlsApi.MBEDTLS_SSL_IS_SERVER else MbedtlsApi.MBEDTLS_SSL_IS_CLIENT
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
@@ -118,7 +122,11 @@ class SslConfig(
             // Logging
             mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)
 
-            return SslConfig(sslConfig, cid, arrayOf(entropy, ctrDrbg))
+            return SslConfig(sslConfig, cid) {
+                mbedtls_ssl_config_free(sslConfig)
+                mbedtls_entropy_free(entropy)
+                mbedtls_ctr_drbg_free(ctrDrbg)
+            }
         }
 
         private fun mapCipherSuites(cipherSuites: List<String>): Memory {
@@ -134,10 +142,6 @@ class SslConfig(
             val id = mbedtls_ssl_get_ciphersuite_id(cipherSuite)
             if (id <= 0) throw SslException("Unknown cipher-suite: $cipherSuite")
             return id
-        }
-
-        private fun initMemory(size: Long, initFunc: (p: Pointer) -> Unit): Memory {
-            return Memory(size).apply(initFunc)
         }
     }
 

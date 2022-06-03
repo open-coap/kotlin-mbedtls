@@ -88,10 +88,10 @@ class DtlsServer(
             }
         } catch (ex: SslException) {
             logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
-            sessions.remove(peerAddress)
+            sessions.remove(peerAddress)?.close()
         } catch (ex: Exception) {
             logger.error(ex.toString(), ex)
-            sessions.remove(peerAddress)
+            sessions.remove(peerAddress)?.close()
         }
     }
 
@@ -106,6 +106,7 @@ class DtlsServer(
 
     fun close() {
         channel.close()
+        sessions.values.forEach(SslContext::close)
         executor.shutdown()
     }
 

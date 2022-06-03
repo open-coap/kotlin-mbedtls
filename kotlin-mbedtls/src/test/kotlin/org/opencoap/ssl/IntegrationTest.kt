@@ -37,19 +37,25 @@ class IntegrationTest {
     @AfterTest
     fun after() {
         serverChannel.close()
+        serverConf.close()
     }
 
     @Test
     fun `should successfully handshake and send data`() {
         val server = DtlsTransmitter.connect(localAddress(6001), serverConf, serverChannel)
-
         val conf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
-        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6001).join()
-
         runGC() // make sure none of needed objects is garbage collected
+
+        // when
+        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6001).join()
+        runGC() // make sure none of needed objects is garbage collected
+
+        // then
         client.send("dupa")
         assertEquals("dupa", server.join().receiveString())
         assertNotNull(client.getCipherSuite())
+        client.close()
+        conf.close()
     }
 
     @Test
@@ -63,6 +69,7 @@ class IntegrationTest {
             runCatching { client.join() }
                 .exceptionOrNull()?.cause?.message?.startsWith("SSL - A fatal alert message was received from our peer") == true
         )
+        conf.close()
     }
 
     @Test
@@ -84,6 +91,7 @@ class IntegrationTest {
         assertEquals("dupa", server.join().receiveString())
 
         assertEquals("01", server.join().getPeerCid()?.toHex())
+        conf.close()
     }
 
     @Test
@@ -112,6 +120,7 @@ class IntegrationTest {
         assertEquals("dupa", server.join().receiveString())
 
         assertEquals("01", server.join().getPeerCid()?.toHex())
+        clientConf.close()
     }
 
     private fun runGC() {

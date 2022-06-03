@@ -84,6 +84,7 @@ class DtlsTransmitter private constructor(
 
     fun close() {
         channel.close()
+        executor.supply(sslSession::close).join()
     }
 
     fun send(data: ByteArray) {
@@ -105,5 +106,5 @@ class DtlsTransmitter private constructor(
 
     fun getCipherSuite() = sslSession.getCipherSuite()
     fun getPeerCid() = sslSession.getPeerCid()
-    fun saveSession() = sslSession.save()
+    fun saveSession() = sslSession.saveAndClose()
 }

@@ -21,7 +21,11 @@ import org.junit.After
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.toByteBuffer
+import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.DatagramChannel
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -43,6 +47,8 @@ class DtlsServerTest {
     @After
     fun tearDown() {
         server.close()
+        conf.close()
+        clientConfig.close()
     }
 
     @Test
@@ -121,5 +127,26 @@ class DtlsServerTest {
 
         assertEquals(1, server.numberOfSessions())
         client.close()
+    }
+
+    @Test
+    fun testMalformedHandshakeMessage() {
+        // given
+        server = DtlsServer.create(conf).listen(echoHandler)
+        val cliChannel: DatagramChannel = DatagramChannel.open()
+            .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
+
+        // when
+        repeat(100) {
+            cliChannel.write(ByteBuffer.wrap(Random.nextBytes(50)))
+        }
+
+        // then
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+        cliChannel.configureBlocking(false)
+        assertEquals(0, cliChannel.read("aaa".toByteBuffer()))
+        cliChannel.close()
     }
 }
