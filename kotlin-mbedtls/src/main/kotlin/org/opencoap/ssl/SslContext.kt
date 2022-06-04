@@ -37,6 +37,7 @@ class SslHandshakeContext internal constructor(
     private val sslContext: Memory,
     private val recvCallback: ReceiveCallback,
     private val sendCallback: SendCallback,
+    private val cid: ByteArray?,
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
     private var startTimestamp: Long = System.currentTimeMillis()
@@ -51,7 +52,7 @@ class SslHandshakeContext internal constructor(
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
             0 -> {
-                SslSession(conf, sslContext, recvCallback, sendCallback).also {
+                SslSession(conf, sslContext, recvCallback, sendCallback, cid).also {
                     logger.info("Connected in {}ms {}", System.currentTimeMillis() - startTimestamp, it)
                 }
             }
@@ -71,6 +72,7 @@ class SslSession internal constructor(
     private val sslContext: Memory,
     private val recvCallback: ReceiveCallback,
     private val sendCallback: SendCallback,
+    val cid: ByteArray?,
 ) : SslContext, Closeable {
 
     fun getPeerCid(): ByteArray? {
@@ -115,7 +117,7 @@ class SslSession internal constructor(
     }
 
     override fun toString(): String {
-        return "[cid:${getPeerCid()?.toHex()}, cipher-suite:${getCipherSuite()}]"
+        return "[CID:${cid?.toHex()}, peerCID:${getPeerCid()?.toHex()}, cipher-suite:${getCipherSuite()}]"
     }
 
     override fun close() {

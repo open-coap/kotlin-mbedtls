@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-package org.opencoap.ssl
+package org.opencoap.ssl.transport
 
-import org.opencoap.ssl.transport.DtlsTransmitter
-import org.opencoap.ssl.transport.toHex
+import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
+import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class IntegrationTest {
+class DtlsTransmitterTest {
 
-    private val serverConf =
-        SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cid = "db04684e33424e42801f0e38023d2438".decodeHex())
+    private val cidSupplier = { Random.nextBytes(16) }
+    private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
     private val serverChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", 1_5684))
 
     @AfterTest
@@ -79,7 +79,7 @@ class IntegrationTest {
         val conf = SslConfig.client(
             pskId = "dupa".encodeToByteArray(),
             pskSecret = byteArrayOf(0x01, 0x02),
-            cid = byteArrayOf(0x01),
+            cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
         )
 
@@ -89,9 +89,31 @@ class IntegrationTest {
         // then
         client.send("dupa")
         assertEquals("dupa", server.join().receiveString())
-
         assertEquals("01", server.join().getPeerCid()?.toHex())
+
+        println("val cliSession = \"" + client.saveSession().toHex() + "\".decodeHex()")
+        println("val srvSession = \"" + server.join().saveSession().toHex() + "\".decodeHex()")
+        client.close()
         conf.close()
+    }
+
+    @Test
+    fun `should reload session`() {
+        val cliSession = "030100003700000f0000006c0300000000629c5d94c0a400208ec2614e8a435bde158e4e387ecbacd089234536ae946fbfea2c4cd7d32f87c3777d703fa9ed1f8edf7ea245f4209aad7e20d1f21d74e89c142eb59b79007c93e0029948e8ed28219d479223015e97d9000000000000000000000000000000629c5d9458b9a4f7362b6ab93a92122d917f45d17a444ce5433708694cd8f3aa629c5d94a80b29e465e41a698d81d8ba929672ab16301b55e2876a03745a73b801011060317fc9746c7fa51aaf88e9c12be5ef0000000000000000000000000000000000000001000001000000000002000000".decodeHex()
+        val srvSession = "030100003700000f0000006c0300000000629c5d94c0a400208ec2614e8a435bde158e4e387ecbacd089234536ae946fbfea2c4cd7d32f87c3777d703fa9ed1f8edf7ea245f4209aad7e20d1f21d74e89c142eb59b79007c93e0029948e8ed28219d479223015e97d9000000000000000000000000000001629c5d9458b9a4f7362b6ab93a92122d917f45d17a444ce5433708694cd8f3aa629c5d94a80b29e465e41a698d81d8ba929672ab16301b55e2876a03745a73b81060317fc9746c7fa51aaf88e9c12be5ef01010000000000000000000000010000000000000003000001000000000001000000".decodeHex()
+        val clientConf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), listOf("TLS-PSK-WITH-AES-128-CCM")) { byteArrayOf(0x01) }
+
+        // when
+        val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), cliSession), 6004)
+        val server = DtlsTransmitter.create(localAddress(6004), serverConf.loadSession(byteArrayOf(), srvSession), 2_5684)
+        runGC()
+
+        // then
+        client.send("hello!")
+        assertEquals("hello!", server.receiveString())
+
+        client.close()
+        server.close()
     }
 
     @Test
@@ -101,7 +123,7 @@ class IntegrationTest {
         val clientConf = SslConfig.client(
             pskId = "dupa".encodeToByteArray(),
             pskSecret = byteArrayOf(0x01, 0x02),
-            cid = byteArrayOf(0x01),
+            cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
         )
 
@@ -113,7 +135,7 @@ class IntegrationTest {
         assertTrue(storedSession.isNotEmpty())
         println(storedSession.size)
         client.close()
-        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.newContext(storedSession))
+        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession))
 
         // then
         client2.send("dupa")
