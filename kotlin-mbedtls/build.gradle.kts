@@ -1,11 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.5.31"
+    id("org.jetbrains.kotlin.jvm") version "1.6.21"
     id("java-library")
     id("maven-publish")
     id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
-    id("org.jlleitschuh.gradle.ktlint") version "10.2.1"
+    id("org.jlleitschuh.gradle.ktlint") version "10.3.0"
 }
 version = kewtVersioning.version
 
@@ -17,13 +17,13 @@ dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    implementation("org.slf4j:slf4j-api:1.7.32")
-    implementation("net.java.dev.jna:jna:5.10.0")
+    implementation("org.slf4j:slf4j-api:1.7.36")
+    implementation("net.java.dev.jna:jna:5.11.0")
 
     // TESTS
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
-    testImplementation("ch.qos.logback:logback-classic:1.2.7")
+    testImplementation("ch.qos.logback:logback-classic:1.2.11")
 }
 
 java {
@@ -40,9 +40,8 @@ kewtVersioning.configuration {
 }
 
 // --- PUBLISHING ---
-val repoName = System.getenv("GITHUB_REPOSITORY") ?: "open-coap/kotlin-mbedtls"
-
 publishing {
+    val repoName = System.getenv("GITHUB_REPOSITORY") ?: "open-coap/kotlin-mbedtls"
     repositories {
         maven {
             name = "GitHubPackages"
