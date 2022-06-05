@@ -16,17 +16,17 @@
 
 package org.opencoap.ssl.transport
 
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.net.InetSocketAddress
 import java.nio.channels.DatagramChannel
 import kotlin.random.Random
-import kotlin.test.AfterTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 class DtlsTransmitterTest {
 
@@ -34,7 +34,7 @@ class DtlsTransmitterTest {
     private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
     private val serverChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", 1_5684))
 
-    @AfterTest
+    @AfterEach
     fun after() {
         serverChannel.close()
         serverConf.close()

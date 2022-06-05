@@ -17,7 +17,10 @@
 package org.opencoap.ssl.transport
 
 import org.awaitility.kotlin.await
-import org.junit.After
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.toByteBuffer
@@ -26,9 +29,6 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import kotlin.random.Random
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class DtlsServerTest {
 
@@ -44,7 +44,7 @@ class DtlsServerTest {
         }
     }
 
-    @After
+    @AfterEach
     fun tearDown() {
         server.close()
         conf.close()

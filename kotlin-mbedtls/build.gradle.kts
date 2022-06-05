@@ -21,7 +21,8 @@ dependencies {
     implementation("net.java.dev.jna:jna:5.11.0")
 
     // TESTS
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("ch.qos.logback:logback-classic:1.2.11")
 }
@@ -37,6 +38,10 @@ tasks.withType<KotlinCompile> {
 
 kewtVersioning.configuration {
     separator = ""
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 // --- PUBLISHING ---
