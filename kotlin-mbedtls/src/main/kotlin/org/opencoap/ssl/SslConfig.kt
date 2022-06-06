@@ -56,15 +56,12 @@ class SslConfig(
         mbedtls_ssl_setup(sslContext, conf).verify()
         mbedtls_ssl_set_timer_cb(sslContext, Pointer.NULL, NoOpsSetDelayCallback, NoOpsGetDelayCallback)
 
-        val sendCallback = SendCallback()
-        val receiveCallback = ReceiveCallback()
-
         val cid = cidSupplier.next()
         mbedtls_ssl_set_cid(sslContext, 1, cid, cid.size).verify()
 
-        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
+        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
-        return SslHandshakeContext(this, sslContext, receiveCallback, sendCallback, cid)
+        return SslHandshakeContext(this, sslContext, cid)
     }
 
     fun loadSession(cid: ByteArray, session: ByteArray): SslSession {
@@ -74,12 +71,9 @@ class SslConfig(
         val buffer = Memory(session.size.toLong())
         buffer.write(0, session, 0, session.size)
         mbedtls_ssl_context_load(sslContext, buffer, buffer.size().toInt()).verify()
+        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
-        val sendCallback = SendCallback()
-        val receiveCallback = ReceiveCallback()
-        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, sendCallback, null, receiveCallback)
-
-        return SslSession(this, sslContext, receiveCallback, sendCallback, cid).also {
+        return SslSession(this, sslContext, cid).also {
             logger.info("Reconnected {}", it)
         }
     }

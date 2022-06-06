@@ -20,24 +20,29 @@ import com.sun.jna.Callback
 import com.sun.jna.Pointer
 import java.nio.ByteBuffer
 
-internal class ReceiveCallback : Callback {
+internal object ReceiveCallback : Callback {
 
-    private var buffer: ByteBuffer? = null
+    private var buffer = ThreadLocal<ByteBuffer>()
 
-    fun setBuffer(buf: ByteBuffer) {
-        buffer = buf
+    operator fun <T> invoke(buf: ByteBuffer, readFun: () -> T): T {
+        this.buffer.set(buf)
+        try {
+            return readFun.invoke()
+        } finally {
+            this.buffer.remove()
+        }
     }
 
     fun callback(ctx: Pointer?, bufPointer: Pointer, len: Int, timeout: Int): Int {
+        val buffer = this.buffer.get()
+        this.buffer.remove()
         try {
-            val buffer = this.buffer
-            this.buffer = null
-
             if (buffer == null || !buffer.hasRemaining()) {
                 return MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
             }
 
-            val size = buffer.remaining()
+            val size = buffer.remaining().coerceAtMost(len)
+            buffer.limit(buffer.position() + size)
             bufPointer
                 .getByteBuffer(0, len.toLong())
                 .put(buffer)
@@ -51,19 +56,30 @@ internal class ReceiveCallback : Callback {
     }
 }
 
-internal class SendCallback : Callback {
-    private var buffer: ByteBuffer? = null
+internal typealias SendBytes = (ByteBuffer) -> Unit
 
-    fun removeBuffer(): ByteBuffer? {
-        val buf = buffer
-        buffer = null
-        return buf
+internal object SendCallback : Callback {
+    private val sendFunc = ThreadLocal<SendBytes>()
+
+    operator fun <T> invoke(send: SendBytes, run: () -> T): T {
+        sendFunc.set(send)
+        try {
+            return run()
+        } finally {
+            sendFunc.remove()
+        }
+    }
+
+    operator fun invoke(run: () -> Unit): ByteBuffer? {
+        var sendBuf: ByteBuffer? = null
+        invoke({ sendBuf = it }, run)
+        return sendBuf
     }
 
     fun callback(ctx: Pointer?, buf: Pointer, len: Int): Int {
         try {
-            if (buffer == null) {
-                buffer = buf.getByteBuffer(0, len.toLong())
+            sendFunc.get()?.also {
+                it.invoke(buf.getByteBuffer(0, len.toLong()))
                 return len
             }
         } catch (e: java.lang.Exception) {

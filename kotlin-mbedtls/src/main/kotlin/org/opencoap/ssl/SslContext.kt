@@ -35,24 +35,22 @@ sealed interface SslContext : Closeable
 class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
-    private val recvCallback: ReceiveCallback,
-    private val sendCallback: SendCallback,
     private val cid: ByteArray?,
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
     private var startTimestamp: Long = System.currentTimeMillis()
 
     fun step(receivedBuf: ByteBuffer, send: (ByteBuffer) -> Unit): SslContext {
-        recvCallback.setBuffer(receivedBuf)
-        val ret = mbedtls_ssl_handshake(sslContext)
-
-        // send outgoing (if any)
-        sendCallback.removeBuffer()?.also(send)
+        val ret = ReceiveCallback.invoke(receivedBuf) {
+            SendCallback(send) {
+                mbedtls_ssl_handshake(sslContext)
+            }
+        }
 
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
             0 -> {
-                SslSession(conf, sslContext, recvCallback, sendCallback, cid).also {
+                SslSession(conf, sslContext, cid).also {
                     logger.info("Connected in {}ms {}", System.currentTimeMillis() - startTimestamp, it)
                 }
             }
@@ -70,8 +68,6 @@ class SslHandshakeContext internal constructor(
 class SslSession internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
-    private val recvCallback: ReceiveCallback,
-    private val sendCallback: SendCallback,
     val cid: ByteArray?,
 ) : SslContext, Closeable {
 
@@ -94,16 +90,18 @@ class SslSession internal constructor(
     fun encrypt(data: ByteArray): ByteBuffer {
         val buffer = Memory(data.size.toLong())
         buffer.write(0, data, 0, data.size)
-        mbedtls_ssl_write(sslContext, buffer, data.size).verify()
 
-        return sendCallback.removeBuffer() ?: ByteBuffer.allocate(0)
+        return SendCallback {
+            mbedtls_ssl_write(sslContext, buffer, data.size).verify()
+        } ?: ByteBuffer.allocate(0)
     }
 
     fun decrypt(encBuffer: ByteBuffer): ByteArray {
-        recvCallback.setBuffer(encBuffer)
-
         val plainBuffer = Memory(encBuffer.remaining().toLong())
-        val size = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.size().toInt()).verify()
+        val size = ReceiveCallback(encBuffer) {
+            mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.size().toInt()).verify()
+        }
+
         return plainBuffer.getByteArray(0, size)
     }
 

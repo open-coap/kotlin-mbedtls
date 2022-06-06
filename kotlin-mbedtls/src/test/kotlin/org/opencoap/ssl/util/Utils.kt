@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.util
 
+import com.sun.jna.Memory
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -38,4 +39,16 @@ fun String.toByteBuffer(): ByteBuffer = ByteBuffer.wrap(this.encodeToByteArray()
 
 fun <T> CompletableFuture<T>.await(): T {
     return this.get(5, TimeUnit.SECONDS)
+}
+
+fun ByteBuffer.decodeToString(): String {
+    val bb = ByteArray(this.remaining())
+    this.get(bb)
+    return bb.decodeToString()
+}
+
+fun String.toMemory(): Memory {
+    return Memory(this.length.toLong()).also {
+        it.write(0, this.encodeToByteArray(), 0, this.length)
+    }
 }

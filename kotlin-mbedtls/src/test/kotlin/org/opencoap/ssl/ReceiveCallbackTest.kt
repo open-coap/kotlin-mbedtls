@@ -17,22 +17,22 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
-import com.sun.jna.Native
 import com.sun.jna.Pointer
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.util.decodeToString
+import org.opencoap.ssl.util.toByteBuffer
+import org.opencoap.ssl.util.toMemory
 import java.nio.ByteBuffer
 
 internal class ReceiveCallbackTest {
 
-    private val recv = ReceiveCallback()
-    private val send = SendCallback()
+    private val send = SendCallback
 
     @Test
     fun noDataAvailable() {
         val mem = Memory(100)
-        val ret = recv.callback(Pointer.NULL, mem, 100, 0)
+        val ret = ReceiveCallback.callback(Pointer.NULL, mem, 100, 0)
 
         assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, ret)
     }
@@ -40,14 +40,13 @@ internal class ReceiveCallbackTest {
     @Test
     fun `should copy data to pointer`() {
         // given
-        val buf = ByteBuffer.allocate(10)
-        buf.put("dupa".encodeToByteArray())
-        buf.flip()
-        recv.setBuffer(buf)
+        val buf = "dupa".toByteBuffer()
+        val mem = Memory(100)
 
         // when
-        val mem = Memory(100)
-        val ret = recv.callback(Pointer.NULL, mem, 100, 0)
+        val ret = ReceiveCallback.invoke(buf) {
+            ReceiveCallback.callback(Pointer.NULL, mem, 100, 0)
+        }
 
         // then
         assertEquals(4, ret)
@@ -57,38 +56,47 @@ internal class ReceiveCallbackTest {
     @Test
     fun `should copy data to pointer - from buffer position`() {
         // given
-        val buf = ByteBuffer.allocate(10)
+        val buf = ByteBuffer.allocateDirect(10)
         buf.put("aaadupa".encodeToByteArray())
         buf.flip()
         buf.position(3)
-        recv.setBuffer(buf)
+        val mem = Memory(100)
 
         // when
-        val mem = Memory(100)
-        val ret = recv.callback(Pointer.NULL, mem, 100, 0)
+        val ret = ReceiveCallback.invoke(buf) {
+            ReceiveCallback.callback(Pointer.NULL, mem, 2, 0)
+        }
 
         // then
-        assertEquals(4, ret)
-        assertEquals("dupa", mem.getByteArray(0, 4).decodeToString())
+        assertEquals(2, ret)
+        assertEquals("du", mem.getByteArray(0, ret).decodeToString())
 
         // and
-        assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, recv.callback(Pointer.NULL, mem, 100, 0))
+        assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, ReceiveCallback.callback(Pointer.NULL, mem, 100, 0))
     }
 
     @Test
-    fun `should recv callback`() {
-        val mem = Memory(100)
-        mem.write(0, "dupa".encodeToByteArray(), 0, 4)
+    fun `should return sent bytes`() {
+        val sentBuf = send.invoke {
+            assertEquals(4, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
+        }
 
-        // when
-        val ret = send.callback(Pointer.NULL, mem, 4)
-        val ret2 = send.callback(Pointer.NULL, mem, 4)
+        assertEquals("dupa", sentBuf?.decodeToString())
+    }
 
-        // then
-        assertEquals(4, ret)
-        assertEquals(MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED, ret2)
-        assertEquals(mem, Native.getDirectBufferPointer(send.removeBuffer()))
-        // and
-        assertNull(send.removeBuffer())
+    @Test
+    fun `should sent multiple times`() {
+        var index = 0
+        send.invoke({ index += 1 }, {
+            assertEquals(4, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
+            assertEquals(4, send.callback(Pointer.NULL, "dupa2".toMemory(), 4))
+        })
+
+        assertEquals(2, index)
+    }
+
+    @Test
+    fun `should return failed when called outside invoke scope`() {
+        assertEquals(MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
     }
 }
