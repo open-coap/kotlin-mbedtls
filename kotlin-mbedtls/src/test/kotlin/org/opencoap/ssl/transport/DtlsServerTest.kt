@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
+import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.toByteBuffer
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -55,7 +56,7 @@ class DtlsServerTest {
     fun testSingleConnection() {
         server = DtlsServer.create(conf).listen(echoHandler)
 
-        val client = DtlsTransmitter.connect(server, clientConfig).join()
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
 
         client.send("perse")
         assertEquals("perse:resp", client.receiveString())
@@ -69,7 +70,7 @@ class DtlsServerTest {
         server = DtlsServer.create(conf).listen(echoHandler)
 
         val clients: List<DtlsTransmitter> = (1..10).map {
-            val client = DtlsTransmitter.connect(server, clientConfig).join()
+            val client = DtlsTransmitter.connect(server, clientConfig).await()
 
             client.send("dupa$it")
             assertEquals("dupa$it:resp", client.receiveString())
@@ -88,7 +89,7 @@ class DtlsServerTest {
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.first, byteArrayOf(-128)))
 
         // when
-        assertTrue(runCatching { clientFut.join() }.exceptionOrNull()?.cause is SslException)
+        assertTrue(runCatching { clientFut.await() }.exceptionOrNull()?.cause is SslException)
 
         // then
         await.untilAsserted {
@@ -100,7 +101,7 @@ class DtlsServerTest {
     fun testReceiveMalformedPacket() {
         // given
         server = DtlsServer.create(conf).listen(echoHandler)
-        val client = DtlsTransmitter.connect(server, clientConfig).join()
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("perse")
 
         // when
@@ -116,7 +117,7 @@ class DtlsServerTest {
     @Test
     fun shouldCatchExceptionFromHandler() {
         server = DtlsServer.create(conf).listen(echoHandler)
-        val client = DtlsTransmitter.connect(server, clientConfig).join()
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
 
         // when
         client.send("error")

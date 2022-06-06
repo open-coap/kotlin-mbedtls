@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.net.InetSocketAddress
@@ -47,12 +48,12 @@ class DtlsTransmitterTest {
         runGC() // make sure none of needed objects is garbage collected
 
         // when
-        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6001).join()
+        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6001).await()
         runGC() // make sure none of needed objects is garbage collected
 
         // then
         client.send("dupa")
-        assertEquals("dupa", server.join().receiveString())
+        assertEquals("dupa", server.await().receiveString())
         assertNotNull(client.getCipherSuite())
         client.close()
         conf.close()
@@ -66,7 +67,7 @@ class DtlsTransmitterTest {
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6002)
 
         assertTrue(
-            runCatching { client.join() }
+            runCatching { client.await() }
                 .exceptionOrNull()?.cause?.message?.startsWith("SSL - A fatal alert message was received from our peer") == true
         )
         conf.close()
@@ -84,15 +85,15 @@ class DtlsTransmitterTest {
         )
 
         // when
-        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6003).join()
+        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6003).await()
 
         // then
         client.send("dupa")
-        assertEquals("dupa", server.join().receiveString())
-        assertEquals("01", server.join().getPeerCid()?.toHex())
+        assertEquals("dupa", server.await().receiveString())
+        assertEquals("01", server.await().getPeerCid()?.toHex())
 
         println("val cliSession = \"" + client.saveSession().toHex() + "\".decodeHex()")
-        println("val srvSession = \"" + server.join().saveSession().toHex() + "\".decodeHex()")
+        println("val srvSession = \"" + server.await().saveSession().toHex() + "\".decodeHex()")
         client.close()
         conf.close()
     }
@@ -128,7 +129,7 @@ class DtlsTransmitterTest {
         )
 
         // and
-        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).join()
+        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).await()
 
         // when
         val storedSession: ByteArray = client.saveSession()
@@ -139,9 +140,9 @@ class DtlsTransmitterTest {
 
         // then
         client2.send("dupa")
-        assertEquals("dupa", server.join().receiveString())
+        assertEquals("dupa", server.await().receiveString())
 
-        assertEquals("01", server.join().getPeerCid()?.toHex())
+        assertEquals("01", server.await().getPeerCid()?.toHex())
         clientConf.close()
     }
 

@@ -19,6 +19,8 @@ package org.opencoap.ssl.util
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 fun localAddress(port: Int): InetSocketAddress {
     return InetSocketAddress(InetAddress.getLocalHost(), port)
@@ -33,3 +35,7 @@ fun String.decodeHex(): ByteArray {
 }
 
 fun String.toByteBuffer(): ByteBuffer = ByteBuffer.wrap(this.encodeToByteArray())
+
+fun <T> CompletableFuture<T>.await(): T {
+    return this.get(5, TimeUnit.SECONDS)
+}
