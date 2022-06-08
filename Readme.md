@@ -37,3 +37,7 @@ val response: CompletableFuture<ByteArray> = clientSession.read()
 
 
 - `./compileMbedtls.sh`            clone and compile mbedtls
+
+
+- `./gradlew release`              create next tag in Git and push to origin
+- `./gradlew currentVersion`       print current version

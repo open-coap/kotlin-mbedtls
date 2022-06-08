@@ -3,3 +3,5 @@ build
 .idea
 !.idea/codeStyles
 !.idea/copyright
+*.ks
+*.cer
