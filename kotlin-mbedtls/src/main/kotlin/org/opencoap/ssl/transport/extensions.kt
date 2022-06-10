@@ -21,15 +21,16 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
 import java.nio.channels.DatagramChannel
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.function.Supplier
 
-internal fun DatagramChannel.listen(handler: (InetSocketAddress, ByteBuffer) -> Unit) {
+internal fun DatagramChannel.listen(bufPool: BlockingQueue<ByteBuffer>, handler: (InetSocketAddress, ByteBuffer) -> Unit) {
     val task = Runnable {
-        val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
         try {
             while (this.isOpen) {
+                val buffer = bufPool.take()
                 buffer.clear()
                 val peerAddress = this.receive(buffer) as InetSocketAddress
                 buffer.flip()

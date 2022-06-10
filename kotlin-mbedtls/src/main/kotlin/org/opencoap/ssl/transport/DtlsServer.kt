@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -54,9 +56,16 @@ class DtlsServer(
     private val sessions = HashMap<InetSocketAddress, SslContext>()
 
     fun listen(handler: (InetSocketAddress, ByteArray) -> Unit): DtlsServer {
-        channel.listen { adr: InetSocketAddress, buf: ByteBuffer ->
-            // need to handle incoming message in executor for thread safety
-            executor.submit { onReceived(adr, buf, wrap(handler)) }.get()
+        val bufPool: BlockingQueue<ByteBuffer> = ArrayBlockingQueue(1)
+        bufPool.put(ByteBuffer.allocateDirect(16384))
+
+        val nonThrowingHandler = wrap(handler)
+        channel.listen(bufPool) { adr: InetSocketAddress, buf: ByteBuffer ->
+            executor.execute {
+                // need to handle incoming message in executor for thread safety
+                onReceived(adr, buf, nonThrowingHandler)
+                bufPool.put(buf) // return buffer to the pool
+            }
         }
         return this
     }
@@ -74,17 +83,12 @@ class DtlsServer(
 
     private fun onReceived(peerAddress: InetSocketAddress, buffer: ByteBuffer, handler: (InetSocketAddress, ByteArray) -> Unit) {
         try {
-            when (val ctx = sessions[peerAddress]) {
+            when (val ctx = sessions.getOrPut(peerAddress, sslConfig::newContext)) {
                 is SslSession ->
                     handler.invoke(peerAddress, ctx.decrypt(buffer))
 
                 is SslHandshakeContext ->
                     sessions[peerAddress] = ctx.step(buffer) { channel.send(it, peerAddress) }
-
-                null -> {
-                    sessions[peerAddress] = sslConfig.newContext()
-                    onReceived(peerAddress, buffer, handler)
-                }
             }
         } catch (ex: SslException) {
             logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
