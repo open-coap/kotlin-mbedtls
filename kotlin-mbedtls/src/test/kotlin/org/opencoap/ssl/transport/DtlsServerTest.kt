@@ -107,7 +107,7 @@ class DtlsServerTest {
         client.send("perse")
 
         // when
-        client.channel.write("malformed dtls packet".toByteBuffer())
+        client.cnnTrans.send("malformed dtls packet".toByteBuffer())
 
         // then
         await.untilAsserted {

@@ -31,6 +31,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_ciphersuites
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dbg
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dtls_cookies
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_handshake_timeout
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_min_version
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_own_cert
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_psk
@@ -52,6 +53,8 @@ import java.io.Closeable
 import java.security.Key
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
+import java.time.Duration
+import java.time.Duration.ofSeconds
 
 class SslConfig(
     private val conf: Memory,
@@ -93,26 +96,26 @@ class SslConfig(
 
         @JvmStatic
         @JvmOverloads
-        fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier): SslConfig {
-            return create(false, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0)
+        fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(false, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0, retransmitMin, retransmitMax)
         }
 
         @JvmStatic
         @JvmOverloads
-        fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier): SslConfig {
-            return create(true, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0)
+        fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(true, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0, retransmitMin, retransmitMax)
         }
 
         @JvmStatic
         @JvmOverloads
-        fun client(ownCertChain: List<X509Certificate> = listOf(), privateKey: PrivateKey? = null, trustedCerts: List<X509Certificate>, cipherSuites: List<String> = listOf(), cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0): SslConfig {
-            return create(false, null, null, cipherSuites, cidSupplier, ownCertChain, privateKey, trustedCerts, true, mtu)
+        fun client(ownCertChain: List<X509Certificate> = listOf(), privateKey: PrivateKey? = null, trustedCerts: List<X509Certificate>, cipherSuites: List<String> = listOf(), cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(false, null, null, cipherSuites, cidSupplier, ownCertChain, privateKey, trustedCerts, true, mtu, retransmitMin, retransmitMax)
         }
 
         @JvmStatic
         @JvmOverloads
-        fun server(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCerts: List<X509Certificate> = listOf(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0): SslConfig {
-            return create(true, null, null, listOf(), cidSupplier, ownCertChain, privateKey, trustedCerts, reqAuthentication, mtu)
+        fun server(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCerts: List<X509Certificate> = listOf(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(true, null, null, listOf(), cidSupplier, ownCertChain, privateKey, trustedCerts, reqAuthentication, mtu, retransmitMin, retransmitMax)
         }
 
         private fun create(
@@ -126,6 +129,8 @@ class SslConfig(
             trustedCerts: List<X509Certificate>,
             requiredAuthMode: Boolean = true,
             mtu: Int,
+            retransmitMin: Duration,
+            retransmitMax: Duration,
         ): SslConfig {
 
             val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
@@ -173,6 +178,9 @@ class SslConfig(
                 mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0, mbedtls_ctr_drbg_random, ctrDrbg)
                 mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
             }
+
+            // retransmission timeout
+            mbedtls_ssl_conf_handshake_timeout(sslConfig, retransmitMin.toMillis().toInt(), retransmitMax.toMillis().toInt())
 
             // Logging
             mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)

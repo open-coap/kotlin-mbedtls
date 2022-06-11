@@ -21,6 +21,8 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
 import java.nio.channels.DatagramChannel
+import java.nio.channels.Selector
+import java.time.Duration
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
@@ -42,6 +44,14 @@ internal fun DatagramChannel.listen(bufPool: BlockingQueue<ByteBuffer>, handler:
     }
 
     Thread(task, "udp-io (:" + (localAddress as InetSocketAddress).port + ")").start()
+}
+
+internal fun DatagramChannel.receive(buffer: ByteBuffer, selector: Selector, timeout: Duration): InetSocketAddress? {
+    buffer.clear()
+    selector.select(timeout.toMillis())
+    val sourceAddress = this.receive(buffer) as? InetSocketAddress
+    buffer.flip()
+    return sourceAddress
 }
 
 internal fun <T> Executor.supply(supplier: Supplier<T>): CompletableFuture<T> {

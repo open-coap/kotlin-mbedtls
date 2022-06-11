@@ -40,6 +40,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_conf_ciphersuites(sslConfig: Pointer, cipherSuiteIds: Memory): Int
     external fun mbedtls_ssl_conf_dbg(mbedtlsSslConfig: Pointer, callback: Callback, pDbg: Pointer?)
     external fun mbedtls_ssl_conf_dtls_cookies(mbedtlsSslConfig: Pointer, fCookieWrite: Function?, fCookieCheck: Function?, pCookie: Pointer?)
+    external fun mbedtls_ssl_conf_handshake_timeout(sslConfig: Pointer, min: Int, max: Int)
     external fun mbedtls_ssl_conf_min_version(mbedtlsSslConfig: Pointer, major: Int, minor: Int)
     external fun mbedtls_ssl_conf_psk(conf: Pointer, psk: ByteArray, pskLen: Int, pskIdentity: ByteArray, pskIdentityLen: Int): Int
     external fun mbedtls_ssl_conf_rng(sslContext: Pointer, mbedtlsCtrDrbgRandom: Pointer, ctrDrbg: Pointer)

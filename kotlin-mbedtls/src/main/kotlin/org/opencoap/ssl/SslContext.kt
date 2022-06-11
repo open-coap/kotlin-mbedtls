@@ -29,6 +29,7 @@ import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.nio.ByteBuffer
+import java.time.Duration
 
 sealed interface SslContext : Closeable
 
@@ -39,11 +40,18 @@ class SslHandshakeContext internal constructor(
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
     private var startTimestamp: Long = System.currentTimeMillis()
+    private var stepTimeout: Duration = Duration.ZERO
 
-    fun step(receivedBuf: ByteBuffer, send: (ByteBuffer) -> Unit): SslContext {
+    fun step(send: (ByteBuffer) -> Unit): SslContext {
+        return step(null, send)
+    }
+
+    fun step(receivedBuf: ByteBuffer?, send: (ByteBuffer) -> Unit): SslContext {
         val ret = ReceiveCallback.invoke(receivedBuf) {
             SendCallback(send) {
                 mbedtls_ssl_handshake(sslContext)
+            }.also {
+                stepTimeout = Duration.ofMillis(ReceiveCallback.timeout().toLong())
             }
         }
 
@@ -59,6 +67,9 @@ class SslHandshakeContext internal constructor(
             }
         }
     }
+
+    val readTimeout: Duration
+        get() = stepTimeout
 
     override fun close() {
         mbedtls_ssl_free(sslContext)

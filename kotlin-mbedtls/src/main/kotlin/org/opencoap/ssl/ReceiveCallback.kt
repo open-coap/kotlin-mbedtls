@@ -23,31 +23,42 @@ import java.nio.ByteBuffer
 internal object ReceiveCallback : Callback {
 
     private var buffer = ThreadLocal<ByteBuffer>()
+    private var timeout = ThreadLocal<Int>()
 
-    operator fun <T> invoke(buf: ByteBuffer, readFun: () -> T): T {
+    operator fun <T> invoke(buf: ByteBuffer?, readFun: () -> T): T {
         this.buffer.set(buf)
         try {
             return readFun.invoke()
         } finally {
             this.buffer.remove()
+            this.timeout.remove()
         }
+    }
+
+    fun timeout(): Int {
+        return timeout.get() ?: 0
     }
 
     fun callback(ctx: Pointer?, bufPointer: Pointer, len: Int, timeout: Int): Int {
         val buffer = this.buffer.get()
         this.buffer.remove()
+        this.timeout.set(timeout)
         try {
-            if (buffer == null || !buffer.hasRemaining()) {
-                return MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
+            return when {
+                buffer == null -> MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
+                !buffer.hasRemaining() && timeout == 0 -> MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
+                !buffer.hasRemaining() -> MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT
+
+                else -> {
+                    val size = buffer.remaining().coerceAtMost(len)
+                    buffer.limit(buffer.position() + size)
+                    bufPointer
+                        .getByteBuffer(0, len.toLong())
+                        .put(buffer)
+
+                    size
+                }
             }
-
-            val size = buffer.remaining().coerceAtMost(len)
-            buffer.limit(buffer.position() + size)
-            bufPointer
-                .getByteBuffer(0, len.toLong())
-                .put(buffer)
-
-            return size
         } catch (e: Exception) {
             // need to catch all exceptions to avoid crashing
             e.printStackTrace()

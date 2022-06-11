@@ -20,12 +20,14 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
-import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -35,13 +37,11 @@ import java.util.concurrent.atomic.AtomicInteger
 DTLS transmitter based on DatagramChannel. Uses blocking calls.
  */
 class DtlsTransmitter private constructor(
-    internal val channel: DatagramChannel,
+    internal val cnnTrans: ConnectedDatagramTransmitter,
     private val sslSession: SslSession,
     private val executor: ExecutorService
 ) : Closeable {
     companion object {
-        private val logger = LoggerFactory.getLogger(DtlsTransmitter::class.java)
-
         private val threadIndex = AtomicInteger(0)
         private fun newSingleExecutor(): ExecutorService {
             return Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
@@ -51,67 +51,70 @@ class DtlsTransmitter private constructor(
             return connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf)
         }
 
+        fun connect(peerCnnTrans: ConnectedDatagramTransmitter, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
+            return connect(peerCnnTrans.localAddress(), conf, bindPort)
+        }
+
         fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
-            val channel: DatagramChannel = DatagramChannel.open()
-                .bind(InetSocketAddress("0.0.0.0", bindPort))
-                .connect(dest)
-
-            return connect(dest, conf, channel)
+            return connect(conf, ConnectedDatagramTransmitter.connect(dest, bindPort))
         }
 
-        fun connect(dest: InetSocketAddress, conf: SslConfig, channel: DatagramChannel): CompletableFuture<DtlsTransmitter> {
+        fun connect(conf: SslConfig, channel: ConnectedDatagramTransmitter): CompletableFuture<DtlsTransmitter> {
             val executor = newSingleExecutor()
+
             return executor.supply {
-                val sslSession = handshake(conf.newContext(), channel, dest)
-                DtlsTransmitter(channel, sslSession, executor)
+                try {
+                    val sslSession = handshake(conf.newContext(), channel)
+                    DtlsTransmitter(channel, sslSession, executor)
+                } catch (ex: Exception) {
+                    channel.close()
+                    throw ex
+                }
             }
         }
 
-        private fun handshake(handshakeCtx: SslHandshakeContext, channel: DatagramChannel, dest: InetSocketAddress): SslSession {
-            val send: (ByteBuffer) -> Unit = {
-                channel.send(it, dest)
-                logger.debug("[{}] DTLS handshake sent {} bytes", dest, it.position())
-            }
+        private fun handshake(handshakeCtx: SslHandshakeContext, channel: ConnectedDatagramTransmitter): SslSession {
+            return handshake(handshakeCtx, channel::send, channel::receive)
+        }
 
+        internal fun handshake(handshakeCtx: SslHandshakeContext, send: (ByteBuffer) -> Unit, receive: (ByteBuffer, Duration) -> Unit): SslSession {
             val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
-            buffer.clear().flip()
-            var sslContext: SslContext = handshakeCtx.step(buffer, send)
 
+            var sslContext: SslContext = handshakeCtx.step(send)
             while (sslContext is SslHandshakeContext) {
-                buffer.clear()
-                channel.receive(buffer)
-                buffer.flip()
-                logger.debug("[{}] DTLS handshake recv {} bytes", dest, buffer.remaining())
+                receive(buffer, sslContext.readTimeout)
                 sslContext = handshakeCtx.step(buffer, send)
             }
             return sslContext as SslSession
         }
 
         fun create(dest: InetSocketAddress, sslSession: SslSession, bindPort: Int = 0): DtlsTransmitter {
-            val channel: DatagramChannel = DatagramChannel.open()
-                .bind(InetSocketAddress("0.0.0.0", bindPort))
-                .connect(dest)
+            return create(sslSession, ConnectedDatagramTransmitter.connect(dest, bindPort))
+        }
 
-            return DtlsTransmitter(channel, sslSession, newSingleExecutor())
+        fun create(sslSession: SslSession, cnnTransmitter: ConnectedDatagramTransmitter): DtlsTransmitter {
+            return DtlsTransmitter(cnnTransmitter, sslSession, newSingleExecutor())
         }
     }
 
     override fun close() {
-        channel.close()
+        cnnTrans.close()
         executor.supply(sslSession::close).join()
     }
 
     fun send(data: ByteArray) {
-        executor.supply { channel.write(sslSession.encrypt(data)) }.join()
+        executor.supply { cnnTrans.send(sslSession.encrypt(data)) }.join()
     }
 
     fun send(text: String) = send(text.encodeToByteArray())
 
-    fun receive(): ByteArray {
+    fun receive(timeout: Duration = Duration.ofSeconds(30)): ByteArray {
         val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
-        buffer.clear()
-        channel.receive(buffer)
-        buffer.flip()
+
+        cnnTrans.receive(buffer, timeout)
+        if (!buffer.hasRemaining()) {
+            return byteArrayOf()
+        }
 
         return executor.supply { sslSession.decrypt(buffer) }.join()
     }
@@ -121,4 +124,45 @@ class DtlsTransmitter private constructor(
     fun getCipherSuite() = sslSession.getCipherSuite()
     fun getPeerCid() = sslSession.getPeerCid()
     fun saveSession() = sslSession.saveAndClose()
+}
+
+interface ConnectedDatagramTransmitter : Closeable {
+    fun send(buf: ByteBuffer)
+    fun receive(buf: ByteBuffer, timeout: Duration)
+    fun localAddress(): InetSocketAddress
+
+    companion object {
+        fun connect(dest: InetSocketAddress, listenPort: Int): ConnectedDatagramTransmitter {
+            val channel: DatagramChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", listenPort)).connect(dest)
+            channel.configureBlocking(false)
+            val selector: Selector = Selector.open()
+            channel.register(selector, SelectionKey.OP_READ)
+
+            return ConnectedDatagramTransmitterImpl(channel, selector)
+        }
+    }
+}
+
+class ConnectedDatagramTransmitterImpl(
+    private val channel: DatagramChannel,
+    private val selector: Selector
+) : ConnectedDatagramTransmitter {
+    init {
+        require(channel.isConnected)
+    }
+
+    override fun send(buf: ByteBuffer) {
+        channel.write(buf)
+    }
+
+    override fun receive(buf: ByteBuffer, timeout: Duration) {
+        channel.receive(buf, selector, timeout)
+    }
+
+    override fun localAddress() = (channel.localAddress as InetSocketAddress)
+
+    override fun close() {
+        selector.close()
+        channel.close()
+    }
 }

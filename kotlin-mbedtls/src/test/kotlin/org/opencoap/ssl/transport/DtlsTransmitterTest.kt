@@ -26,25 +26,30 @@ import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.runGC
-import java.net.InetSocketAddress
-import java.nio.channels.DatagramChannel
+import java.time.Duration
+import java.util.concurrent.CompletableFuture
 import kotlin.random.Random
 
 class DtlsTransmitterTest {
 
     private val cidSupplier = { Random.nextBytes(16) }
     private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
-    private val serverChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", 1_5684))
+    private lateinit var srvTrans: ConnectedDatagramTransmitter
 
     @AfterEach
     fun after() {
-        serverChannel.close()
+        srvTrans.close()
         serverConf.close()
+    }
+
+    private fun newServerDtlsTransmitter(destLocalPort: Int): CompletableFuture<DtlsTransmitter> {
+        srvTrans = ConnectedDatagramTransmitter.connect(localAddress(destLocalPort), 1_5684)
+        return DtlsTransmitter.connect(serverConf, srvTrans)
     }
 
     @Test
     fun `should successfully handshake and send data`() {
-        val server = DtlsTransmitter.connect(localAddress(6001), serverConf, serverChannel)
+        val server = newServerDtlsTransmitter(6001)
         val conf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
         runGC() // make sure none of needed objects is garbage collected
 
@@ -55,28 +60,35 @@ class DtlsTransmitterTest {
         // then
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
+        // and read with timeout
+        assertTrue(client.receive(Duration.ofMillis(1)).isEmpty())
+
         assertNotNull(client.getCipherSuite())
         client.close()
         conf.close()
+        server.await().close()
     }
 
     @Test
     fun `should fail to handshake - wrong psk`() {
-        val server = DtlsTransmitter.connect(localAddress(6002), serverConf, serverChannel)
+        val server = newServerDtlsTransmitter(6002)
 
         val conf = SslConfig.client("dupa".encodeToByteArray(), "bad".encodeToByteArray())
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6002)
 
-        assertTrue(
-            runCatching { client.await() }
-                .exceptionOrNull()?.cause?.message?.startsWith("SSL - A fatal alert message was received from our peer") == true
+        val result = runCatching { client.await() }
+
+        // then
+        assertEquals(
+            "SSL - A fatal alert message was received from our peer [-30592]",
+            result.exceptionOrNull()?.cause?.message
         )
         conf.close()
     }
 
     @Test
     fun `should use CID`() {
-        val server = DtlsTransmitter.connect(localAddress(6003), serverConf, serverChannel)
+        val server = newServerDtlsTransmitter(6003)
 
         val conf = SslConfig.client(
             pskId = "dupa".encodeToByteArray(),
@@ -97,17 +109,19 @@ class DtlsTransmitterTest {
         println("val srvSession = \"" + server.await().saveSession().toHex() + "\".decodeHex()")
         client.close()
         conf.close()
+        server.await().close()
     }
 
     @Test
     fun `should reload session`() {
         val cliSession = "030100003700000f0000006c0300000000629c5d94c0a400208ec2614e8a435bde158e4e387ecbacd089234536ae946fbfea2c4cd7d32f87c3777d703fa9ed1f8edf7ea245f4209aad7e20d1f21d74e89c142eb59b79007c93e0029948e8ed28219d479223015e97d9000000000000000000000000000000629c5d9458b9a4f7362b6ab93a92122d917f45d17a444ce5433708694cd8f3aa629c5d94a80b29e465e41a698d81d8ba929672ab16301b55e2876a03745a73b801011060317fc9746c7fa51aaf88e9c12be5ef0000000000000000000000000000000000000001000001000000000002000000".decodeHex()
         val srvSession = "030100003700000f0000006c0300000000629c5d94c0a400208ec2614e8a435bde158e4e387ecbacd089234536ae946fbfea2c4cd7d32f87c3777d703fa9ed1f8edf7ea245f4209aad7e20d1f21d74e89c142eb59b79007c93e0029948e8ed28219d479223015e97d9000000000000000000000000000001629c5d9458b9a4f7362b6ab93a92122d917f45d17a444ce5433708694cd8f3aa629c5d94a80b29e465e41a698d81d8ba929672ab16301b55e2876a03745a73b81060317fc9746c7fa51aaf88e9c12be5ef01010000000000000000000000010000000000000003000001000000000001000000".decodeHex()
-        val clientConf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), listOf("TLS-PSK-WITH-AES-128-CCM")) { byteArrayOf(0x01) }
+        val clientConf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), listOf("TLS-PSK-WITH-AES-128-CCM"), { byteArrayOf(0x01) })
+        srvTrans = ConnectedDatagramTransmitter.connect(localAddress(6004), 2_5684)
 
         // when
         val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), cliSession), 6004)
-        val server = DtlsTransmitter.create(localAddress(6004), serverConf.loadSession(byteArrayOf(), srvSession), 2_5684)
+        val server = DtlsTransmitter.create(serverConf.loadSession(byteArrayOf(), srvSession), srvTrans)
         runGC()
 
         // then
@@ -120,7 +134,7 @@ class DtlsTransmitterTest {
 
     @Test
     fun `should reuse session`() {
-        val server = DtlsTransmitter.connect(localAddress(6004), serverConf, serverChannel)
+        val server = newServerDtlsTransmitter(6004)
 
         val clientConf = SslConfig.client(
             pskId = "dupa".encodeToByteArray(),
@@ -137,7 +151,7 @@ class DtlsTransmitterTest {
         assertTrue(storedSession.isNotEmpty())
         println(storedSession.size)
         client.close()
-        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession))
+        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession), 6004)
 
         // then
         client2.send("dupa")
@@ -145,5 +159,6 @@ class DtlsTransmitterTest {
 
         assertEquals("01", server.await().getPeerCid()?.toHex())
         clientConf.close()
+        server.await().close()
     }
 }
