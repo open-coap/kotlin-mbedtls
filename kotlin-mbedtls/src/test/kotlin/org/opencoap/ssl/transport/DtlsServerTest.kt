@@ -25,11 +25,14 @@ import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.await
+import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.toByteBuffer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
+import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 class DtlsServerTest {
@@ -39,6 +42,7 @@ class DtlsServerTest {
     private val certConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
     private val clientConfig = SslConfig.client(psk.first, psk.second)
     private lateinit var server: DtlsServer
+
     private val echoHandler: (InetSocketAddress, ByteArray) -> Unit = { adr: InetSocketAddress, packet: ByteArray ->
         if (packet.decodeToString() == "error") {
             throw Exception("error")
@@ -69,18 +73,26 @@ class DtlsServerTest {
 
     @Test
     fun testMultipleConnections() {
-        server = DtlsServer.create(conf).listen(echoHandler)
+        val clientCertConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), retransmitMin = Duration.ofSeconds(60), retransmitMax = Duration.ofSeconds(60))
+        server = DtlsServer.create(certConf).listen(echoHandler)
 
-        val clients: List<DtlsTransmitter> = (1..10).map {
-            val client = DtlsTransmitter.connect(server, clientConfig).await()
+        val MAX = 20
+        val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
 
-            client.send("dupa$it")
-            assertEquals("dupa$it:resp", client.receiveString())
+        val clients = (1..MAX)
+            .map {
+                val ch = ConnectedDatagramTransmitter.connect(localAddress(server.localPort()), 0)
+                DtlsTransmitter.connect(clientCertConf, ch, executors[it % executors.size])
+            }.map {
+                it.get(30, TimeUnit.SECONDS)
+            }.map { client ->
+                val i = Random.nextInt()
+                client.send("dupa$i")
+                assertEquals("dupa$i:resp", client.receiveString())
 
-            client
-        }
-
-        assertEquals(10, server.numberOfSessions())
+                client
+            }
+        assertEquals(MAX, server.numberOfSessions())
         clients.forEach(DtlsTransmitter::close)
     }
 
@@ -108,6 +120,7 @@ class DtlsServerTest {
 
         // when
         client.cnnTrans.send("malformed dtls packet".toByteBuffer())
+        client.send("perse")
 
         // then
         await.untilAsserted {

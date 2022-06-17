@@ -43,7 +43,7 @@ class DtlsTransmitter private constructor(
 ) : Closeable {
     companion object {
         private val threadIndex = AtomicInteger(0)
-        private fun newSingleExecutor(): ExecutorService {
+        internal fun newSingleExecutor(): ExecutorService {
             return Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
         }
 
@@ -59,9 +59,7 @@ class DtlsTransmitter private constructor(
             return connect(conf, ConnectedDatagramTransmitter.connect(dest, bindPort))
         }
 
-        fun connect(conf: SslConfig, channel: ConnectedDatagramTransmitter): CompletableFuture<DtlsTransmitter> {
-            val executor = newSingleExecutor()
-
+        fun connect(conf: SslConfig, channel: ConnectedDatagramTransmitter, executor: ExecutorService = newSingleExecutor()): CompletableFuture<DtlsTransmitter> {
             return executor.supply {
                 try {
                     val sslSession = handshake(conf.newContext(), channel)
@@ -133,7 +131,9 @@ interface ConnectedDatagramTransmitter : Closeable {
 
     companion object {
         fun connect(dest: InetSocketAddress, listenPort: Int): ConnectedDatagramTransmitter {
-            val channel: DatagramChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", listenPort)).connect(dest)
+            val channel: DatagramChannel = DatagramChannel.open()
+            if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
+            channel.connect(dest)
             channel.configureBlocking(false)
             val selector: Selector = Selector.open()
             channel.register(selector, SelectionKey.OP_READ)
