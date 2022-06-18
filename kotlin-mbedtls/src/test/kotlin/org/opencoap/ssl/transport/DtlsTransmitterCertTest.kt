@@ -140,7 +140,7 @@ class DtlsTransmitterCertTest {
             .dropSend { it % 3 != 2 }
 
         // when
-        val sslSession = DtlsTransmitter.handshake(clientConf.newContext(), cli::send, cli::receive)
+        val sslSession = DtlsTransmitter.connect(clientConf, cli).await()
 
         // then
         sslSession.close()
@@ -162,10 +162,10 @@ class DtlsTransmitterCertTest {
             .dropSend { true }
 
         // when
-        val res = runCatching { DtlsTransmitter.handshake(clientConf.newContext(), cli::send, cli::receive) }
+        val res = runCatching { DtlsTransmitter.connect(clientConf, cli).await() }
 
         // then
-        assertEquals("SSL - The operation timed out [-26624]", res.exceptionOrNull()?.message)
+        assertEquals("SSL - The operation timed out [-26624]", res.exceptionOrNull()?.cause?.message)
         clientConf.close()
         cli.close()
     }

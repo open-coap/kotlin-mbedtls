@@ -28,6 +28,7 @@ import org.opencoap.ssl.MbedtlsApi.verify
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
 
@@ -37,6 +38,7 @@ class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
     private val cid: ByteArray?,
+    private val peerAdr: InetSocketAddress,
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
     private var startTimestamp: Long = System.currentTimeMillis()
@@ -57,13 +59,14 @@ class SslHandshakeContext internal constructor(
 
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
+            MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
             0 -> {
                 SslSession(conf, sslContext, cid).also {
-                    logger.info("Connected in {}ms {}", System.currentTimeMillis() - startTimestamp, it)
+                    logger.info("[{}] Connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
                 }
             }
             else -> throw SslException.from(ret).also {
-                logger.warn("Failed handshake: {}", it.message)
+                logger.warn("[{}] Failed handshake: {}", peerAdr, it.message)
             }
         }
     }

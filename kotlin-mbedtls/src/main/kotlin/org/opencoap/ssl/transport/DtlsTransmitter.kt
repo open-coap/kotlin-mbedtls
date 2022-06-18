@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.transport
 
+import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslHandshakeContext
@@ -61,13 +62,22 @@ class DtlsTransmitter private constructor(
 
         fun connect(conf: SslConfig, channel: ConnectedDatagramTransmitter, executor: ExecutorService = newSingleExecutor()): CompletableFuture<DtlsTransmitter> {
             return executor.supply {
-                try {
-                    val sslSession = handshake(conf.newContext(), channel)
-                    DtlsTransmitter(channel, sslSession, executor)
-                } catch (ex: Exception) {
-                    channel.close()
-                    throw ex
-                }
+                connect0(conf, channel, executor)
+            }
+        }
+
+        private fun connect0(conf: SslConfig, channel: ConnectedDatagramTransmitter, executor: ExecutorService): DtlsTransmitter {
+            val sslHandshakeContext = conf.newContext(channel.localAddress())
+            return try {
+                val sslSession = handshake(sslHandshakeContext, channel)
+                DtlsTransmitter(channel, sslSession, executor)
+            } catch (ex: HelloVerifyRequired) {
+                sslHandshakeContext.close()
+                connect0(conf, channel, executor)
+            } catch (ex: Exception) {
+                sslHandshakeContext.close()
+                channel.close()
+                throw ex
             }
         }
 
@@ -75,7 +85,7 @@ class DtlsTransmitter private constructor(
             return handshake(handshakeCtx, channel::send, channel::receive)
         }
 
-        internal fun handshake(handshakeCtx: SslHandshakeContext, send: (ByteBuffer) -> Unit, receive: (ByteBuffer, Duration) -> Unit): SslSession {
+        private fun handshake(handshakeCtx: SslHandshakeContext, send: (ByteBuffer) -> Unit, receive: (ByteBuffer, Duration) -> Unit): SslSession {
             val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
 
             var sslContext: SslContext = handshakeCtx.step(send)

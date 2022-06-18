@@ -18,15 +18,17 @@ package org.opencoap.ssl
 
 import com.sun.jna.Memory
 
-class SslException(message: String) : Exception(message) {
+open class SslException(message: String) : Exception(message) {
 
     companion object {
         fun from(error: Int): SslException = SslException(translateError(error) + " [" + error + "]")
 
-        private fun translateError(error: Int): String {
+        internal fun translateError(error: Int): String {
             val buffer = Memory(100)
             MbedtlsApi.mbedtls_strerror(error, buffer, buffer.size().toInt())
             return buffer.getString(0).trim()
         }
     }
 }
+
+object HelloVerifyRequired : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED))

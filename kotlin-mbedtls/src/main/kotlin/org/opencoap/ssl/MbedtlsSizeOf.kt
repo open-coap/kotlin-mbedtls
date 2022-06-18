@@ -8,4 +8,5 @@ internal object MbedtlsSizeOf {
     const val mbedtls_ssl_context = 552L
     const val mbedtls_pk_context = 16L
     const val mbedtls_x509_crt = 616L
+    const val mbedtls_ssl_cookie_ctx = 32L
 }

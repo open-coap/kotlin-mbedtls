@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.transport
 
+import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslException
@@ -83,13 +84,15 @@ class DtlsServer(
 
     private fun onReceived(peerAddress: InetSocketAddress, buffer: ByteBuffer, handler: (InetSocketAddress, ByteArray) -> Unit) {
         try {
-            when (val ctx = sessions.getOrPut(peerAddress, sslConfig::newContext)) {
+            when (val ctx = sessions.getOrPut(peerAddress) { sslConfig.newContext(peerAddress) }) {
                 is SslSession ->
                     handler.invoke(peerAddress, ctx.decrypt(buffer))
 
                 is SslHandshakeContext ->
                     sessions[peerAddress] = ctx.step(buffer) { channel.send(it, peerAddress) }
             }
+        } catch (ex: HelloVerifyRequired) {
+            sessions.remove(peerAddress)?.close()
         } catch (ex: SslException) {
             logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
             sessions.remove(peerAddress)?.close()

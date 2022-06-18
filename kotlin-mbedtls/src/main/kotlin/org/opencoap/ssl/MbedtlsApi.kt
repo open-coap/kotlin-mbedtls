@@ -53,6 +53,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_handshake(sslContext: Pointer): Int
     external fun mbedtls_ssl_init(sslContext: Pointer)
     external fun mbedtls_ssl_read(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_set_client_transport_id(sslContext: Pointer, info: String, ilen: Int): Int
     external fun mbedtls_ssl_set_bio(sslContext: Pointer, pBaseIO: Pointer?, fSend: Callback, fRecv: Callback?, fRecvTimeout: Callback?)
     external fun mbedtls_ssl_set_timer_cb(ssl: Pointer, timer: Pointer?, timingSetDelay: Callback, timingGetDelay: Callback)
     external fun mbedtls_ssl_setup(sslContext: Pointer, mbedtlsSslConfig: Pointer): Int
@@ -69,6 +70,7 @@ internal object MbedtlsApi {
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
     const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880
+    const val MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED = -0x6A80
     const val MBEDTLS_SSL_IS_CLIENT = 0
     const val MBEDTLS_SSL_IS_SERVER = 1
     const val MBEDTLS_SSL_MAJOR_VERSION_3 = 3
@@ -108,6 +110,13 @@ internal object MbedtlsApi {
     external fun mbedtls_pk_init(ctx: Pointer)
     external fun mbedtls_pk_free(ctx: Pointer)
     external fun mbedtls_pk_parse_key(ctx: Pointer, key: ByteArray, keyLen: Int, pwd: Pointer?, pwdLen: Int, fRng: Pointer, pRbg: Pointer): Int
+
+    // mbedtls/ssl_cookie.h
+    external fun mbedtls_ssl_cookie_init(cookieCtx: Pointer)
+    external fun mbedtls_ssl_cookie_free(cookieCtx: Pointer)
+    external fun mbedtls_ssl_cookie_setup(cookieCtx: Pointer, fRng: Pointer, pRng: Pointer): Int
+    val mbedtls_ssl_cookie_write = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_write")
+    val mbedtls_ssl_cookie_check = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_check")
 
     // -------------------------
 

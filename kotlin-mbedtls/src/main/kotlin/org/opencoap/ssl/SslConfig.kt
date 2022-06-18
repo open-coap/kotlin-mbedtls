@@ -39,9 +39,14 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_rng
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_defaults
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_load
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_cookie_check
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_cookie_free
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_cookie_setup
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_cookie_write
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_bio
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_cid
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_client_transport_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
@@ -50,6 +55,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_x509_crt_parse_der
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.net.InetSocketAddress
 import java.security.Key
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
@@ -64,7 +70,7 @@ class SslConfig(
 ) : Closeable by close {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun newContext(): SslHandshakeContext {
+    fun newContext(peerAddress: InetSocketAddress): SslHandshakeContext {
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
@@ -73,9 +79,13 @@ class SslConfig(
         val cid = cidSupplier.next()
         mbedtls_ssl_set_cid(sslContext, 1, cid, cid.size).verify()
         mbedtls_ssl_set_mtu(sslContext, mtu)
+
+        val clientId = peerAddress.toString()
+        mbedtls_ssl_set_client_transport_id(sslContext, clientId, clientId.length)
+
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
-        return SslHandshakeContext(this, sslContext, cid)
+        return SslHandshakeContext(this, sslContext, cid, peerAddress)
     }
 
     fun loadSession(cid: ByteArray, session: ByteArray): SslSession {
@@ -146,7 +156,16 @@ class SslConfig(
 
             mbedtls_ctr_drbg_seed(ctrDrbg, MbedtlsApi.mbedtls_entropy_func, entropy, Pointer.NULL, 0).verify()
             mbedtls_ssl_conf_rng(sslConfig, mbedtls_ctr_drbg_random, ctrDrbg)
-            mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
+
+            // cookies
+            var cookieCtx: Memory? = null
+            if (!isServer) {
+                mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
+            } else {
+                cookieCtx = Memory(MbedtlsSizeOf.mbedtls_ssl_cookie_ctx).also(MbedtlsApi::mbedtls_ssl_cookie_init)
+                mbedtls_ssl_cookie_setup(cookieCtx, mbedtls_ctr_drbg_random, ctrDrbg).verify()
+                mbedtls_ssl_conf_dtls_cookies(sslConfig, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, cookieCtx)
+            }
 
             // PSK
             if (pskSecret != null && pskId != null) {
@@ -192,6 +211,7 @@ class SslConfig(
                 mbedtls_pk_free(pkey)
                 mbedtls_x509_crt_free(ownCert)
                 mbedtls_x509_crt_free(caCert)
+                cookieCtx?.also(::mbedtls_ssl_cookie_free)
             }
         }
 
