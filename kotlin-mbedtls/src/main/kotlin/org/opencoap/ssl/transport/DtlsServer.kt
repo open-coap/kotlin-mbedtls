@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.transport
 
+import org.opencoap.ssl.CloseNotifyException
 import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslContext
@@ -93,6 +94,9 @@ class DtlsServer(
             }
         } catch (ex: HelloVerifyRequired) {
             sessions.remove(peerAddress)?.close()
+        } catch (ex: CloseNotifyException) {
+            sessions.remove(peerAddress)?.close()
+            logger.info("[{}] DTLS received close notify", peerAddress)
         } catch (ex: SslException) {
             logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
             sessions.remove(peerAddress)?.close()

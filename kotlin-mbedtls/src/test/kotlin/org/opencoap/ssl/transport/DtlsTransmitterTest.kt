@@ -162,4 +162,27 @@ class DtlsTransmitterTest {
         clientConf.close()
         server.await().close()
     }
+
+    @Test
+    fun `should send close notify`() {
+        // given
+        val serverPromise = newServerDtlsTransmitter(6005)
+        val conf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
+
+        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6005).await()
+        val server = serverPromise.await()
+
+        // when
+        client.closeNotify()
+
+        // then
+        val result = runCatching { server.receiveString() }
+        assertEquals(
+            "SSL - The peer notified us that the connection is going to be closed",
+            result.exceptionOrNull()?.cause?.message
+        )
+
+        conf.close()
+        server.close()
+    }
 }

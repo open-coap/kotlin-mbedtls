@@ -190,4 +190,21 @@ class DtlsServerTest {
         // then
         assertEquals("X509 - Certificate verification failed, e.g. CRL, CA or signature check failed [-9984]", result.exceptionOrNull()?.cause?.message)
     }
+
+    @Test
+    fun `should send close notify`() {
+        server = DtlsServer.create(conf).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        await.untilAsserted {
+            assertEquals(1, server.numberOfSessions())
+        }
+
+        // when
+        client.closeNotify()
+
+        // then
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+    }
 }

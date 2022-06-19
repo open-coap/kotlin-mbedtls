@@ -47,6 +47,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_config_defaults(mbedtlsSslConfig: Pointer, endpoint: Int, transport: Int, preset: Int): Int
     external fun mbedtls_ssl_config_free(sslContext: Pointer)
     external fun mbedtls_ssl_config_init(sslContext: Pointer)
+    external fun mbedtls_ssl_close_notify(sslContext: Pointer): Int
     external fun mbedtls_ssl_free(sslContext: Pointer)
     external fun mbedtls_ssl_get_ciphersuite(sslContext: Pointer): String
     external fun mbedtls_ssl_get_ciphersuite_id(name: String): Int
@@ -71,6 +72,7 @@ internal object MbedtlsApi {
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
     const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880
     const val MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED = -0x6A80
+    const val MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY = -0x7880
     const val MBEDTLS_SSL_IS_CLIENT = 0
     const val MBEDTLS_SSL_IS_SERVER = 1
     const val MBEDTLS_SSL_MAJOR_VERSION_3 = 3

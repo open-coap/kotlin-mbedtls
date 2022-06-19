@@ -129,6 +129,13 @@ class DtlsTransmitter private constructor(
 
     fun receiveString(): String = receive().decodeToString()
 
+    fun closeNotify() {
+        executor.supply {
+            cnnTrans.send(sslSession.closeNotify())
+        }.join()
+        close()
+    }
+
     fun getCipherSuite() = sslSession.getCipherSuite()
     fun getPeerCid() = sslSession.peerCid
     fun getOwnCid() = sslSession.ownCid

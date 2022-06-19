@@ -21,7 +21,12 @@ import com.sun.jna.Memory
 open class SslException(message: String) : Exception(message) {
 
     companion object {
-        fun from(error: Int): SslException = SslException(translateError(error) + " [" + error + "]")
+        fun from(error: Int): SslException {
+            if (error == MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+                return CloseNotifyException
+            }
+            return SslException(translateError(error) + " [" + error + "]")
+        }
 
         internal fun translateError(error: Int): String {
             val buffer = Memory(100)
@@ -32,3 +37,4 @@ open class SslException(message: String) : Exception(message) {
 }
 
 object HelloVerifyRequired : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED))
+object CloseNotifyException : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY))

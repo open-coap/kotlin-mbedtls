@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
@@ -137,6 +138,12 @@ class SslSession internal constructor(
         } else {
             "[cipher-suite:${getCipherSuite()}]"
         }
+    }
+
+    fun closeNotify(): ByteBuffer {
+        return SendCallback {
+            mbedtls_ssl_close_notify(sslContext)
+        } ?: ByteBuffer.allocate(0)
     }
 
     override fun close() {
