@@ -80,7 +80,7 @@ class DtlsTransmitterTest {
 
         // then
         assertEquals(
-            "SSL - A fatal alert message was received from our peer [-30592]",
+            "SSL - A fatal alert message was received from our peer [-0x7780]",
             result.exceptionOrNull()?.cause?.message
         )
         conf.close()

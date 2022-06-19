@@ -165,7 +165,7 @@ class DtlsTransmitterCertTest {
         val res = runCatching { DtlsTransmitter.connect(clientConf, cli).await() }
 
         // then
-        assertEquals("SSL - The operation timed out [-26624]", res.exceptionOrNull()?.cause?.message)
+        assertEquals("SSL - The operation timed out [-0x6800]", res.exceptionOrNull()?.cause?.message)
         clientConf.close()
         cli.close()
     }

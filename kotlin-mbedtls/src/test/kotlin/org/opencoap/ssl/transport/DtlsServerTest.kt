@@ -188,7 +188,7 @@ class DtlsServerTest {
         val result = runCatching { DtlsTransmitter.connect(server, clientConf).await() }
 
         // then
-        assertEquals("X509 - Certificate verification failed, e.g. CRL, CA or signature check failed [-9984]", result.exceptionOrNull()?.cause?.message)
+        assertEquals("X509 - Certificate verification failed, e.g. CRL, CA or signature check failed [-0x2700]", result.exceptionOrNull()?.cause?.message)
     }
 
     @Test

@@ -25,7 +25,7 @@ open class SslException(message: String) : Exception(message) {
             if (error == MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
                 return CloseNotifyException
             }
-            return SslException(translateError(error) + " [" + error + "]")
+            return SslException(String.format("%s [-0x%04X]", translateError(error), -error))
         }
 
         internal fun translateError(error: Int): String {
