@@ -26,7 +26,10 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.millis
+import org.opencoap.ssl.util.seconds
 import org.opencoap.ssl.util.toByteBuffer
+import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -40,7 +43,11 @@ class DtlsServerTest {
     private val psk = Pair("dupa".encodeToByteArray(), byteArrayOf(1))
     private val conf: SslConfig = SslConfig.server(psk.first, psk.second)
     private val certConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
+    private val timeoutConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(10), retransmitMax = Duration.ofMillis(100))
+
     private val clientConfig = SslConfig.client(psk.first, psk.second)
+    private val timeoutClientConf = SslConfig.client(Certs.dev01Chain, Certs.dev01.privateKey, listOf(Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
+
     private lateinit var server: DtlsServer
 
     private val echoHandler: (InetSocketAddress, ByteArray) -> Unit = { adr: InetSocketAddress, packet: ByteArray ->
@@ -56,6 +63,8 @@ class DtlsServerTest {
         server.close()
         conf.close()
         clientConfig.close()
+        timeoutConf.close()
+        timeoutClientConf.close()
     }
 
     @Test
@@ -64,8 +73,10 @@ class DtlsServerTest {
 
         val client = DtlsTransmitter.connect(server, clientConfig).await()
 
-        client.send("perse")
-        assertEquals("perse:resp", client.receiveString())
+        repeat(5) { i ->
+            client.send("perse$i")
+            assertEquals("perse$i:resp", client.receiveString())
+        }
 
         assertEquals(1, server.numberOfSessions())
         client.close()
@@ -73,7 +84,7 @@ class DtlsServerTest {
 
     @Test
     fun testMultipleConnections() {
-        val clientCertConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), retransmitMin = Duration.ofSeconds(60), retransmitMax = Duration.ofSeconds(60))
+        val clientCertConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), retransmitMin = 60.seconds, retransmitMax = 60.seconds)
         server = DtlsServer.create(certConf).listen(echoHandler)
 
         val MAX = 20
@@ -205,6 +216,79 @@ class DtlsServerTest {
         // then
         await.untilAsserted {
             assertEquals(0, server.numberOfSessions())
+        }
+    }
+
+    @Test
+    fun `should successfully handshake with retransmission`() {
+        server = DtlsServer.create(timeoutConf).listen(echoHandler)
+        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
+            .connect(localAddress(server.localPort()))
+            .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
+
+        // when
+        val sslSession = DtlsTransmitter.connect(timeoutClientConf, cli).await()
+
+        // then
+        sslSession.close()
+        cli.close()
+    }
+
+    @Test
+    fun `should remove handshake session when handshake timeout`() {
+        server = DtlsServer.create(timeoutConf).listen(echoHandler)
+        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
+            .connect(localAddress(server.localPort()))
+            .dropReceive { it > 0 } // drop everything after client hello with verify
+
+        // when
+        DtlsTransmitter.connect(timeoutClientConf, cli)
+
+        // then
+        await.untilAsserted {
+            assertEquals(1, server.numberOfSessions())
+        }
+
+        // and
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+
+        cli.close()
+    }
+
+    @Test
+    fun `should remove session after inactivity`() {
+        // given
+        server = DtlsServer.create(conf, expireAfter = 10.millis).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("perse")
+
+        // when, inactive
+
+        // then
+        await.atMost(1.seconds).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+        client.close()
+    }
+
+    private fun ConnectedDatagramTransmitter.dropReceive(drop: (Int) -> Boolean): ConnectedDatagramTransmitter {
+        val underlying = this
+        var i = 0
+
+        return object : ConnectedDatagramTransmitter by this {
+            private val logger = LoggerFactory.getLogger(javaClass)
+
+            override fun receive(buf: ByteBuffer, timeout: Duration) {
+                underlying.receive(buf, timeout)
+                if (drop(i++)) {
+                    logger.info("receive DROPPED {}", buf.remaining())
+                    receive(buf, timeout)
+                } else {
+                    logger.info("receive {}", buf.remaining())
+                }
+            }
         }
     }
 }

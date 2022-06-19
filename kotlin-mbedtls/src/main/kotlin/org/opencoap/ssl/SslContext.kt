@@ -63,11 +63,11 @@ class SslHandshakeContext internal constructor(
             MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
             0 -> {
                 SslSession(conf, sslContext, cid).also {
-                    logger.info("[{}] Connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
+                    logger.info("[{}] DTLS connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
                 }
             }
             else -> throw SslException.from(ret).also {
-                logger.warn("[{}] Failed handshake: {}", peerAdr, it.message)
+                logger.debug("[{}] DTLS failed handshake: {}", peerAdr, it.message)
             }
         }
     }

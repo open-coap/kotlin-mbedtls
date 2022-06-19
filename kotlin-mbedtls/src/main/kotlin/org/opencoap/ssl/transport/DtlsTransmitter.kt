@@ -145,7 +145,7 @@ interface ConnectedDatagramTransmitter : Closeable {
     fun remoteAddress(): InetSocketAddress
 
     companion object {
-        fun connect(dest: InetSocketAddress, listenPort: Int): ConnectedDatagramTransmitter {
+        fun connect(dest: InetSocketAddress, listenPort: Int = 0): ConnectedDatagramTransmitter {
             val channel: DatagramChannel = DatagramChannel.open()
             if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
             channel.connect(dest)

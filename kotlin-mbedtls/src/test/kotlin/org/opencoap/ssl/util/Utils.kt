@@ -20,6 +20,7 @@ import com.sun.jna.Memory
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
@@ -58,3 +59,9 @@ internal fun runGC() {
     Thread.sleep(100)
     System.gc()
 }
+
+val Int.seconds: Duration
+    get() = Duration.ofSeconds(this.toLong())
+
+val Int.millis: Duration
+    get() = Duration.ofMillis(this.toLong())
