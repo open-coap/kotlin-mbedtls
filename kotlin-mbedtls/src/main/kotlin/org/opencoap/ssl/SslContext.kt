@@ -79,10 +79,13 @@ class SslHandshakeContext internal constructor(
 class SslSession internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
-    val cid: ByteArray?,
+    private val cid: ByteArray?,
 ) : SslContext, Closeable {
 
-    fun getPeerCid(): ByteArray? {
+    val peerCid: ByteArray? by lazy { readPeerCid() }
+    val ownCid: ByteArray? by lazy { if (peerCid != null) cid else null }
+
+    private fun readPeerCid(): ByteArray? {
         val mem = Memory(16 + 64 /* max cid len */)
         mbedtls_ssl_get_peer_cid(sslContext, mem, mem.share(16), mem.share(8))
 
@@ -126,7 +129,11 @@ class SslSession internal constructor(
     }
 
     override fun toString(): String {
-        return "[CID:${cid?.toHex()}, peerCID:${getPeerCid()?.toHex()}, cipher-suite:${getCipherSuite()}]"
+        return if (peerCid != null) {
+            "[CID:${cid?.toHex()}, peerCID:${peerCid?.toHex()}, cipher-suite:${getCipherSuite()}]"
+        } else {
+            "[cipher-suite:${getCipherSuite()}]"
+        }
     }
 
     override fun close() {

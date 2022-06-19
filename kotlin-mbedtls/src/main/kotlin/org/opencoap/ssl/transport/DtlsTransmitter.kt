@@ -120,7 +120,8 @@ class DtlsTransmitter private constructor(
     fun receiveString(): String = receive().decodeToString()
 
     fun getCipherSuite() = sslSession.getCipherSuite()
-    fun getPeerCid() = sslSession.getPeerCid()
+    fun getPeerCid() = sslSession.peerCid
+    fun getOwnCid() = sslSession.ownCid
     fun saveSession() = sslSession.saveAndClose()
 }
 

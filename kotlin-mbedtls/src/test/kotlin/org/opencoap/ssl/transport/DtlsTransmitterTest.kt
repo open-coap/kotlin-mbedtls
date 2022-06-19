@@ -104,6 +104,7 @@ class DtlsTransmitterTest {
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
         assertEquals("01", server.await().getPeerCid()?.toHex())
+        assertEquals("01", client.getOwnCid()?.toHex())
 
         println("val cliSession = \"" + client.saveSession().toHex() + "\".decodeHex()")
         println("val srvSession = \"" + server.await().saveSession().toHex() + "\".decodeHex()")
