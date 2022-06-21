@@ -66,32 +66,28 @@ class DtlsTransmitter private constructor(
             }
         }
 
-        private fun connect0(conf: SslConfig, channel: ConnectedDatagramTransmitter, executor: ExecutorService): DtlsTransmitter {
-            val sslHandshakeContext = conf.newContext(channel.localAddress())
+        private fun connect0(conf: SslConfig, trans: ConnectedDatagramTransmitter, executor: ExecutorService): DtlsTransmitter {
+            val sslHandshakeContext = conf.newContext(trans.remoteAddress())
             return try {
-                val sslSession = handshake(sslHandshakeContext, channel)
-                DtlsTransmitter(channel, sslSession, executor)
+                val sslSession = handshake(sslHandshakeContext, trans)
+                DtlsTransmitter(trans, sslSession, executor)
             } catch (ex: HelloVerifyRequired) {
                 sslHandshakeContext.close()
-                connect0(conf, channel, executor)
+                connect0(conf, trans, executor)
             } catch (ex: Exception) {
                 sslHandshakeContext.close()
-                channel.close()
+                trans.close()
                 throw ex
             }
         }
 
-        private fun handshake(handshakeCtx: SslHandshakeContext, channel: ConnectedDatagramTransmitter): SslSession {
-            return handshake(handshakeCtx, channel::send, channel::receive)
-        }
-
-        private fun handshake(handshakeCtx: SslHandshakeContext, send: (ByteBuffer) -> Unit, receive: (ByteBuffer, Duration) -> Unit): SslSession {
+        private fun handshake(handshakeCtx: SslHandshakeContext, trans: ConnectedDatagramTransmitter): SslSession {
             val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
 
-            var sslContext: SslContext = handshakeCtx.step(send)
+            var sslContext: SslContext = handshakeCtx.step(trans::send)
             while (sslContext is SslHandshakeContext) {
-                receive(buffer, sslContext.readTimeout)
-                sslContext = handshakeCtx.step(buffer, send)
+                trans.receive(buffer, sslContext.readTimeout)
+                sslContext = handshakeCtx.step(buffer, trans::send)
             }
             return sslContext as SslSession
         }
@@ -146,6 +142,7 @@ interface ConnectedDatagramTransmitter : Closeable {
     fun send(buf: ByteBuffer)
     fun receive(buf: ByteBuffer, timeout: Duration)
     fun localAddress(): InetSocketAddress
+    fun remoteAddress(): InetSocketAddress
 
     companion object {
         fun connect(dest: InetSocketAddress, listenPort: Int): ConnectedDatagramTransmitter {
@@ -177,7 +174,8 @@ class ConnectedDatagramTransmitterImpl(
         channel.receive(buf, selector, timeout)
     }
 
-    override fun localAddress() = (channel.localAddress as InetSocketAddress)
+    override fun localAddress() = channel.localAddress as InetSocketAddress
+    override fun remoteAddress() = channel.remoteAddress as InetSocketAddress
 
     override fun close() {
         selector.close()
