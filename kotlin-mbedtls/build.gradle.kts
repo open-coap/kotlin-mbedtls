@@ -47,6 +47,11 @@ tasks.test {
 }
 
 // --- PUBLISHING ---
+tasks.create<Jar>("sourceJar") {
+    archiveClassifier.set("sources")
+    from(sourceSets["main"].allSource)
+}
+
 publishing {
     val repoName = System.getenv("GITHUB_REPOSITORY") ?: "open-coap/kotlin-mbedtls"
     repositories {
@@ -63,6 +68,7 @@ publishing {
         create<MavenPublication>("default") {
             from(components["java"])
             groupId = "com.github." + repoName.replace('/', '.')
+            artifact(tasks["sourceJar"])
             pom {
                 name.set("Kotlin mbedtls")
                 description.set("Bridge of mbedtls and jvm (kotlin)")
