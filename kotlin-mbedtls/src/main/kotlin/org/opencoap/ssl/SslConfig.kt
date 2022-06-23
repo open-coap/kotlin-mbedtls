@@ -64,7 +64,7 @@ import java.time.Duration.ofSeconds
 
 class SslConfig(
     private val conf: Memory,
-    private val cidSupplier: CidSupplier,
+    val cidSupplier: CidSupplier,
     private val mtu: Int,
     private val close: Closeable
 ) : Closeable by close {
@@ -88,7 +88,7 @@ class SslConfig(
         return SslHandshakeContext(this, sslContext, cid, peerAddress)
     }
 
-    fun loadSession(cid: ByteArray, session: ByteArray): SslSession {
+    fun loadSession(cid: ByteArray, session: ByteArray, peerAddress: InetSocketAddress): SslSession {
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
@@ -98,7 +98,7 @@ class SslConfig(
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
         return SslSession(this, sslContext, cid).also {
-            logger.info("Reconnected {}", it)
+            logger.info("[{}] Reconnected {}", peerAddress, it)
         }
     }
 

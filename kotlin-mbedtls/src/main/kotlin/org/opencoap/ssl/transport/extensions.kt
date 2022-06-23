@@ -61,3 +61,10 @@ internal fun <T> Executor.supply(supplier: Supplier<T>): CompletableFuture<T> {
 internal fun ByteArray.toHex(): String {
     return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
 }
+
+fun ByteBuffer.copyDirect(): ByteBuffer {
+    val bb = ByteBuffer.allocateDirect(this.remaining())
+    bb.put(this)
+    bb.flip()
+    return bb
+}

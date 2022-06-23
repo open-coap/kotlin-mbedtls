@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
@@ -41,12 +42,13 @@ import kotlin.random.Random
 class DtlsServerTest {
 
     private val psk = Pair("dupa".encodeToByteArray(), byteArrayOf(1))
-    private val conf: SslConfig = SslConfig.server(psk.first, psk.second)
+    private val conf: SslConfig = SslConfig.server(psk.first, psk.second, cidSupplier = RandomCidSupplier(6))
     private val certConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
     private val timeoutConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(10), retransmitMax = Duration.ofMillis(100))
 
-    private val clientConfig = SslConfig.client(psk.first, psk.second)
+    private val clientConfig = SslConfig.client(psk.first, psk.second, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(Certs.dev01Chain, Certs.dev01.privateKey, listOf(Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
+    private val sessionStore = HashMapSessionStore()
 
     private lateinit var server: DtlsServer
 
@@ -65,6 +67,7 @@ class DtlsServerTest {
         clientConfig.close()
         timeoutConf.close()
         timeoutClientConf.close()
+        sessionStore.clear()
     }
 
     @Test
@@ -271,6 +274,59 @@ class DtlsServerTest {
             assertEquals(0, server.numberOfSessions())
         }
         client.close()
+    }
+
+    @Test
+    fun `should reuse stored session after it is expired`() {
+        // given
+        server = DtlsServer.create(conf, expireAfter = 10.millis, sessionStore = sessionStore).listen(echoHandler)
+        // client connected
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("perse")
+        client.receiveString()
+        // and session expired and stored
+        await.atMost(1.seconds).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+        assertEquals(1, sessionStore.size())
+
+        // when
+        client.send("perse 2")
+
+        // then
+        assertEquals("perse 2:resp", client.receiveString())
+        assertEquals(1, server.numberOfSessions())
+        client.close()
+    }
+
+    @Test
+    fun testMultipleClientSendMessagesWithFastExpiration() {
+        server = DtlsServer.create(conf, expireAfter = 50.millis, sessionStore = sessionStore).listen(echoHandler)
+
+        val MAX = 20
+        val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
+
+        // establish dtls connections
+        val clients = (1..MAX)
+            .map {
+                val ch = ConnectedDatagramTransmitter.connect(localAddress(server.localPort()), 0)
+                DtlsTransmitter.connect(clientConfig, ch, executors[it % executors.size])
+                    .get(30, TimeUnit.SECONDS)
+                    .also { it.send("hello") }
+            }
+        clients.forEach { assertEquals("hello:resp", it.receiveString()) }
+
+        // send messages from different clients at the same time
+        val REPEAT = 10
+        val tsStart = System.currentTimeMillis()
+        repeat(REPEAT) {
+            clients.forEach { it.send("dupa$it") }
+            clients.forEach { assertEquals("dupa$it:resp", it.receiveString()) }
+        }
+        val totalTs = System.currentTimeMillis() - tsStart
+        println("Send %d messages in %d ms (%d/s)".format(MAX * REPEAT, totalTs, (1000 * MAX * REPEAT) / totalTs))
+
+        clients.forEach(DtlsTransmitter::close)
     }
 
     private fun ConnectedDatagramTransmitter.dropReceive(drop: (Int) -> Boolean): ConnectedDatagramTransmitter {

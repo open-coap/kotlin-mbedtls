@@ -19,6 +19,7 @@ package org.opencoap.ssl.transport
 import org.opencoap.ssl.CloseNotifyException
 import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
@@ -43,28 +44,35 @@ class DtlsServer private constructor(
     private val channel: DatagramChannel,
     private val sslConfig: SslConfig,
     private val expireAfter: Duration,
-    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { Thread(it, "dtls-srv-" + threadIndex.getAndIncrement()) }
+    private val sessionStore: SessionStore,
 ) {
-
-    init {
-        executor.execute { localActionPromises.set(hashMapOf()) }
-    }
 
     companion object {
         private val threadIndex = AtomicInteger(0)
 
-        fun create(config: SslConfig, listenPort: Int = 0, expireAfter: Duration = Duration.ofSeconds(60)): DtlsServer {
+        fun create(
+            config: SslConfig,
+            listenPort: Int = 0,
+            expireAfter: Duration = Duration.ofSeconds(60),
+            sessionStore: SessionStore = NoOpsSessionStore
+        ): DtlsServer {
             val channel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", listenPort))
-            return DtlsServer(channel, config, expireAfter)
+            return DtlsServer(channel, config, expireAfter, sessionStore)
         }
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
+    val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { Thread(it, "dtls-srv-" + threadIndex.getAndIncrement()) }
 
     // note: must be used only from executor
     private val localActionPromises = ThreadLocal<MutableMap<InetSocketAddress, CompletableFuture<Action>>>()
     private val actionPromises: MutableMap<InetSocketAddress, CompletableFuture<Action>>
         get() = localActionPromises.get()
+    private val cidSize = sslConfig.cidSupplier.next().size
+
+    init {
+        executor.execute { localActionPromises.set(hashMapOf()) }
+    }
 
     fun listen(handler: Handler): DtlsServer {
         val bufPool: BlockingQueue<ByteBuffer> = ArrayBlockingQueue(1)
@@ -78,8 +86,13 @@ class DtlsServer private constructor(
                 if (promise != null) {
                     promise.complete(DecryptAction(buf))
                 } else {
-                    DtlsHandshake(sslConfig.newContext(adr), adr, nonThrowingHandler)
-                        .invoke(DecryptAction(buf))
+                    val cid = SslContext.peekCID(cidSize, buf)
+                    if (cid != null) {
+                        loadSession(buf.copyDirect(), cid, adr, handler)
+                    } else {
+                        DtlsHandshake(sslConfig.newContext(adr), adr, nonThrowingHandler)
+                            .invoke(DecryptAction(buf))
+                    }
                 }
 
                 bufPool.put(buf) // return buffer to the pool
@@ -121,6 +134,25 @@ class DtlsServer private constructor(
             actionPromises.remove(peerAddress, promise)
         }
         return promise
+    }
+
+    private fun loadSession(encBuf: ByteBuffer, cid: ByteArray, adr: InetSocketAddress, handler: Handler) {
+        sessionStore.read(cid)
+            .thenAcceptAsync({ sessBuf ->
+                if (sessBuf == null) {
+                    logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
+                } else {
+                    DtlsSession(sslConfig.loadSession(cid, sessBuf, adr), adr, handler)
+                        .invoke(DecryptAction(encBuf))
+                }
+            }, executor)
+            .whenComplete { _, ex ->
+                when (ex) {
+                    null -> Unit // no error
+                    is SslException -> logger.warn("[{}] [CID:{}] Failed to load session", ex.message)
+                    else -> logger.error(ex.message, ex)
+                }
+            }
     }
 
     private fun Handler.decorateWithCatcher(): Handler {
@@ -179,7 +211,7 @@ class DtlsServer private constructor(
     }
 
     private inner class DtlsSession(private val ctx: SslSession, private val peerAddress: InetSocketAddress, private val handler: Handler) {
-        operator fun invoke(action: Action?, err: Throwable?) {
+        operator fun invoke(action: Action?, err: Throwable? = null) {
             try {
                 when (action) {
                     null -> throw err!!
@@ -187,11 +219,11 @@ class DtlsServer private constructor(
                     is EncryptAction -> encrypt(action.plainPacket)
                     is CloseAction -> {
                         logger.info("[{}] DTLS connection closed", peerAddress)
-                        ctx.close()
+                        close()
                     }
                     is TimeoutAction -> {
                         logger.info("[{}] DTLS connection expired", peerAddress)
-                        ctx.close()
+                        close()
                     }
                 }
             } catch (ex: CloseNotifyException) {
@@ -202,6 +234,14 @@ class DtlsServer private constructor(
                 ctx.close()
             } catch (ex: Throwable) {
                 logger.error(ex.message, ex)
+                ctx.close()
+            }
+        }
+
+        private fun close() {
+            if (ctx.ownCid != null) {
+                sessionStore.write(ctx.ownCid, ctx.saveAndClose())
+            } else {
                 ctx.close()
             }
         }

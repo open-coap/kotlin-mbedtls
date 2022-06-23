@@ -36,7 +36,9 @@ fun String.decodeHex(): ByteArray {
         .toByteArray()
 }
 
-fun String.toByteBuffer(): ByteBuffer = ByteBuffer.wrap(this.encodeToByteArray())
+fun String.toByteBuffer(): ByteBuffer = this.encodeToByteArray().asByteBuffer()
+
+fun ByteArray.asByteBuffer(): ByteBuffer = ByteBuffer.wrap(this)
 
 fun <T> CompletableFuture<T>.await(): T {
     return this.get(5, TimeUnit.SECONDS)

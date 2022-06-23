@@ -33,7 +33,29 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
 
-sealed interface SslContext : Closeable
+sealed interface SslContext : Closeable {
+    companion object {
+        fun peekCID(size: Int, encBuffer: ByteBuffer): ByteArray? {
+            val pos = encBuffer.position()
+            if (encBuffer.remaining() < 11 + size) {
+                // too short
+                return null
+            }
+            if ((encBuffer.int shr 8) != 0x19fefd) {
+                // not a dtls+cid packet
+                encBuffer.position(pos)
+                return null
+            }
+
+            val cid = ByteArray(size)
+
+            encBuffer.position(pos + 11)
+            encBuffer.get(cid)
+            encBuffer.position(pos)
+            return cid
+        }
+    }
+}
 
 class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
@@ -86,8 +108,8 @@ class SslSession internal constructor(
     private val cid: ByteArray?,
 ) : SslContext, Closeable {
 
-    val peerCid: ByteArray? by lazy { readPeerCid() }
-    val ownCid: ByteArray? by lazy { if (peerCid != null) cid else null }
+    val peerCid: ByteArray? = readPeerCid()
+    val ownCid: ByteArray? = if (peerCid != null) cid else null
 
     private fun readPeerCid(): ByteArray? {
         val mem = Memory(16 + 64 /* max cid len */)

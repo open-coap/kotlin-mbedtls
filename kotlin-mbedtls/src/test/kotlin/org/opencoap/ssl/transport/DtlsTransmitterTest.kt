@@ -121,8 +121,8 @@ class DtlsTransmitterTest {
         srvTrans = ConnectedDatagramTransmitter.connect(localAddress(6004), 2_5684)
 
         // when
-        val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), cliSession), 6004)
-        val server = DtlsTransmitter.create(serverConf.loadSession(byteArrayOf(), srvSession), srvTrans)
+        val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), cliSession, localAddress(2_5684)), 6004)
+        val server = DtlsTransmitter.create(serverConf.loadSession(byteArrayOf(), srvSession, localAddress(6004)), srvTrans)
         runGC()
 
         // then
@@ -152,7 +152,7 @@ class DtlsTransmitterTest {
         assertTrue(storedSession.isNotEmpty())
         println(storedSession.size)
         client.close()
-        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession), 6004)
+        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession, localAddress(1_5684)), 6004)
 
         // then
         client2.send("dupa")
