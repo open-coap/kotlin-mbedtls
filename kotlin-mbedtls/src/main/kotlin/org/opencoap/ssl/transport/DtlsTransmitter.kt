@@ -48,18 +48,26 @@ class DtlsTransmitter private constructor(
             return Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun connect(server: DtlsServer, conf: SslConfig): CompletableFuture<DtlsTransmitter> {
             return connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf)
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun connect(peerCnnTrans: ConnectedDatagramTransmitter, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
             return connect(peerCnnTrans.localAddress(), conf, bindPort)
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
             return connect(conf, ConnectedDatagramTransmitter.connect(dest, bindPort))
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun connect(conf: SslConfig, channel: ConnectedDatagramTransmitter, executor: ExecutorService = newSingleExecutor()): CompletableFuture<DtlsTransmitter> {
             return executor.supply {
                 connect0(conf, channel, executor)
@@ -92,10 +100,14 @@ class DtlsTransmitter private constructor(
             return sslContext as SslSession
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun create(dest: InetSocketAddress, sslSession: SslSession, bindPort: Int = 0): DtlsTransmitter {
             return create(sslSession, ConnectedDatagramTransmitter.connect(dest, bindPort))
         }
 
+        @JvmStatic
+        @JvmOverloads
         fun create(sslSession: SslSession, cnnTransmitter: ConnectedDatagramTransmitter): DtlsTransmitter {
             return DtlsTransmitter(cnnTransmitter, sslSession, newSingleExecutor())
         }
@@ -145,6 +157,8 @@ interface ConnectedDatagramTransmitter : Closeable {
     fun remoteAddress(): InetSocketAddress
 
     companion object {
+        @JvmStatic
+        @JvmOverloads
         fun connect(dest: InetSocketAddress, listenPort: Int = 0): ConnectedDatagramTransmitter {
             val channel: DatagramChannel = DatagramChannel.open()
             if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
