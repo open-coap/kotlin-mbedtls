@@ -146,7 +146,7 @@ class SslSession internal constructor(
     }
 
     fun saveAndClose(): ByteArray {
-        val buffer = Memory(512)
+        val buffer = Memory(1280)
         val outputLen = Memory(8)
         mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify()
         close()
