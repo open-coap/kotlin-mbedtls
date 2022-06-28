@@ -32,8 +32,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -62,7 +61,7 @@ class DtlsServer private constructor(
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { Thread(it, "dtls-srv-" + threadIndex.getAndIncrement()) }
+    val executor = ScheduledThreadPoolExecutor(1) { r: Runnable -> Thread(r, "dtls-srv-" + threadIndex.getAndIncrement()) }
 
     // note: must be used only from executor
     private val localActionPromises = ThreadLocal<MutableMap<InetSocketAddress, CompletableFuture<Action>>>()

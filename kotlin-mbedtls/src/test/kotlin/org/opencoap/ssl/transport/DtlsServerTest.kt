@@ -36,6 +36,7 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.time.Duration
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -327,6 +328,13 @@ class DtlsServerTest {
         println("Send %d messages in %d ms (%d/s)".format(MAX * REPEAT, totalTs, (1000 * MAX * REPEAT) / totalTs))
 
         clients.forEach(DtlsTransmitter::close)
+    }
+
+    @Test
+    fun `should export executor without wrapping`() {
+        server = DtlsServer.create(conf)
+
+        assertTrue(server.executor is ScheduledThreadPoolExecutor)
     }
 
     private fun ConnectedDatagramTransmitter.dropReceive(drop: (Int) -> Boolean): ConnectedDatagramTransmitter {
