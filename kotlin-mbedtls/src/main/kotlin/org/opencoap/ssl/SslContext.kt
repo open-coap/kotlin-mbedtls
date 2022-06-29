@@ -146,17 +146,18 @@ class SslSession internal constructor(
     }
 
     fun saveAndClose(): ByteArray {
-        val buffer = Memory(1280)
-        val outputLen = Memory(8)
-        mbedtls_ssl_context_save(sslContext, buffer, buffer.size().toInt(), outputLen).verify()
+        val buffer = ByteArray(1280)
+        val outputLen = ByteArray(4)
+        mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
         close()
 
-        return buffer.getByteArray(0, outputLen.getLong(0).toInt())
+        val size = (outputLen[0].toInt() and 0xff) + (outputLen[1].toInt() and 0xff shl 8)
+        return buffer.copyOf(size)
     }
 
     override fun toString(): String {
         return if (peerCid != null) {
-            "[CID:${cid?.toHex()}, peerCID:${peerCid?.toHex()}, cipher-suite:${getCipherSuite()}]"
+            "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, cipher-suite:${getCipherSuite()}]"
         } else {
             "[cipher-suite:${getCipherSuite()}]"
         }
