@@ -122,8 +122,8 @@ class SslConfig(
 
         @JvmStatic
         @JvmOverloads
-        fun server(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCerts: List<X509Certificate> = listOf(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
-            return create(true, null, null, listOf(), cidSupplier, ownCertChain, privateKey, trustedCerts, reqAuthentication, mtu, retransmitMin, retransmitMax)
+        fun server(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCerts: List<X509Certificate> = listOf(), reqAuthentication: Boolean = true, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(true, null, null, cipherSuites, cidSupplier, ownCertChain, privateKey, trustedCerts, reqAuthentication, mtu, retransmitMin, retransmitMax)
         }
 
         private fun create(

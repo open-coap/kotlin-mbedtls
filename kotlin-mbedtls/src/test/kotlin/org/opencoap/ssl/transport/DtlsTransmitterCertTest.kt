@@ -80,7 +80,7 @@ class DtlsTransmitterCertTest {
         serverConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = randomCid)
         val server = newServerDtlsTransmitter(7003)
 
-        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-256-CBC-SHA384", "TLS-ECDHE-RSA-WITH-AES-128-CBC-SHA256"))
+        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
         val client = DtlsTransmitter.connect(srvTrans, clientConf, 7003).await()
 
         client.send("dupa")
@@ -92,13 +92,13 @@ class DtlsTransmitterCertTest {
         serverConf = SslConfig.server(Certs.serverLongChain, Certs.server2.privateKey, reqAuthentication = false, cidSupplier = randomCid, mtu = 1024)
         val server = newServerDtlsTransmitter(7004)
 
-        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.rootRsa.asX509()))
+        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.rootRsa.asX509()), cipherSuites = listOf("TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256"))
         val client = DtlsTransmitter.connect(srvTrans, clientConf, 7004).await()
 
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
 
-        client.saveSession()
+        assertTrue(client.saveSession().isNotEmpty())
     }
 
     @Test
