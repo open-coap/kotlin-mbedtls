@@ -1,5 +1,5 @@
 #!/bin/bash
-MBEDTLS_VERSION=v3.0.0-rfc9146
+MBEDTLS_VERSION=v3.1.0-rfc9146
 BUILD_DIR=kotlin-mbedtls/build/mbedtls
 SRC=kotlin-mbedtls/src
 
