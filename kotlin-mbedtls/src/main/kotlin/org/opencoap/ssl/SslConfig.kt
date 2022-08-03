@@ -147,6 +147,7 @@ class SslConfig(
             val ownCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi::mbedtls_x509_crt_init)
             val caCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi::mbedtls_x509_crt_init)
             val pkey = Memory(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi::mbedtls_pk_init)
+            var cipherSuiteIds: Memory? = null
 
             val endpointType = if (isServer) MbedtlsApi.MBEDTLS_SSL_IS_SERVER else MbedtlsApi.MBEDTLS_SSL_IS_CLIENT
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
@@ -172,7 +173,8 @@ class SslConfig(
 
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
-                mbedtls_ssl_conf_ciphersuites(sslConfig, mapCipherSuites(cipherSuites)).verify()
+                cipherSuiteIds = mapCipherSuites(cipherSuites)
+                mbedtls_ssl_conf_ciphersuites(sslConfig, cipherSuiteIds).verify()
             }
 
             if (cidSupplier != EmptyCidSupplier) {
@@ -210,6 +212,7 @@ class SslConfig(
                 mbedtls_x509_crt_free(ownCert)
                 mbedtls_x509_crt_free(caCert)
                 cookieCtx?.also(::mbedtls_ssl_cookie_free)
+                cipherSuiteIds?.also { it.clear() }
             }
         }
 

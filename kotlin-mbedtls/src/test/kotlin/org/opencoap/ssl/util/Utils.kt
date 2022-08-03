@@ -58,7 +58,7 @@ fun String.toMemory(): Memory {
 
 internal fun runGC() {
     System.gc()
-    Thread.sleep(100)
+    Thread.sleep(10)
     System.gc()
 }
 

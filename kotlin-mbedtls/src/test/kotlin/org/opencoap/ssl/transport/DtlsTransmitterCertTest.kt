@@ -77,7 +77,9 @@ class DtlsTransmitterCertTest {
 
     @Test
     fun `should successfully handshake with server only cert`() {
-        serverConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = randomCid)
+        serverConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = randomCid, cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+        runGC()
+
         val server = newServerDtlsTransmitter(7003)
 
         val clientConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
