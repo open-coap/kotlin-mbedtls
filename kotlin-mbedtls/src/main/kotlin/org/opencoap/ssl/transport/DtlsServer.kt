@@ -49,6 +49,8 @@ class DtlsServer private constructor(
     companion object {
         private val threadIndex = AtomicInteger(0)
 
+        @JvmStatic
+        @JvmOverloads
         fun create(
             config: SslConfig,
             listenPort: Int = 0,
@@ -106,7 +108,10 @@ class DtlsServer private constructor(
     }
 
     fun numberOfSessions(): Int = executor.supply { actionPromises.size }.join()
-    fun localPort() = (channel.localAddress as InetSocketAddress).port
+    val localAddress: InetSocketAddress
+        get() = channel.localAddress as InetSocketAddress
+
+    fun localPort() = localAddress.port
 
     fun close() {
         executor.supply {
@@ -148,18 +153,20 @@ class DtlsServer private constructor(
             .whenComplete { _, ex ->
                 when (ex) {
                     null -> Unit // no error
-                    is SslException -> logger.warn("[{}] [CID:{}] Failed to load session", ex.message)
+                    is SslException -> logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
                     else -> logger.error(ex.message, ex)
                 }
             }
     }
 
     private fun Handler.decorateWithCatcher(): Handler {
-        return { adr: InetSocketAddress, packet: ByteArray ->
-            try {
-                this(adr, packet)
-            } catch (ex: Exception) {
-                logger.error(ex.toString(), ex)
+        return object : Handler {
+            override fun invoke(adr: InetSocketAddress, packet: ByteArray) {
+                try {
+                    this@decorateWithCatcher(adr, packet)
+                } catch (ex: Exception) {
+                    logger.error(ex.toString(), ex)
+                }
             }
         }
     }
@@ -248,7 +255,7 @@ class DtlsServer private constructor(
         private fun decrypt(encPacket: ByteBuffer) {
             val plainBuf = ctx.decrypt(encPacket)
             receive(peerAddress).whenComplete(::invoke)
-            handler.invoke(peerAddress, plainBuf)
+            handler(peerAddress, plainBuf)
         }
 
         private fun encrypt(plainPacket: ByteArray) {
@@ -266,4 +273,7 @@ class DtlsServer private constructor(
     private object TimeoutAction : Action
 }
 
-typealias Handler = (InetSocketAddress, ByteArray) -> Unit
+interface Handler {
+    @Throws(Exception::class)
+    operator fun invoke(adr: InetSocketAddress, packet: ByteArray)
+}

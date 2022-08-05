@@ -15,11 +15,11 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    api(platform("org.jetbrains.kotlin:kotlin-bom"))
+    api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    implementation("org.slf4j:slf4j-api:1.7.36")
-    implementation("net.java.dev.jna:jna:5.11.0")
+    api("org.slf4j:slf4j-api:1.7.36")
+    api("net.java.dev.jna:jna:5.11.0")
 
     // TESTS
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")

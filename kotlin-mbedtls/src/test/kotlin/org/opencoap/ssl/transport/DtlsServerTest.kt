@@ -53,11 +53,13 @@ class DtlsServerTest {
 
     private lateinit var server: DtlsServer
 
-    private val echoHandler: (InetSocketAddress, ByteArray) -> Unit = { adr: InetSocketAddress, packet: ByteArray ->
-        if (packet.decodeToString() == "error") {
-            throw Exception("error")
-        } else {
-            server.send(packet.plus(":resp".encodeToByteArray()), adr)
+    private val echoHandler: Handler = object : Handler {
+        override fun invoke(adr: InetSocketAddress, packet: ByteArray) {
+            if (packet.decodeToString() == "error") {
+                throw Exception("error")
+            } else {
+                server.send(packet.plus(":resp".encodeToByteArray()), adr)
+            }
         }
     }
 

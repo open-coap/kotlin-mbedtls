@@ -124,6 +124,7 @@ class DtlsTransmitter private constructor(
 
     fun send(text: String) = send(text.encodeToByteArray())
 
+    @JvmOverloads
     fun receive(timeout: Duration = Duration.ofSeconds(30)): ByteArray {
         val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
 
@@ -148,6 +149,8 @@ class DtlsTransmitter private constructor(
     fun getPeerCid() = sslSession.peerCid
     fun getOwnCid() = sslSession.ownCid
     fun saveSession() = sslSession.saveAndClose()
+    val remoteAddress: InetSocketAddress
+        get() = cnnTrans.remoteAddress()
 }
 
 interface ConnectedDatagramTransmitter : Closeable {
