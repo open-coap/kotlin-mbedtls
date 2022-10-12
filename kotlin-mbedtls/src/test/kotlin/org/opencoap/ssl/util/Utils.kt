@@ -17,6 +17,7 @@
 package org.opencoap.ssl.util
 
 import com.sun.jna.Memory
+import org.opencoap.ssl.transport.Transport
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -67,3 +68,6 @@ val Int.seconds: Duration
 
 val Int.millis: Duration
     get() = Duration.ofMillis(this.toLong())
+
+fun <B> Transport<B>.localAddress(): InetSocketAddress =
+    InetSocketAddress(InetAddress.getLocalHost(), this.localPort())

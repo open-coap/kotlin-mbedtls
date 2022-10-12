@@ -26,12 +26,10 @@ import org.opencoap.ssl.SslSession
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.nio.channels.DatagramChannel
 import java.time.Duration
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
+import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -40,13 +38,15 @@ import java.util.concurrent.atomic.AtomicInteger
 Single threaded dtls server on top of DatagramChannel.
  */
 class DtlsServer private constructor(
-    private val channel: DatagramChannel,
+    private val transport: Transport<ByteBufferPacket>,
     private val sslConfig: SslConfig,
     private val expireAfter: Duration,
     private val sessionStore: SessionStore,
-) {
+) : Transport<BytesPacket> {
 
     companion object {
+        private val EMPTY_BUFFER = ByteBuffer.allocate(0)
+
         private val threadIndex = AtomicInteger(0)
 
         @JvmStatic
@@ -57,7 +57,7 @@ class DtlsServer private constructor(
             expireAfter: Duration = Duration.ofSeconds(60),
             sessionStore: SessionStore = NoOpsSessionStore
         ): DtlsServer {
-            val channel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", listenPort))
+            val channel = DatagramChannelAdapter.open(listenPort)
             return DtlsServer(channel, config, expireAfter, sessionStore)
         }
     }
@@ -66,214 +66,209 @@ class DtlsServer private constructor(
     val executor = ScheduledThreadPoolExecutor(1) { r: Runnable -> Thread(r, "dtls-srv-" + threadIndex.getAndIncrement()) }
 
     // note: must be used only from executor
-    private val localActionPromises = ThreadLocal<MutableMap<InetSocketAddress, CompletableFuture<Action>>>()
-    private val actionPromises: MutableMap<InetSocketAddress, CompletableFuture<Action>>
-        get() = localActionPromises.get()
+    private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
     private val cidSize = sslConfig.cidSupplier.next().size
 
-    init {
-        executor.execute { localActionPromises.set(hashMapOf()) }
+    override fun receive(timeout: Duration): CompletableFuture<BytesPacket> {
+        return transport.receive(timeout).thenComposeAsync({ packet ->
+            if (packet == Packet.EmptyByteBufferPacket) return@thenComposeAsync completedFuture(Packet.EmptyBytesPacket)
+
+            val adr: InetSocketAddress = packet.peerAddress
+            val buf: ByteBuffer = packet.buffer
+
+            handleReceived(adr, buf, timeout)
+        }, executor)
     }
 
-    fun listen(handler: Handler): DtlsServer {
-        val bufPool: BlockingQueue<ByteBuffer> = ArrayBlockingQueue(1)
-        bufPool.put(ByteBuffer.allocateDirect(16384))
+    private fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer, timeout: Duration): CompletableFuture<BytesPacket> {
+        val cid by lazy { SslContext.peekCID(cidSize, buf) }
+        val dtlsState = sessions[adr]
 
-        val nonThrowingHandler = handler.decorateWithCatcher()
-        channel.listen(bufPool) { adr: InetSocketAddress, buf: ByteBuffer ->
-            // need to handle incoming message in executor for thread safety
-            executor.execute {
-                val promise = actionPromises.remove(adr)
-                if (promise != null) {
-                    promise.complete(DecryptAction(buf))
-                } else {
-                    val cid = SslContext.peekCID(cidSize, buf)
-                    if (cid != null) {
-                        loadSession(buf.copyDirect(), cid, adr, handler)
+        return when {
+            dtlsState is DtlsHandshake -> {
+                dtlsState.step(buf)
+                receive(timeout)
+            }
+
+            dtlsState is DtlsSession -> {
+                val plainBytes = dtlsState.decrypt(buf)
+                if (plainBytes.isNotEmpty())
+                    completedFuture(Packet(plainBytes, adr))
+                else
+                    receive(timeout)
+            }
+
+            // no session, but dtls packet contains CID
+            cid != null -> {
+                val copyBuf = buf.copyDirect()
+                loadSession(cid!!, adr).thenCompose { isLoaded ->
+                    if (isLoaded) {
+                        handleReceived(adr, copyBuf, timeout)
                     } else {
-                        DtlsHandshake(sslConfig.newContext(adr), adr, nonThrowingHandler)
-                            .invoke(DecryptAction(buf))
+                        receive(timeout)
                     }
                 }
+            }
 
-                bufPool.put(buf) // return buffer to the pool
+            // new handshake
+            else -> {
+                sessions[adr] = DtlsHandshake(sslConfig.newContext(adr), adr)
+                handleReceived(adr, buf, timeout)
             }
         }
-        return this
     }
 
-    fun send(data: ByteArray, target: InetSocketAddress): CompletableFuture<Boolean> = executor.supply {
-        val promise = actionPromises.remove(target)
-        promise?.complete(EncryptAction(data)) ?: false
+    override fun send(packet: Packet<ByteArray>): CompletableFuture<Boolean> = executor.supply {
+        when (val dtlsState = sessions[packet.peerAddress]) {
+            is DtlsSession -> {
+                transport.send(packet.map(dtlsState::encrypt))
+                true
+            }
+
+            else -> false
+        }
     }
 
-    fun numberOfSessions(): Int = executor.supply { actionPromises.size }.join()
-    val localAddress: InetSocketAddress
-        get() = channel.localAddress as InetSocketAddress
+    fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
 
-    fun localPort() = localAddress.port
+    override fun localPort() = transport.localPort()
 
-    fun close() {
+    override fun close() {
         executor.supply {
-            channel.close()
-            val iterator = actionPromises.iterator()
+            transport.close()
+
+            val iterator = sessions.iterator()
             while (iterator.hasNext()) {
-                val promise = iterator.next().value
+                val dtlsState = iterator.next().value
                 iterator.remove()
-                promise.complete(CloseAction)
+                dtlsState.storeAndClose()
             }
         }.get(30, TimeUnit.SECONDS)
         executor.shutdown()
     }
 
-    private fun receive(peerAddress: InetSocketAddress, timeout: Duration = expireAfter, timeoutAction: Action = TimeoutAction): CompletionStage<Action> {
-        val timeoutMillis = if (timeout.isZero) expireAfter.toMillis() else timeout.toMillis()
-
-        val promise = CompletableFuture<Action>()
-        val scheduledFuture = executor.schedule({ promise.complete(timeoutAction) }, timeoutMillis, TimeUnit.MILLISECONDS)
-        actionPromises.put(peerAddress, promise)?.cancel(false)
-
-        promise.thenRun {
-            scheduledFuture.cancel(true)
-            actionPromises.remove(peerAddress, promise)
-        }
-        return promise
-    }
-
-    private fun loadSession(encBuf: ByteBuffer, cid: ByteArray, adr: InetSocketAddress, handler: Handler) {
-        sessionStore.read(cid)
-            .thenAcceptAsync({ sessBuf ->
-                if (sessBuf == null) {
-                    logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
-                } else {
-                    DtlsSession(sslConfig.loadSession(cid, sessBuf, adr), adr, handler)
-                        .invoke(DecryptAction(encBuf))
+    private fun loadSession(cid: ByteArray, adr: InetSocketAddress): CompletableFuture<Boolean> {
+        return sessionStore.read(cid)
+            .thenApplyAsync({ sessBuf ->
+                try {
+                    if (sessBuf == null) {
+                        logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
+                        false
+                    } else {
+                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf, adr), adr)
+                        true
+                    }
+                } catch (ex: SslException) {
+                    logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
+                    false
                 }
             }, executor)
-            .whenComplete { _, ex ->
-                when (ex) {
-                    null -> Unit // no error
-                    is SslException -> logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
-                    else -> logger.error(ex.message, ex)
-                }
-            }
     }
 
-    private fun Handler.decorateWithCatcher(): Handler {
-        return object : Handler {
-            override fun invoke(adr: InetSocketAddress, packet: ByteArray) {
-                try {
-                    this@decorateWithCatcher(adr, packet)
-                } catch (ex: Exception) {
-                    logger.error(ex.toString(), ex)
-                }
-            }
-        }
+    private fun DtlsState.closeAndRemove() {
+        sessions.remove(this.peerAddress, this)
     }
 
-    private inner class DtlsHandshake(private val ctx: SslHandshakeContext, private val peerAddress: InetSocketAddress, private val handler: Handler) {
+    private sealed class DtlsState(val peerAddress: InetSocketAddress) {
+        protected var scheduledTask: ScheduledFuture<*>? = null
+
+        abstract fun storeAndClose()
+    }
+
+    private inner class DtlsHandshake(
+        private val ctx: SslHandshakeContext,
+        peerAddress: InetSocketAddress
+    ) : DtlsState(peerAddress) {
+
         private fun send(buf: ByteBuffer) {
-            channel.send(buf, peerAddress)
+            transport.send(Packet(buf, peerAddress))
         }
 
-        operator fun invoke(action: Action?, err: Throwable? = null) {
+        private fun retryStep() = step(EMPTY_BUFFER)
+
+        fun step(encPacket: ByteBuffer) {
+            scheduledTask?.cancel(false)
+
             try {
-                when (action) {
-                    is DecryptAction -> stepHandshake(action.encPacket)
-                    is EncryptAction -> return
-                    is CloseAction -> ctx.close()
-                    is TimeoutAction -> {
-                        logger.warn("[{}] DTLS handshake expired", peerAddress)
-                        ctx.close()
+                when (val newCtx = ctx.step(encPacket, ::send)) {
+                    is SslHandshakeContext -> {
+                        scheduledTask = if (!newCtx.readTimeout.isZero) {
+                            executor.schedule(::retryStep, newCtx.readTimeout)
+                        } else {
+                            executor.schedule(::timeout, expireAfter)
+                        }
                     }
-                    null -> throw err!!
+
+                    is SslSession ->
+                        sessions[peerAddress] = DtlsSession(newCtx, peerAddress)
                 }
             } catch (ex: HelloVerifyRequired) {
-                ctx.close()
+                closeAndRemove()
             } catch (ex: SslException) {
                 logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
-                ctx.close()
+                closeAndRemove()
             } catch (ex: Exception) {
                 logger.error(ex.toString(), ex)
-                ctx.close()
+                closeAndRemove()
             }
         }
 
-        private fun stepHandshake(encPacket: ByteBuffer) {
-            when (val newCtx = ctx.step(encPacket, ::send)) {
-                is SslHandshakeContext -> {
-                    if (!newCtx.readTimeout.isZero)
-                        receive(peerAddress, newCtx.readTimeout, EmptyDecryptAction).whenComplete(::invoke)
-                    else
-                        receive(peerAddress).whenComplete(::invoke)
-                }
+        fun timeout() {
+            closeAndRemove()
+            logger.warn("[{}] DTLS handshake expired", peerAddress)
+        }
 
-                is SslSession -> {
-                    val dtlsSession = DtlsSession(newCtx, peerAddress, handler)
-                    receive(peerAddress).whenComplete(dtlsSession::invoke)
-                }
-            }
+        override fun storeAndClose() {
+            ctx.close()
         }
     }
 
-    private inner class DtlsSession(private val ctx: SslSession, private val peerAddress: InetSocketAddress, private val handler: Handler) {
-        operator fun invoke(action: Action?, err: Throwable? = null) {
-            try {
-                when (action) {
-                    null -> throw err!!
-                    is DecryptAction -> decrypt(action.encPacket)
-                    is EncryptAction -> encrypt(action.plainPacket)
-                    is CloseAction -> {
-                        logger.info("[{}] DTLS connection closed", peerAddress)
-                        close()
-                    }
-                    is TimeoutAction -> {
-                        logger.info("[{}] DTLS connection expired", peerAddress)
-                        close()
-                    }
-                }
-            } catch (ex: CloseNotifyException) {
-                logger.info("[{}] DTLS received close notify", peerAddress)
-                ctx.close()
-            } catch (ex: SslException) {
-                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
-                ctx.close()
-            } catch (ex: Throwable) {
-                logger.error(ex.message, ex)
-                ctx.close()
-            }
-        }
+    private inner class DtlsSession(
+        private val ctx: SslSession,
+        peerAddress: InetSocketAddress
+    ) : DtlsState(peerAddress) {
 
-        private fun close() {
+        override fun storeAndClose() {
             if (ctx.ownCid != null) {
-                sessionStore.write(ctx.ownCid, ctx.saveAndClose())
+                try {
+                    sessionStore.write(ctx.ownCid, ctx.saveAndClose())
+                } catch (ex: SslException) {
+                    logger.warn("[{}] DTLS failed to store session: {}", peerAddress, ex.message)
+                }
             } else {
                 ctx.close()
             }
         }
 
-        private fun decrypt(encPacket: ByteBuffer) {
-            val plainBuf = ctx.decrypt(encPacket)
-            receive(peerAddress).whenComplete(::invoke)
-            handler(peerAddress, plainBuf)
+        fun decrypt(encPacket: ByteBuffer): ByteArray {
+            scheduledTask?.cancel(false)
+            try {
+                val plainBuf = ctx.decrypt(encPacket)
+                scheduledTask = executor.schedule(::timeout, expireAfter)
+                return plainBuf
+            } catch (ex: CloseNotifyException) {
+                logger.info("[{}] DTLS received close notify", peerAddress)
+            } catch (ex: SslException) {
+                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+            }
+            closeAndRemove()
+            return byteArrayOf()
         }
 
-        private fun encrypt(plainPacket: ByteArray) {
-            val encBuf = ctx.encrypt(plainPacket)
-            receive(peerAddress).whenComplete(::invoke)
-            channel.send(encBuf, peerAddress)
+        fun encrypt(plainPacket: ByteArray): ByteBuffer {
+            try {
+                return ctx.encrypt(plainPacket)
+            } catch (ex: SslException) {
+                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                closeAndRemove()
+                throw ex
+            }
+        }
+
+        fun timeout() {
+            sessions.remove(peerAddress, this)
+            logger.info("[{}] DTLS connection expired", peerAddress)
+            storeAndClose()
         }
     }
-
-    private sealed interface Action
-    private open class DecryptAction(val encPacket: ByteBuffer) : Action
-    private object EmptyDecryptAction : DecryptAction(ByteBuffer.allocate(0))
-    private class EncryptAction(val plainPacket: ByteArray) : Action
-    private object CloseAction : Action
-    private object TimeoutAction : Action
-}
-
-interface Handler {
-    @Throws(Exception::class)
-    operator fun invoke(adr: InetSocketAddress, packet: ByteArray)
 }

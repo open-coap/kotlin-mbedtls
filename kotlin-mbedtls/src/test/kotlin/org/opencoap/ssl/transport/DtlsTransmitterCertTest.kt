@@ -31,13 +31,13 @@ import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletableFuture.completedFuture
 
 class DtlsTransmitterCertTest {
 
-    private lateinit var srvTrans: ConnectedDatagramTransmitter
+    private lateinit var srvTrans: Transport<ByteBuffer>
     private val randomCid = RandomCidSupplier(16)
     private var serverConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, listOf(Certs.root.asX509()))
-    private val logger = LoggerFactory.getLogger(javaClass)
 
     @AfterEach
     fun after() {
@@ -45,8 +45,8 @@ class DtlsTransmitterCertTest {
     }
 
     private fun newServerDtlsTransmitter(destLocalPort: Int): CompletableFuture<DtlsTransmitter> {
-        srvTrans = ConnectedDatagramTransmitter.connect(localAddress(destLocalPort), 0)
-        return DtlsTransmitter.connect(serverConf, srvTrans)
+        srvTrans = DatagramChannelAdapter.connect(localAddress(destLocalPort), 0)
+        return DtlsTransmitter.connect(localAddress(destLocalPort), serverConf, srvTrans)
     }
 
     @Test
@@ -139,12 +139,12 @@ class DtlsTransmitterCertTest {
             retransmitMin = Duration.ofMillis(10),
             retransmitMax = Duration.ofMillis(100)
         )
-        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
+        val cli = DatagramChannelAdapter
             .connect(srvTrans.localAddress(), 7007)
             .dropSend { it % 3 != 2 }
 
         // when
-        val sslSession = DtlsTransmitter.connect(clientConf, cli).await()
+        val sslSession = DtlsTransmitter.connect(srvTrans.localAddress(), clientConf, cli).await()
 
         // then
         sslSession.close()
@@ -161,12 +161,12 @@ class DtlsTransmitterCertTest {
             retransmitMin = Duration.ofMillis(10),
             retransmitMax = Duration.ofMillis(100)
         )
-        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
+        val cli = DatagramChannelAdapter
             .connect(srvTrans.localAddress(), 7008)
             .dropSend { true }
 
         // when
-        val res = runCatching { DtlsTransmitter.connect(clientConf, cli).await() }
+        val res = runCatching { DtlsTransmitter.connect(srvTrans.localAddress(), clientConf, cli).await() }
 
         // then
         assertEquals("SSL - The operation timed out [-0x6800]", res.exceptionOrNull()?.cause?.message)
@@ -175,18 +175,19 @@ class DtlsTransmitterCertTest {
     }
 }
 
-internal fun ConnectedDatagramTransmitter.dropSend(drop: (Int) -> Boolean): ConnectedDatagramTransmitter {
+internal fun <P> Transport<P>.dropSend(drop: (Int) -> Boolean): Transport<P> {
     val underlying = this
     var i = 0
 
-    return object : ConnectedDatagramTransmitter by this {
+    return object : Transport<P> by this {
         private val logger = LoggerFactory.getLogger(javaClass)
 
-        override fun send(buf: ByteBuffer) {
-            if (!drop(i++)) {
-                underlying.send(buf)
+        override fun send(packet: P): CompletableFuture<Boolean> {
+            return if (!drop(i++)) {
+                underlying.send(packet)
             } else {
-                logger.info("send DROPPED {}", buf.remaining())
+                logger.info("send DROPPED {}", packet)
+                completedFuture(true)
             }
         }
     }

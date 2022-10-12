@@ -26,6 +26,7 @@ import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.runGC
+import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import kotlin.random.Random
@@ -34,7 +35,7 @@ class DtlsTransmitterTest {
 
     private val cidSupplier = { Random.nextBytes(16) }
     private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
-    private lateinit var srvTrans: ConnectedDatagramTransmitter
+    private lateinit var srvTrans: Transport<ByteBuffer>
 
     @AfterEach
     fun after() {
@@ -43,8 +44,8 @@ class DtlsTransmitterTest {
     }
 
     private fun newServerDtlsTransmitter(destLocalPort: Int): CompletableFuture<DtlsTransmitter> {
-        srvTrans = ConnectedDatagramTransmitter.connect(localAddress(destLocalPort), 1_5684)
-        return DtlsTransmitter.connect(serverConf, srvTrans)
+        srvTrans = DatagramChannelAdapter.connect(localAddress(destLocalPort), 1_5684)
+        return DtlsTransmitter.connect(localAddress(destLocalPort), serverConf, srvTrans)
     }
 
     @Test
@@ -55,13 +56,14 @@ class DtlsTransmitterTest {
 
         // when
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6001).await()
+        assertEquals(localAddress(1_5684), client.remoteAddress)
         runGC() // make sure none of needed objects is garbage collected
 
         // then
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
         // and read with timeout
-        assertTrue(client.receive(Duration.ofMillis(1)).isEmpty())
+        assertTrue(client.receive(Duration.ofMillis(1)).join().isEmpty())
 
         assertNotNull(client.getCipherSuite())
         client.close()
@@ -71,7 +73,7 @@ class DtlsTransmitterTest {
 
     @Test
     fun `should fail to handshake - wrong psk`() {
-        val server = newServerDtlsTransmitter(6002)
+        newServerDtlsTransmitter(6002)
 
         val conf = SslConfig.client("dupa".encodeToByteArray(), "bad".encodeToByteArray())
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6002)
@@ -118,11 +120,11 @@ class DtlsTransmitterTest {
         val cliSession = "030201003700000f0000006b030000000063495efcc0a420fcd161a09184307644d53c759d3e15a56ff410967160e5ab24f6f6576ec3df661713ceff637a5d525f4d903e440f01eb538628c8598e77a933daf8c96540ba4330398e1eb5d51b5e16a2531589c10c2300000000000000000000000000000063495efce6b125a4061b5f94f80b1b5a9eb0b9fbc08fa5ea7f44359d477ff1cd63495efc3b50619fde84b36978e2752e217c80f2aa79e7465f6940f8f7cc6c2f010110c8d5148adf5ddd18c92bd799044643510000000000000000000000000000000000000001000001000000000002000000".decodeHex()
         val srvSession = "030201003700000f0000006b030000000063495efcc0a420fcd161a09184307644d53c759d3e15a56ff410967160e5ab24f6f6576ec3df661713ceff637a5d525f4d903e440f01eb538628c8598e77a933daf8c96540ba4330398e1eb5d51b5e16a2531589c10c2300000000000000000000000000000063495efce6b125a4061b5f94f80b1b5a9eb0b9fbc08fa5ea7f44359d477ff1cd63495efc3b50619fde84b36978e2752e217c80f2aa79e7465f6940f8f7cc6c2f10c8d5148adf5ddd18c92bd7990446435101010000000000000000000000010000000000000003000001000000000001000000".decodeHex()
         val clientConf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), listOf("TLS-PSK-WITH-AES-128-CCM"), { byteArrayOf(0x01) })
-        srvTrans = ConnectedDatagramTransmitter.connect(localAddress(6004), 2_5684)
+        srvTrans = DatagramChannelAdapter.connect(localAddress(6004), 2_5684)
 
         // when
         val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), cliSession, localAddress(2_5684)), 6004)
-        val server = DtlsTransmitter.create(serverConf.loadSession(byteArrayOf(), srvSession, localAddress(6004)), srvTrans)
+        val server = DtlsTransmitter.create(localAddress(6004), serverConf.loadSession(byteArrayOf(), srvSession, localAddress(6004)), srvTrans)
         runGC()
 
         // then

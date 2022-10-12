@@ -19,6 +19,7 @@ package org.opencoap.ssl.transport
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.EmptyCidSupplier
@@ -36,8 +37,11 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.function.Consumer
 import kotlin.random.Random
 
 class DtlsServerTest {
@@ -53,13 +57,11 @@ class DtlsServerTest {
 
     private lateinit var server: DtlsServer
 
-    private val echoHandler: Handler = object : Handler {
-        override fun invoke(adr: InetSocketAddress, packet: ByteArray) {
-            if (packet.decodeToString() == "error") {
-                throw Exception("error")
-            } else {
-                server.send(packet.plus(":resp".encodeToByteArray()), adr)
-            }
+    private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
+        if (packet.buffer.decodeToString() == "error") {
+            throw Exception("error")
+        } else {
+            server.send(packet.map { it.plus(":resp".encodeToByteArray()) })
         }
     }
 
@@ -75,13 +77,19 @@ class DtlsServerTest {
 
     @Test
     fun testSingleConnection() {
-        server = DtlsServer.create(conf).listen(echoHandler)
+        server = DtlsServer.create(conf)
+        val receive = server.receive(2.seconds)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await()
 
+        client.send("hi")
+        assertEquals("hi", receive.await().buffer.decodeToString())
+        server.send(Packet("czesc".encodeToByteArray(), receive.await().peerAddress))
+        assertEquals("czesc", client.receiveString())
+
         repeat(5) { i ->
             client.send("perse$i")
-            assertEquals("perse$i:resp", client.receiveString())
+            assertEquals("perse$i", server.receive(1.seconds).await().buffer.decodeToString())
         }
 
         assertEquals(1, server.numberOfSessions())
@@ -98,8 +106,8 @@ class DtlsServerTest {
 
         val clients = (1..MAX)
             .map {
-                val ch = ConnectedDatagramTransmitter.connect(localAddress(server.localPort()), 0)
-                DtlsTransmitter.connect(clientCertConf, ch, executors[it % executors.size])
+                val ch = DatagramChannelAdapter.connect(localAddress(server.localPort()), 0)
+                DtlsTransmitter.connect(localAddress(server.localPort()), clientCertConf, ch, executors[it % executors.size])
             }.map {
                 it.get(30, TimeUnit.SECONDS)
             }.map { client ->
@@ -116,7 +124,8 @@ class DtlsServerTest {
     @Test
     fun testFailedHandshake() {
         // given
-        server = DtlsServer.create(conf).listen(echoHandler)
+        server = DtlsServer.create(conf)
+        val srvReceive = server.receive(2.seconds)
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.first, byteArrayOf(-128)))
 
         // when
@@ -126,6 +135,7 @@ class DtlsServerTest {
         await.untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
+        assertFalse(srvReceive.isDone)
     }
 
     @Test
@@ -136,7 +146,7 @@ class DtlsServerTest {
         client.send("perse")
 
         // when
-        client.cnnTrans.send("malformed dtls packet".toByteBuffer())
+        client.transport.send("malformed dtls packet".toByteBuffer())
         client.send("perse")
 
         // then
@@ -228,12 +238,12 @@ class DtlsServerTest {
     @Test
     fun `should successfully handshake with retransmission`() {
         server = DtlsServer.create(timeoutConf).listen(echoHandler)
-        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
+        val cli = DatagramChannelAdapter
             .connect(localAddress(server.localPort()))
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
 
         // when
-        val sslSession = DtlsTransmitter.connect(timeoutClientConf, cli).await()
+        val sslSession = DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli).await()
 
         // then
         sslSession.close()
@@ -243,12 +253,12 @@ class DtlsServerTest {
     @Test
     fun `should remove handshake session when handshake timeout`() {
         server = DtlsServer.create(timeoutConf).listen(echoHandler)
-        val cli: ConnectedDatagramTransmitter = ConnectedDatagramTransmitter
-            .connect(localAddress(server.localPort()))
+        val cli = DatagramChannelAdapter
+            .connect(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
 
         // when
-        DtlsTransmitter.connect(timeoutClientConf, cli)
+        DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
 
         // then
         await.untilAsserted {
@@ -312,8 +322,8 @@ class DtlsServerTest {
         // establish dtls connections
         val clients = (1..MAX)
             .map {
-                val ch = ConnectedDatagramTransmitter.connect(localAddress(server.localPort()), 0)
-                DtlsTransmitter.connect(clientConfig, ch, executors[it % executors.size])
+                val ch = DatagramChannelAdapter.connect(server.localAddress(), 0)
+                DtlsTransmitter.connect(server.localAddress(), clientConfig, ch, executors[it % executors.size])
                     .get(30, TimeUnit.SECONDS)
                     .also { it.send("hello") }
             }
@@ -339,22 +349,29 @@ class DtlsServerTest {
         assertTrue(server.executor is ScheduledThreadPoolExecutor)
     }
 
-    private fun ConnectedDatagramTransmitter.dropReceive(drop: (Int) -> Boolean): ConnectedDatagramTransmitter {
+    private fun <T> Transport<T>.dropReceive(drop: (Int) -> Boolean): Transport<T> {
         val underlying = this
         var i = 0
 
-        return object : ConnectedDatagramTransmitter by this {
+        return object : Transport<T> by this {
             private val logger = LoggerFactory.getLogger(javaClass)
 
-            override fun receive(buf: ByteBuffer, timeout: Duration) {
-                underlying.receive(buf, timeout)
-                if (drop(i++)) {
-                    logger.info("receive DROPPED {}", buf.remaining())
-                    receive(buf, timeout)
-                } else {
-                    logger.info("receive {}", buf.remaining())
-                }
+            override fun receive(timeout: Duration): CompletableFuture<T> {
+                return underlying.receive(timeout)
+                    .thenCompose {
+                        if (drop(i++)) {
+                            logger.info("receive DROPPED {}", it)
+                            receive(timeout)
+                        } else {
+                            logger.info("receive {}", it)
+                            completedFuture(it)
+                        }
+                    }
             }
         }
     }
+}
+
+fun Transport<ByteArray>.receiveString(): String {
+    return receive(Duration.ofSeconds(5)).join().decodeToString()
 }

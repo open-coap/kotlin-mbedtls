@@ -16,46 +16,21 @@
 
 package org.opencoap.ssl.transport
 
-import org.slf4j.LoggerFactory
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.nio.channels.ClosedChannelException
-import java.nio.channels.DatagramChannel
-import java.nio.channels.Selector
 import java.time.Duration
-import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.function.Supplier
-
-internal fun DatagramChannel.listen(bufPool: BlockingQueue<ByteBuffer>, handler: (InetSocketAddress, ByteBuffer) -> Unit) {
-    val task = Runnable {
-        try {
-            while (this.isOpen) {
-                val buffer = bufPool.take()
-                buffer.clear()
-                val peerAddress = this.receive(buffer) as InetSocketAddress
-                buffer.flip()
-                handler.invoke(peerAddress, buffer)
-            }
-        } catch (ex: Exception) {
-            if (ex !is ClosedChannelException) LoggerFactory.getLogger(javaClass).error(ex.toString(), ex)
-        }
-    }
-
-    Thread(task, "udp-io (:" + (localAddress as InetSocketAddress).port + ")").start()
-}
-
-internal fun DatagramChannel.receive(buffer: ByteBuffer, selector: Selector, timeout: Duration): InetSocketAddress? {
-    buffer.clear()
-    selector.select(timeout.toMillis())
-    val sourceAddress = this.receive(buffer) as? InetSocketAddress
-    buffer.flip()
-    return sourceAddress
-}
 
 internal fun <T> Executor.supply(supplier: Supplier<T>): CompletableFuture<T> {
     return CompletableFuture.supplyAsync(supplier, this)
+}
+
+internal fun ScheduledExecutorService.schedule(task: Runnable, delay: Duration): ScheduledFuture<*> {
+    return this.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS)
 }
 
 internal fun ByteArray.toHex(): String {
