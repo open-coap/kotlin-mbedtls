@@ -41,3 +41,5 @@ val response: CompletableFuture<ByteArray> = clientSession.read()
 
 - `./gradlew release`              create next tag in Git and push to origin
 - `./gradlew currentVersion`       print current version
+- `./gradlew dependencyUpdates`    determine which dependencies have updates
+- `./gradlew useLatestVersions`    update dependencies to the latest available versions
