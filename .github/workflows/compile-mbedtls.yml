@@ -13,9 +13,9 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-latest
-            binary: kotlin-mbedtls/src/main/resources/**/*.so
+            library-ext: so
           - platform: macos-latest
-            binary: kotlin-mbedtls/src/main/resources/**/*.dylib
+            library-ext: dylib
 
     runs-on: ${{ matrix.platform }}
 
@@ -29,5 +29,5 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:
-          path: ${{ matrix.binary }}
+          path: kotlin-mbedtls/src/main/resources/**/*.${{ matrix.library-ext }}
           if-no-files-found: error

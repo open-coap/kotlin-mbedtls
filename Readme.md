@@ -13,7 +13,7 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
 ## Supported OS
 
-Out of the box:
+Precompiled:
 - Linux (x86-64)
 - MAC (x86-64)
 
