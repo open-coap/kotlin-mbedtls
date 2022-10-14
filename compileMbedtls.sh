@@ -1,12 +1,12 @@
 #!/bin/bash
-MBEDTLS_VERSION=v3.0.0-rfc9146
+MBEDTLS_VERSION=v3.2.0-rfc9146_2
 BUILD_DIR=kotlin-mbedtls/build/mbedtls
 SRC=kotlin-mbedtls/src
 
 # clone
 rm -rf ${BUILD_DIR}
 mkdir -p ${BUILD_DIR}
-git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146' https://github.com/hannestschofenig/mbedtls.git .
+git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146_2' https://github.com/hannestschofenig/mbedtls.git .
 git -C ${BUILD_DIR} submodule update --init --recommend-shallow
 
 # configure

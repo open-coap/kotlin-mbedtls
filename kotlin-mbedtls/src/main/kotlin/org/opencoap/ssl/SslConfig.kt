@@ -235,6 +235,10 @@ class SslConfig(
     private object LogCallback : Callback {
         private val logger = LoggerFactory.getLogger(javaClass)
         fun callback(ctx: Pointer?, debugLevel: Int, fileName: String, lineNumber: Int, message: String?) {
+
+            // seems like a bug in log levels:
+            if (debugLevel == 1 && message?.startsWith("got supported group") == true) return
+
             when (debugLevel) {
                 1 -> logger.warn("[mbedtls {}:{}] {} ", fileName.substringAfterLast('/'), lineNumber, message?.trim())
                 2 -> logger.debug("[mbedtls {}:{}] {}", fileName.substringAfterLast('/'), lineNumber, message?.trim())
