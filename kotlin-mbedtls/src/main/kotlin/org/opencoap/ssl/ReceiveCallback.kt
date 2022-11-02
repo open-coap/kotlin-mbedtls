@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,14 @@ package org.opencoap.ssl
 
 import com.sun.jna.Callback
 import com.sun.jna.Pointer
+import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 
 internal object ReceiveCallback : Callback {
 
-    private var buffer = ThreadLocal<ByteBuffer>()
-    private var timeout = ThreadLocal<Int>()
+    private val logger = LoggerFactory.getLogger(javaClass)
+    private val buffer = ThreadLocal<ByteBuffer>()
+    private val timeout = ThreadLocal<Int>()
 
     operator fun <T> invoke(buf: ByteBuffer?, readFun: () -> T): T {
         this.buffer.set(buf)
@@ -61,7 +63,7 @@ internal object ReceiveCallback : Callback {
             }
         } catch (e: Exception) {
             // need to catch all exceptions to avoid crashing
-            e.printStackTrace()
+            logger.error(e.message, e)
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_RECV_FAILED
     }
@@ -70,6 +72,7 @@ internal object ReceiveCallback : Callback {
 internal typealias SendBytes = (ByteBuffer) -> Unit
 
 internal object SendCallback : Callback {
+    private val logger = LoggerFactory.getLogger(javaClass)
     private val sendFunc = ThreadLocal<SendBytes>()
 
     operator fun <T> invoke(send: SendBytes, run: () -> T): T {
@@ -95,7 +98,7 @@ internal object SendCallback : Callback {
             }
         } catch (e: java.lang.Exception) {
             // need to catch all exceptions to avoid crashing
-            e.printStackTrace()
+            logger.error(e.message, e)
         }
         return MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED
     }

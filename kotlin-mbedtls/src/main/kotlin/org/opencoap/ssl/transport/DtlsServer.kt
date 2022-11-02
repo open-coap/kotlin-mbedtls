@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,6 +101,7 @@ class DtlsServer private constructor(
             // no session, but dtls packet contains CID
             cid != null -> {
                 val copyBuf = buf.copyDirect()
+                @Suppress("UnsafeCallOnNullableType") // smart casting does not work for lazy delegate
                 loadSession(cid!!, adr).thenCompose { isLoaded ->
                     if (isLoaded) {
                         handleReceived(adr, copyBuf, timeout)

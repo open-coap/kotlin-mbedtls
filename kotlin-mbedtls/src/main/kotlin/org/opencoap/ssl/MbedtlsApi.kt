@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+@file:Suppress("FunctionNaming")
 
 package org.opencoap.ssl
 
@@ -97,8 +99,8 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_cookie_init(cookieCtx: Pointer)
     external fun mbedtls_ssl_cookie_free(cookieCtx: Pointer)
     external fun mbedtls_ssl_cookie_setup(cookieCtx: Pointer, fRng: Pointer, pRng: Pointer): Int
-    val mbedtls_ssl_cookie_write = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_write")
-    val mbedtls_ssl_cookie_check = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_check")
+    val mbedtls_ssl_cookie_write: Function = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_write")
+    val mbedtls_ssl_cookie_check: Function = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_check")
 
     // -------------------------
 
