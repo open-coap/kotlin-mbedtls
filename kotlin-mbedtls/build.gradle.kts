@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "1.7.22"
     id("org.jlleitschuh.gradle.ktlint") version "11.0.0"
     id("com.adarshr.test-logger") version "3.2.0"
+    id("io.gitlab.arturbosch.detekt") version "1.22.0"
 }
 
 dependencies {
@@ -34,4 +35,10 @@ tasks.withType<KotlinCompile> {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+detekt {
+    source = files("src/main/kotlin")
+    config = files("../detekt.yml")
+    buildUponDefaultConfig = true
 }

@@ -1,0 +1,26 @@
+config:
+  validation: true
+  warningsAsErrors: true
+
+complexity:
+  LongParameterList:
+    active: false
+  TooManyFunctions:
+    active: false
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    active: false
+  UnusedPrivateMember:
+    active: true
+    allowedNames: '(_|ignored|ctx)'

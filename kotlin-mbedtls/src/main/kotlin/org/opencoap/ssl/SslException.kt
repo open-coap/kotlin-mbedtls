@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import java.util.Locale
 
 open class SslException(message: String) : Exception(message) {
 
@@ -25,7 +26,7 @@ open class SslException(message: String) : Exception(message) {
             if (error == MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
                 return CloseNotifyException
             }
-            return SslException(String.format("%s [-0x%04X]", translateError(error), -error))
+            return SslException(String.format(Locale.US, "%s [-0x%04X]", translateError(error), -error))
         }
 
         internal fun translateError(error: Int): String {
