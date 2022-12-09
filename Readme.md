@@ -35,11 +35,22 @@ val response: CompletableFuture<ByteArray> = clientSession.read()
 - `./gradlew currentVersion`       show current version
 - `./gradlew ktlintFormat`         format kotlin files
 
-
-- `./compileMbedtls.sh`            clone and compile mbedtls
-
-
 - `./gradlew release`              create next tag in Git and push to origin
 - `./gradlew currentVersion`       print current version
 - `./gradlew dependencyUpdates`    determine which dependencies have updates
 - `./gradlew useLatestVersions`    update dependencies to the latest available versions
+
+## Build mbedtls binaries
+
+Linux (x86_64):
+
+`./compileMbedtls.sh`
+
+Mac (intel and arm):
+
+`DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh`
+
+Cross compiling for linux (x86_64):
+
+- `docker run -it -v$(pwd):/work --rm dockcross/linux-x86_64-full ./compileMbedtls.sh`
+

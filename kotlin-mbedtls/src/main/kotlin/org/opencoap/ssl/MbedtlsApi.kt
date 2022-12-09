@@ -28,7 +28,9 @@ import org.slf4j.LoggerFactory
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.2.0-rfc9146_2")
+    val LIB_MBEDCRYPTO: NativeLibrary = NativeLibrary.getInstance("mbedcrypto-v3.3.0-RC-c3902ac")
+    val LIB_MBEDX509: NativeLibrary = NativeLibrary.getInstance("mbedx509-v3.3.0-RC-c3902ac")
+    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.3.0-RC-c3902ac")
 
     init {
         Native.register(LIB_MBEDTLS)

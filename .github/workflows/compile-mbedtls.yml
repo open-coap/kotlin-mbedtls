@@ -14,20 +14,22 @@ jobs:
         include:
           - platform: ubuntu-latest
             library-ext: so
+            compile-flags:
           - platform: macos-latest
+            compile-flags: DLEXT=dylib OSARCH=darwin
             library-ext: dylib
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - run: pip3 install Jinja2
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Compile
         shell: bash
-        run: ./compileMbedtls.sh
+        run: ${{ matrix.compile-flags }} ./compileMbedtls.sh
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:
+          name: ${{ matrix.platform }}
           path: kotlin-mbedtls/src/main/resources/**/*.${{ matrix.library-ext }}
           if-no-files-found: error

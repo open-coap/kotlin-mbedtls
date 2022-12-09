@@ -1,38 +1,35 @@
 #!/bin/bash
-MBEDTLS_VERSION=v3.2.0-rfc9146_2
-BUILD_DIR=kotlin-mbedtls/build/mbedtls
+MBEDTLS_VERSION=v3.3.0-RC-c3902ac
+BUILD_DIR=kotlin-mbedtls/build/mbedtls-c3902ac6614c12133393be38ca21c7fb9e059812
 SRC=kotlin-mbedtls/src
+DLEXT="${DLEXT:-so}"
+OSARCH="${OSARCH:-linux-x86-64}"
 
-# clone
+# download
+mkdir -p kotlin-mbedtls/build
+wget -N https://github.com/Mbed-TLS/mbedtls/archive/c3902ac6614c12133393be38ca21c7fb9e059812.tar.gz -O kotlin-mbedtls/build/mbedtls.tar.gz
 rm -rf ${BUILD_DIR}
-mkdir -p ${BUILD_DIR}
-git -C ${BUILD_DIR} clone --depth 1 --branch 'rfc9146_2' https://github.com/hannestschofenig/mbedtls.git .
-git -C ${BUILD_DIR} submodule update --init --recommend-shallow
+tar -xf kotlin-mbedtls/build/mbedtls.tar.gz -C kotlin-mbedtls/build/ --no-same-owner
+
+# install python requirements
+python3 -m pip install -r ${BUILD_DIR}/scripts/basic.requirements.txt
 
 # configure
+chmod +x ${BUILD_DIR}/scripts/config.pl
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 
 ## compile
-(cd ${BUILD_DIR} && cmake -DUSE_SHARED_MBEDTLS_LIBRARY=On -DUSE_STATIC_MBEDTLS_LIBRARY=Off -DENABLE_TESTING=OFF -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF -DCMAKE_BUILD_TYPE=RELEASE .)
-(cd ${BUILD_DIR} && cmake --build .)
-
+export SHARED=true
+(cd ${BUILD_DIR} && make lib)
 
 # copy binaries
-# make a single dylib/so file, to enable loading from jar file
-if [[ "$(uname)" == 'Darwin' ]]; then
-  rm $SRC/main/resources/darwin/*
-  OUTPUT_LIB="$SRC/main/resources/darwin/libmbedtls-${MBEDTLS_VERSION}.dylib"
-elif [[ "$(uname)" == 'Linux' ]]; then
-  rm $SRC/main/resources/linux-x86-64/*
-  OUTPUT_LIB="$SRC/main/resources/linux-x86-64/libmbedtls-${MBEDTLS_VERSION}.so"
-else
-  echo "Failure: unsupported platform: $(uname)"
-  exit 1
-fi
-
-g++ -shared ${BUILD_DIR}/library/CMakeFiles/*/*.o -o ${OUTPUT_LIB}
+LIB_DIR="$SRC/main/resources/$OSARCH"
+rm ${LIB_DIR}/*
+cp ${BUILD_DIR}/library/libmbedtls.${DLEXT}     ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT}
+cp ${BUILD_DIR}/library/libmbedcrypto.${DLEXT}  ${LIB_DIR}/libmbedcrypto-${MBEDTLS_VERSION}.${DLEXT}
+cp ${BUILD_DIR}/library/libmbedx509.${DLEXT}    ${LIB_DIR}/libmbedx509-${MBEDTLS_VERSION}.${DLEXT}
 
 
 # generate kotlin object with memory sizes
