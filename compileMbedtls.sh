@@ -1,15 +1,14 @@
 #!/bin/bash
 MBEDTLS_VERSION=3.3.0
-BUILD_DIR=kotlin-mbedtls/build/mbedtls-${MBEDTLS_VERSION}
-SRC=kotlin-mbedtls/src
+BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
 
 # download
-mkdir -p kotlin-mbedtls/build
-wget -N https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v${MBEDTLS_VERSION}.tar.gz -O kotlin-mbedtls/build/mbedtls.tar.gz
+mkdir -p mbedtls-lib/build
+wget -N https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v${MBEDTLS_VERSION}.tar.gz -O mbedtls-lib/build/mbedtls.tar.gz
 rm -rf ${BUILD_DIR}
-tar -xf kotlin-mbedtls/build/mbedtls.tar.gz -C kotlin-mbedtls/build/ --no-same-owner
+tar -xf mbedtls-lib/build/mbedtls.tar.gz -C mbedtls-lib/build/ --no-same-owner
 
 # install python requirements
 python3 -m pip install -r ${BUILD_DIR}/scripts/basic.requirements.txt
@@ -25,7 +24,7 @@ export SHARED=true
 (cd ${BUILD_DIR} && make lib)
 
 # copy binaries
-LIB_DIR="$SRC/main/resources/$OSARCH"
+LIB_DIR="mbedtls-lib/bin/$OSARCH"
 rm ${LIB_DIR}/*
 cp ${BUILD_DIR}/library/libmbedtls.${DLEXT}     ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT}
 cp ${BUILD_DIR}/library/libmbedcrypto.${DLEXT}  ${LIB_DIR}/libmbedcrypto-${MBEDTLS_VERSION}.${DLEXT}
@@ -33,5 +32,5 @@ cp ${BUILD_DIR}/library/libmbedx509.${DLEXT}    ${LIB_DIR}/libmbedx509-${MBEDTLS
 
 
 # generate kotlin object with memory sizes
-gcc $SRC/test/c/mbedtls_sizeof_generator.c -I${BUILD_DIR}/include -I${BUILD_DIR}/crypto/include -o kotlin-mbedtls/build/mbedtls_sizeof_generator
-./kotlin-mbedtls/build/mbedtls_sizeof_generator > $SRC/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
+gcc mbedtls-lib/mbedtls_sizeof_generator.c -I${BUILD_DIR}/include -I${BUILD_DIR}/crypto/include -o mbedtls-lib/build/mbedtls_sizeof_generator
+./mbedtls-lib/build/mbedtls_sizeof_generator > kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
