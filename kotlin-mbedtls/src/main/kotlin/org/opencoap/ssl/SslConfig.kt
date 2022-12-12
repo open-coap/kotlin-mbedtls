@@ -19,12 +19,14 @@ package org.opencoap.ssl
 import com.sun.jna.Callback
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_free
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_random
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ctr_drbg_seed
-import org.opencoap.ssl.MbedtlsApi.mbedtls_entropy_free
-import org.opencoap.ssl.MbedtlsApi.mbedtls_pk_free
-import org.opencoap.ssl.MbedtlsApi.mbedtls_pk_parse_key
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_free
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_random
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_seed
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_entropy_free
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_free
+import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_parse_key
+import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_x509_crt_free
+import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_x509_crt_parse_der
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_authmode
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_ca_chain
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_cid
@@ -50,8 +52,6 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_client_transport_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
-import org.opencoap.ssl.MbedtlsApi.mbedtls_x509_crt_free
-import org.opencoap.ssl.MbedtlsApi.mbedtls_x509_crt_parse_der
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -142,18 +142,18 @@ class SslConfig(
         ): SslConfig {
 
             val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
-            val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi::mbedtls_entropy_init)
-            val ctrDrbg = Memory(MbedtlsSizeOf.mbedtls_ctr_drbg_context).also(MbedtlsApi::mbedtls_ctr_drbg_init)
-            val ownCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi::mbedtls_x509_crt_init)
-            val caCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi::mbedtls_x509_crt_init)
-            val pkey = Memory(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi::mbedtls_pk_init)
+            val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi.Crypto::mbedtls_entropy_init)
+            val ctrDrbg = Memory(MbedtlsSizeOf.mbedtls_ctr_drbg_context).also(MbedtlsApi.Crypto::mbedtls_ctr_drbg_init)
+            val ownCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
+            val caCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
+            val pkey = Memory(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi.Crypto::mbedtls_pk_init)
             var cipherSuiteIds: Memory? = null
 
             val endpointType = if (isServer) MbedtlsApi.MBEDTLS_SSL_IS_SERVER else MbedtlsApi.MBEDTLS_SSL_IS_CLIENT
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
             mbedtls_ssl_conf_min_version(sslConfig, MbedtlsApi.MBEDTLS_SSL_MAJOR_VERSION_3, MbedtlsApi.MBEDTLS_SSL_MINOR_VERSION_3)
 
-            mbedtls_ctr_drbg_seed(ctrDrbg, MbedtlsApi.mbedtls_entropy_func, entropy, Pointer.NULL, 0).verify()
+            mbedtls_ctr_drbg_seed(ctrDrbg, MbedtlsApi.Crypto.mbedtls_entropy_func, entropy, Pointer.NULL, 0).verify()
             mbedtls_ssl_conf_rng(sslConfig, mbedtls_ctr_drbg_random, ctrDrbg)
 
             // cookies

@@ -28,12 +28,14 @@ import org.slf4j.LoggerFactory
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    val LIB_MBEDCRYPTO: NativeLibrary = NativeLibrary.getInstance("mbedcrypto-v3.3.0-RC-c3902ac")
-    val LIB_MBEDX509: NativeLibrary = NativeLibrary.getInstance("mbedx509-v3.3.0-RC-c3902ac")
-    val LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls-v3.3.0-RC-c3902ac")
+    private val LIB_MBEDCRYPTO = NativeLibrary.getInstance("mbedcrypto-v3.3.0-RC-c3902ac")
+    private val LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509-v3.3.0-RC-c3902ac")
+    private val LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls-v3.3.0-RC-c3902ac")
 
     init {
         Native.register(LIB_MBEDTLS)
+        Native.register(Crypto::class.java, LIB_MBEDCRYPTO)
+        Native.register(X509::class.java, LIB_MBEDX509)
         configureLogThreshold()
     }
 
@@ -84,36 +86,12 @@ internal object MbedtlsApi {
     const val MBEDTLS_SSL_VERIFY_NONE = 0
     const val MBEDTLS_SSL_VERIFY_REQUIRED = 2
 
-    // mbedtls/entropy.h
-    external fun mbedtls_entropy_free(entropy: Pointer)
-    external fun mbedtls_entropy_init(entropy: Pointer)
-    internal val mbedtls_entropy_func = LIB_MBEDTLS.getFunction("mbedtls_entropy_func")
-
-    // mbedtls/ctr_drbg.h
-    external fun mbedtls_ctr_drbg_free(ctrDrbg: Pointer)
-    external fun mbedtls_ctr_drbg_init(ctrDrbg: Pointer)
-    external fun mbedtls_ctr_drbg_seed(mbedtlsCtrDrbgContext: Pointer, fEntropy: Pointer, pEntropyCtx: Pointer, custom: Pointer?, len: Int): Int
-    internal val mbedtls_ctr_drbg_random = LIB_MBEDTLS.getFunction("mbedtls_ctr_drbg_random")
-
-    // mbedtls/error.h
-    external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
-
     // ----- net_sockets.h -----
     val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
     val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
 
     // mbedtls/debug.h
     external fun mbedtls_debug_set_threshold(threshold: Int)
-
-    // mbedtls/x509_crt.h
-    external fun mbedtls_x509_crt_init(cert: Pointer)
-    external fun mbedtls_x509_crt_free(cert: Pointer)
-    external fun mbedtls_x509_crt_parse_der(chain: Pointer, buf: ByteArray, len: Int): Int
-
-    // mbedtls/pk.h
-    external fun mbedtls_pk_init(ctx: Pointer)
-    external fun mbedtls_pk_free(ctx: Pointer)
-    external fun mbedtls_pk_parse_key(ctx: Pointer, key: ByteArray, keyLen: Int, pwd: Pointer?, pwdLen: Int, fRng: Pointer, pRbg: Pointer): Int
 
     // mbedtls/ssl_cookie.h
     external fun mbedtls_ssl_cookie_init(cookieCtx: Pointer)
@@ -141,5 +119,35 @@ internal object MbedtlsApi {
         } else {
             mbedtls_debug_set_threshold(0)
         }
+    }
+
+    internal object Crypto {
+
+        // mbedtls/entropy.h
+        external fun mbedtls_entropy_free(entropy: Pointer)
+        external fun mbedtls_entropy_init(entropy: Pointer)
+        internal val mbedtls_entropy_func = LIB_MBEDCRYPTO.getFunction("mbedtls_entropy_func")
+
+        // mbedtls/ctr_drbg.h
+        external fun mbedtls_ctr_drbg_free(ctrDrbg: Pointer)
+        external fun mbedtls_ctr_drbg_init(ctrDrbg: Pointer)
+        external fun mbedtls_ctr_drbg_seed(mbedtlsCtrDrbgContext: Pointer, fEntropy: Pointer, pEntropyCtx: Pointer, custom: Pointer?, len: Int): Int
+        internal val mbedtls_ctr_drbg_random = LIB_MBEDCRYPTO.getFunction("mbedtls_ctr_drbg_random")
+
+        // mbedtls/error.h
+        external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
+
+        // mbedtls/pk.h
+        external fun mbedtls_pk_init(ctx: Pointer)
+        external fun mbedtls_pk_free(ctx: Pointer)
+        external fun mbedtls_pk_parse_key(ctx: Pointer, key: ByteArray, keyLen: Int, pwd: Pointer?, pwdLen: Int, fRng: Pointer, pRbg: Pointer): Int
+    }
+
+    internal object X509 {
+
+        // mbedtls/x509_crt.h
+        external fun mbedtls_x509_crt_init(cert: Pointer)
+        external fun mbedtls_x509_crt_free(cert: Pointer)
+        external fun mbedtls_x509_crt_parse_der(chain: Pointer, buf: ByteArray, len: Int): Int
     }
 }
