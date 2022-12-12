@@ -7,29 +7,33 @@ on:
       - '.github/workflows/compile-mbedtls.yml'
       - '**/src/**/*.c'
 jobs:
-  compile:
-
-    strategy:
-      matrix:
-        include:
-          - platform: ubuntu-latest
-            library-ext: so
-            compile-flags:
-          - platform: macos-latest
-            compile-flags: DLEXT=dylib OSARCH=darwin
-            library-ext: dylib
-
-    runs-on: ${{ matrix.platform }}
-
+  compile-linux:
+    name: "compile: linux-x86-64"
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Compile
-        shell: bash
-        run: ${{ matrix.compile-flags }} ./compileMbedtls.sh
-
+        run: ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.platform }}
-          path: kotlin-mbedtls/src/main/resources/**/*.${{ matrix.library-ext }}
+          name: linux-x86-64
+          path: kotlin-mbedtls/src/main/resources/linux-x86-64/*
+          if-no-files-found: error
+
+  compile-macos:
+    name: "compile: macos"
+    timeout-minutes: 5
+    if: github.repository == 'open-coap/kotlin-mbedtls'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Compile
+        run: DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: darwin
+          path: kotlin-mbedtls/src/main/resources/darwin/*
           if-no-files-found: error

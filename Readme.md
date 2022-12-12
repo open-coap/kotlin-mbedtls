@@ -15,7 +15,7 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
 Precompiled:
 - Linux (x86-64)
-- MAC (x86-64)
+- Apple Mac (intel and arm)
 
 ## Usage:
 
@@ -48,7 +48,7 @@ Linux (x86_64):
 
 Mac (intel and arm):
 
-`DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh`
+`LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh`
 
 Cross compiling for linux (x86_64):
 

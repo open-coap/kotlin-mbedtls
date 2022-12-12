@@ -6,19 +6,28 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         java: [ '8', '11', '17' ]
+        platform: [ 'ubuntu-latest', 'macos-12' ]
+        exclude:
+          - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-12' }}
 
+
+    runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up JDK
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: ${{ matrix.java }}
           distribution: 'adopt'
+
+      - name: Enable using libraries from temporary location in mac
+        if: ${{ matrix.platform == 'macos-12' }}
+        run: sudo spctl --master-disable
+
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v2
         with:
