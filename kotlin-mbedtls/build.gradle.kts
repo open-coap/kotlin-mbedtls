@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.7.20"
+    id("org.jetbrains.kotlin.jvm") version "1.7.22"
     id("java-library")
     id("maven-publish")
     id("org.jlleitschuh.gradle.ktlint") version "11.0.0"
@@ -12,7 +12,7 @@ dependencies {
     api(platform("org.jetbrains.kotlin:kotlin-bom"))
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    api("org.slf4j:slf4j-api:2.0.3")
+    api("org.slf4j:slf4j-api:2.0.5")
     api("net.java.dev.jna:jna:5.12.1")
 
     // TESTS
