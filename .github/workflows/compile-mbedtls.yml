@@ -19,7 +19,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: linux-x86-64
-          path: kotlin-mbedtls/src/main/resources/linux-x86-64/*
+          path: mbedtls-lib/bin/linux-x86-64/*
           if-no-files-found: error
 
   compile-macos:
@@ -35,5 +35,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: darwin
-          path: kotlin-mbedtls/src/main/resources/darwin/*
+          path: mbedtls-lib/bin/darwin/*
           if-no-files-found: error
