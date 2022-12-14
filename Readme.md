@@ -52,5 +52,4 @@ Mac (intel and arm):
 
 Cross compiling for linux (x86_64):
 
-- `docker run -it -v$(pwd):/work --rm dockcross/linux-x86_64-full ./compileMbedtls.sh`
-
+- `docker run -it -v$(pwd):/work --rm dockcross/manylinux_2_28-x64 ./compileMbedtls.sh`
