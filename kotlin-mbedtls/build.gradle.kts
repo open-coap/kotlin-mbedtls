@@ -2,8 +2,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.7.22"
-    id("java-library")
-    id("maven-publish")
     id("org.jlleitschuh.gradle.ktlint") version "11.0.0"
     id("com.adarshr.test-logger") version "3.2.0"
 }
@@ -34,42 +32,4 @@ tasks.withType<KotlinCompile> {
 
 tasks.test {
     useJUnitPlatform()
-}
-
-// --- PUBLISHING ---
-tasks.create<Jar>("sourceJar") {
-    archiveClassifier.set("sources")
-    from(sourceSets["main"].allSource)
-}
-
-publishing {
-    val repoName = System.getenv("GITHUB_REPOSITORY") ?: "open-coap/kotlin-mbedtls"
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/$repoName")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-    }
-    publications {
-        create<MavenPublication>("default") {
-            from(components["java"])
-            groupId = "com.github." + repoName.replace('/', '.')
-            artifact(tasks["sourceJar"])
-            pom {
-                name.set("Kotlin mbedtls")
-                description.set("Bridge of mbedtls and jvm (kotlin)")
-                url.set("https://github.com/$repoName")
-                licenses {
-                    license {
-                        name.set("Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-            }
-        }
-    }
 }

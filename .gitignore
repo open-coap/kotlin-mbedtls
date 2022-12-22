@@ -5,3 +5,4 @@ build
 !.idea/copyright
 *.ks
 *.cer
+.DS_Store
