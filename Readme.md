@@ -1,7 +1,8 @@
 Kotlin + mbedtls integration
 ==========================
 
-[![Release](https://jitpack.io/v/open-coap/kotlin-mbedtls.svg)](https://jitpack.io/#open-coap/kotlin-mbedtls)
+
+![Maven Central](https://img.shields.io/maven-central/v/io.github.open-coap/kotlin-mbedtls)
 [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](LICENSE)
 
 Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
@@ -11,24 +12,67 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 - Client DTLS with PSK authentication
 - DTLS CID support (RFC 9146)
 
+## Usage:
+
+**Gradle**
+
+```kotlin
+dependencies {
+    implementation("io.github.open-coap:kotlin-mbedtls:[VERSION]")
+}
+```
+
+**Maven**
+
+```xml
+
+<dependency>
+    <groupId>io.github.open-coap</groupId>
+    <artifactId>kotlin-mbedtls</artifactId>
+    <version>[VERSION]</version>
+</dependency>
+```
+
+DTLS client:
+
+```kotlin
+// create mbedtls SSL configuration with PSK credentials
+val conf: SslConfig = SslConfig.client(
+    pskId = "device-007".encodeToByteArray(),
+    pskSecret = byteArrayOf(0x01, 0x02)
+)
+// create client and initiate handshake
+val client: DtlsTransmitter = DtlsTransmitter
+    .connect(InetSocketAddress(InetAddress.getLocalHost(), 1_5684), conf, 6001)
+    .get(10, TimeUnit.SECONDS)
+
+// send and receive packets
+val sendResult: CompletableFuture<Boolean> = client.send("hello")
+val receive: CompletableFuture<ByteArray> = client.receive(timeout = Duration.ofSeconds(2))
+
+// . . . 
+
+// optionally, it is possible to save session before closing client, it could be later reloaded
+// note: after saving session, it is not possible to is client
+val storedSession: ByteArray = client.saveSession()
+client.close()
+
+// close SSL configuration:
+// - make sure to close it before GC to avoid native memory leak
+// - close it only after client is closed
+conf.close()
+```
+
 ## Supported OS
 
 Precompiled:
+
 - Linux (x86-64)
 - Apple Mac (intel and arm)
 
-## Usage:
+## Development
 
-```kotlin
-val clientSession: SslSession = SslConfig.client("psk-id".encodeToByteArray(), byteArrayOf(0x01, 0x02, 0x03))
-    .newContext(DatagramChannelTransport.create(0, InetSocketAddress("localhost", 5684)))
-    .handshake().join()
-
-clientSession.send("request".encodeToByteArray())
-val response: CompletableFuture<ByteArray> = clientSession.read()
-```
-
-## Useful commands
+### Useful commands
 
 - `./gradlew build -i`             compile and test
 - `./gradlew publishToMavenLocal`  publish artifact to local maven repository
@@ -40,7 +84,7 @@ val response: CompletableFuture<ByteArray> = clientSession.read()
 - `./gradlew dependencyUpdates`    determine which dependencies have updates
 - `./gradlew useLatestVersions`    update dependencies to the latest available versions
 
-## Build mbedtls binaries
+### Build mbedtls binaries
 
 Linux (x86_64):
 

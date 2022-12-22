@@ -26,15 +26,18 @@ import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.runGC
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 class DtlsTransmitterTest {
 
     private val cidSupplier = { Random.nextBytes(16) }
-    private val serverConf = SslConfig.server("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
+    private val serverConf = SslConfig.server("device-007".encodeToByteArray(), byteArrayOf(0x01, 0x02), cidSupplier = cidSupplier)
     private lateinit var srvTrans: Transport<ByteBuffer>
 
     @AfterEach
@@ -51,7 +54,7 @@ class DtlsTransmitterTest {
     @Test
     fun `should successfully handshake and send data`() {
         val server = newServerDtlsTransmitter(6001)
-        val conf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
+        val conf = SslConfig.client("device-007".encodeToByteArray(), byteArrayOf(0x01, 0x02))
         runGC() // make sure none of needed objects is garbage collected
 
         // when
@@ -75,7 +78,7 @@ class DtlsTransmitterTest {
     fun `should fail to handshake - wrong psk`() {
         newServerDtlsTransmitter(6002)
 
-        val conf = SslConfig.client("dupa".encodeToByteArray(), "bad".encodeToByteArray())
+        val conf = SslConfig.client("device-007".encodeToByteArray(), "bad".encodeToByteArray())
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6002)
 
         val result = runCatching { client.await() }
@@ -93,7 +96,7 @@ class DtlsTransmitterTest {
         val server = newServerDtlsTransmitter(6003)
 
         val conf = SslConfig.client(
-            pskId = "dupa".encodeToByteArray(),
+            pskId = "device-007".encodeToByteArray(),
             pskSecret = byteArrayOf(0x01, 0x02),
             cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
@@ -140,7 +143,7 @@ class DtlsTransmitterTest {
         val server = newServerDtlsTransmitter(6004)
 
         val clientConf = SslConfig.client(
-            pskId = "dupa".encodeToByteArray(),
+            pskId = "device-007".encodeToByteArray(),
             pskSecret = byteArrayOf(0x01, 0x02),
             cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
@@ -169,7 +172,7 @@ class DtlsTransmitterTest {
     fun `should send close notify`() {
         // given
         val serverPromise = newServerDtlsTransmitter(6005)
-        val conf = SslConfig.client("dupa".encodeToByteArray(), byteArrayOf(0x01, 0x02))
+        val conf = SslConfig.client("device-007".encodeToByteArray(), byteArrayOf(0x01, 0x02))
 
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6005).await()
         val server = serverPromise.await()
@@ -186,5 +189,44 @@ class DtlsTransmitterTest {
 
         conf.close()
         server.close()
+    }
+
+    @Test
+    fun `client usage example`() {
+        val server = newServerDtlsTransmitter(6001)
+
+        // create mbedtls SSL configuration with PSK credentials
+        val conf: SslConfig = SslConfig.client(
+            pskId = "device-007".encodeToByteArray(),
+            pskSecret = byteArrayOf(0x01, 0x02)
+        )
+        // create client and initiate handshake
+        val client: DtlsTransmitter = DtlsTransmitter
+            .connect(InetSocketAddress(InetAddress.getLocalHost(), 1_5684), conf, 6001)
+            .get(10, TimeUnit.SECONDS)
+
+        // send and receive packets
+        val sendResult: CompletableFuture<Boolean> = client.send("hello")
+        val receive: CompletableFuture<ByteArray> = client.receive(timeout = Duration.ofSeconds(2))
+
+        // ---------------------
+        assertEquals("hello", server.await().receiveString())
+        server.await().send("hello2").await()
+        assertTrue(sendResult.await())
+        assertEquals("hello2", receive.await().decodeToString())
+        // ---------------------
+
+        // optionally, it is possible to save session before closing client, it could be later reloaded
+        // note: after saving session, it is not possible to is client
+        val storedSession: ByteArray = client.saveSession()
+        client.close()
+
+        // close SSL configuration:
+        // - make sure to close it before GC to avoid native memory leak
+        // - close it only after client is closed
+        conf.close()
+
+        // ---------------------
+        server.await().close()
     }
 }
