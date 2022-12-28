@@ -1,13 +1,13 @@
 #!/bin/bash
-MBEDTLS_VERSION=v3.3.0-RC-c3902ac
-BUILD_DIR=kotlin-mbedtls/build/mbedtls-c3902ac6614c12133393be38ca21c7fb9e059812
+MBEDTLS_VERSION=3.3.0
+BUILD_DIR=kotlin-mbedtls/build/mbedtls-${MBEDTLS_VERSION}
 SRC=kotlin-mbedtls/src
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
 
 # download
 mkdir -p kotlin-mbedtls/build
-wget -N https://github.com/Mbed-TLS/mbedtls/archive/c3902ac6614c12133393be38ca21c7fb9e059812.tar.gz -O kotlin-mbedtls/build/mbedtls.tar.gz
+wget -N https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v${MBEDTLS_VERSION}.tar.gz -O kotlin-mbedtls/build/mbedtls.tar.gz
 rm -rf ${BUILD_DIR}
 tar -xf kotlin-mbedtls/build/mbedtls.tar.gz -C kotlin-mbedtls/build/ --no-same-owner
 
