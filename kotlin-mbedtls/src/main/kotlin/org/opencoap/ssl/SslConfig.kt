@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,6 @@ import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.net.InetSocketAddress
-import java.security.Key
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -104,37 +103,21 @@ class SslConfig(
 
         @JvmStatic
         @JvmOverloads
-        fun client(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
-            return create(false, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0, retransmitMin, retransmitMax)
+        fun client(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(false, auth, cipherSuites, cidSupplier, reqAuthentication, 0, retransmitMin, retransmitMax)
         }
 
         @JvmStatic
         @JvmOverloads
-        fun server(pskId: ByteArray, pskSecret: ByteArray, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
-            return create(true, pskId, pskSecret, cipherSuites, cidSupplier, listOf(), null, listOf(), true, 0, retransmitMin, retransmitMax)
-        }
-
-        @JvmStatic
-        @JvmOverloads
-        fun client(ownCertChain: List<X509Certificate> = listOf(), privateKey: PrivateKey? = null, trustedCerts: List<X509Certificate>, cipherSuites: List<String> = listOf(), cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
-            return create(false, null, null, cipherSuites, cidSupplier, ownCertChain, privateKey, trustedCerts, true, mtu, retransmitMin, retransmitMax)
-        }
-
-        @JvmStatic
-        @JvmOverloads
-        fun server(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCerts: List<X509Certificate> = listOf(), reqAuthentication: Boolean = true, cipherSuites: List<String> = emptyList(), cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
-            return create(true, null, null, cipherSuites, cidSupplier, ownCertChain, privateKey, trustedCerts, reqAuthentication, mtu, retransmitMin, retransmitMax)
+        fun server(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+            return create(true, auth, cipherSuites, cidSupplier, reqAuthentication, mtu, retransmitMin, retransmitMax)
         }
 
         private fun create(
             isServer: Boolean,
-            pskId: ByteArray?,
-            pskSecret: ByteArray?,
+            authConfig: AuthConfig,
             cipherSuites: List<String>,
             cidSupplier: CidSupplier,
-            ownCertChain: List<X509Certificate>,
-            privateKey: Key?,
-            trustedCerts: List<X509Certificate>,
             requiredAuthMode: Boolean = true,
             mtu: Int,
             retransmitMin: Duration,
@@ -166,11 +149,6 @@ class SslConfig(
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, cookieCtx)
             }
 
-            // PSK
-            if (pskSecret != null && pskId != null) {
-                mbedtls_ssl_conf_psk(sslConfig, pskSecret, pskSecret.size, pskId, pskId.size).verify()
-            }
-
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
                 cipherSuiteIds = mapCipherSuites(cipherSuites)
@@ -181,22 +159,7 @@ class SslConfig(
                 mbedtls_ssl_conf_cid(sslConfig, cidSupplier.next().size, 0)
             }
 
-            // Trusted certificates
-            for (cert in trustedCerts) {
-                val certDer = cert.encoded
-                mbedtls_x509_crt_parse_der(caCert, certDer, certDer.size).verify()
-            }
-            mbedtls_ssl_conf_ca_chain(sslConfig, caCert, Pointer.NULL)
-
-            // Own certificate
-            for (cert in ownCertChain) {
-                val certDer = cert.encoded
-                mbedtls_x509_crt_parse_der(ownCert, certDer, certDer.size).verify()
-            }
-            if (privateKey != null) {
-                mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0, mbedtls_ctr_drbg_random, ctrDrbg)
-                mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
-            }
+            authConfig.configure(sslConfig, caCert, ownCert, pkey, ctrDrbg)
 
             // retransmission timeout
             mbedtls_ssl_conf_handshake_timeout(sslConfig, retransmitMin.toMillis().toInt(), retransmitMax.toMillis().toInt())
@@ -257,5 +220,60 @@ class SslConfig(
         fun callback(data: Pointer?): Int {
             return 1
         }
+    }
+}
+
+sealed interface AuthConfig {
+    fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory)
+}
+
+data class PskAuth(
+    val pskId: ByteArray,
+    val pskSecret: ByteArray
+) : AuthConfig {
+
+    constructor(pskId: String, pskSecret: ByteArray) : this(pskId.encodeToByteArray(), pskSecret)
+
+    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory) {
+        mbedtls_ssl_conf_psk(sslConfig, pskSecret, pskSecret.size, pskId, pskId.size).verify()
+    }
+}
+
+data class CertificateAuth(
+    val ownCertChain: List<X509Certificate>,
+    val privateKey: PrivateKey?,
+    val trustedCerts: List<X509Certificate>
+) : AuthConfig {
+
+    constructor(ownCertChain: List<X509Certificate>, privateKey: PrivateKey, trustedCert: X509Certificate) :
+        this(ownCertChain, privateKey, listOf(trustedCert))
+
+    constructor(ownCertChain: List<X509Certificate>, privateKey: PrivateKey) :
+        this(ownCertChain, privateKey, listOf())
+
+    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory) {
+        for (cert in trustedCerts) {
+            val certDer = cert.encoded
+            mbedtls_x509_crt_parse_der(caCert, certDer, certDer.size).verify()
+        }
+        mbedtls_ssl_conf_ca_chain(sslConfig, caCert, Pointer.NULL)
+
+        // Own certificate
+        for (cert in ownCertChain) {
+            val certDer = cert.encoded
+            mbedtls_x509_crt_parse_der(ownCert, certDer, certDer.size).verify()
+        }
+        if (privateKey != null) {
+            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0, mbedtls_ctr_drbg_random, ctrDrbg)
+            mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        fun trusted(trustedCerts: List<X509Certificate>) = CertificateAuth(listOf(), null, trustedCerts.toList())
+
+        @JvmStatic
+        fun trusted(vararg trustedCerts: X509Certificate) = trusted(trustedCerts.toList())
     }
 }

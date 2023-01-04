@@ -38,8 +38,10 @@ DTLS client:
 ```kotlin
 // create mbedtls SSL configuration with PSK credentials
 val conf: SslConfig = SslConfig.client(
-    pskId = "device-007".encodeToByteArray(),
-    pskSecret = byteArrayOf(0x01, 0x02)
+    PskAuth(
+        pskId = "device-007",
+        pskSecret = byteArrayOf(0x01, 0x02)
+    )
 )
 // create client and initiate handshake
 val client: DtlsTransmitter = DtlsTransmitter

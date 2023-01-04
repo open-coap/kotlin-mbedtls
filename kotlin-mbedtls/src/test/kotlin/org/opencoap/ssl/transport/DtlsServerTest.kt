@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.CertificateAuth
+import org.opencoap.ssl.CertificateAuth.Companion.trusted
 import org.opencoap.ssl.EmptyCidSupplier
+import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
@@ -46,13 +49,13 @@ import kotlin.random.Random
 
 class DtlsServerTest {
 
-    private val psk = Pair("dupa".encodeToByteArray(), byteArrayOf(1))
-    private val conf: SslConfig = SslConfig.server(psk.first, psk.second, cidSupplier = RandomCidSupplier(6))
-    private val certConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
-    private val timeoutConf = SslConfig.server(Certs.serverChain, Certs.server.privateKey, reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(10), retransmitMax = Duration.ofMillis(100))
+    private val psk = PskAuth("dupa", byteArrayOf(1))
+    private val conf: SslConfig = SslConfig.server(psk, cidSupplier = RandomCidSupplier(6))
+    private val certConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
+    private val timeoutConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(10), retransmitMax = Duration.ofMillis(100))
 
-    private val clientConfig = SslConfig.client(psk.first, psk.second, cidSupplier = EmptyCidSupplier)
-    private val timeoutClientConf = SslConfig.client(Certs.dev01Chain, Certs.dev01.privateKey, listOf(Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
+    private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
+    private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
     private val sessionStore = HashMapSessionStore()
 
     private lateinit var server: DtlsServer
@@ -98,7 +101,7 @@ class DtlsServerTest {
 
     @Test
     fun testMultipleConnections() {
-        val clientCertConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()), retransmitMin = 60.seconds, retransmitMax = 60.seconds)
+        val clientCertConf = SslConfig.client(trusted(Certs.root.asX509()), retransmitMin = 60.seconds, retransmitMax = 60.seconds)
         server = DtlsServer.create(certConf).listen(echoHandler)
 
         val MAX = 20
@@ -126,7 +129,7 @@ class DtlsServerTest {
         // given
         server = DtlsServer.create(conf)
         val srvReceive = server.receive(2.seconds)
-        val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.first, byteArrayOf(-128)))
+        val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.copy(pskSecret = byteArrayOf(-128))))
 
         // when
         assertTrue(runCatching { clientFut.await() }.exceptionOrNull()?.cause is SslException)
@@ -196,7 +199,7 @@ class DtlsServerTest {
     @Test
     fun `should successfully handshake with certificate`() {
         server = DtlsServer.create(certConf).listen(echoHandler)
-        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.root.asX509()))
+        val clientConf = SslConfig.client(trusted(Certs.root.asX509()))
 
         // when
         val client = DtlsTransmitter.connect(server, clientConf).await()
@@ -209,7 +212,7 @@ class DtlsServerTest {
     @Test
     fun `should fail handshake when non trusted certificate`() {
         server = DtlsServer.create(certConf).listen(echoHandler)
-        val clientConf = SslConfig.client(trustedCerts = listOf(Certs.rootRsa.asX509()))
+        val clientConf = SslConfig.client(trusted(Certs.rootRsa.asX509()))
 
         // when
         val result = runCatching { DtlsTransmitter.connect(server, clientConf).await() }
