@@ -21,6 +21,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cert
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
@@ -31,6 +32,8 @@ import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.time.Duration
 
 sealed interface SslContext : Closeable {
@@ -83,11 +86,10 @@ class SslHandshakeContext internal constructor(
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
             MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
-            0 -> {
-                SslSession(conf, sslContext, cid).also {
-                    logger.info("[{}] DTLS connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
-                }
+            0 -> SslSession(conf, sslContext, cid).also {
+                logger.info("[{}] DTLS connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
             }
+
             else -> throw SslException.from(ret).also {
                 logger.debug("[{}] DTLS failed handshake: {}", peerAdr, it.message)
             }
@@ -110,6 +112,7 @@ class SslSession internal constructor(
 
     val peerCid: ByteArray? = readPeerCid()
     val ownCid: ByteArray? = if (peerCid != null) cid else null
+    val peerCertificateSubject: String? = readPeerCertificateSubject()
 
     private fun readPeerCid(): ByteArray? {
         val mem = Memory(16 + 64 /* max cid len */)
@@ -123,9 +126,26 @@ class SslSession internal constructor(
         return mem.getByteArray(16, size)
     }
 
-    fun getCipherSuite(): String {
-        return mbedtls_ssl_get_ciphersuite(sslContext)
+    private fun readPeerCertificateSubject(): String? {
+        val pointer = mbedtls_ssl_get_peer_cert(sslContext)
+            ?.share(MbedtlsOffsetOf.mbedtls_x509_crt__raw)
+            ?: return null
+
+        val derLen = pointer.getInt(MbedtlsOffsetOf.mbedtls_x509_buf__len)
+        val derPointer = pointer.getPointer(MbedtlsOffsetOf.mbedtls_x509_buf__len + 8)
+        val der = derPointer.getByteArray(0, derLen)
+
+        return try {
+            val factory = CertificateFactory.getInstance("X.509")
+            val cert = factory.generateCertificate(der.inputStream()) as X509Certificate
+            cert.subjectX500Principal.name
+        } catch (ex: Exception) {
+            LoggerFactory.getLogger(javaClass).warn("Could not parse peer certificate: {}", ex, ex)
+            null
+        }
     }
+
+    val cipherSuite: String get() = mbedtls_ssl_get_ciphersuite(sslContext)
 
     fun encrypt(data: ByteArray): ByteBuffer {
         val buffer = Memory(data.size.toLong())
@@ -156,10 +176,18 @@ class SslSession internal constructor(
     }
 
     override fun toString(): String {
-        return if (peerCid != null) {
-            "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, cipher-suite:${getCipherSuite()}]"
-        } else {
-            "[cipher-suite:${getCipherSuite()}]"
+        return when {
+            peerCid != null && peerCertificateSubject != null ->
+                "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
+
+            peerCid != null ->
+                "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, cipher-suite:$cipherSuite]"
+
+            peerCertificateSubject != null ->
+                "[peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
+
+            else ->
+                "[cipher-suite:$cipherSuite]"
         }
     }
 

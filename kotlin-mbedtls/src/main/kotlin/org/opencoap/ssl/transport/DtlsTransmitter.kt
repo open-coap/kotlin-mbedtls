@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,9 +70,11 @@ class DtlsTransmitter private constructor(
         close()
     }
 
-    fun getCipherSuite() = sslSession.getCipherSuite()
-    fun getPeerCid() = sslSession.peerCid
-    fun getOwnCid() = sslSession.ownCid
+    val cipherSuite: String get() = sslSession.cipherSuite
+    val peerCid: ByteArray? get() = sslSession.peerCid
+    val ownCid: ByteArray? get() = sslSession.ownCid
+    val peerCertificateSubject: String? get() = sslSession.peerCertificateSubject
+
     fun saveSession() = sslSession.saveAndClose()
 
     companion object {

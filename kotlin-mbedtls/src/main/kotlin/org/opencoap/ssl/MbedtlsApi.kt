@@ -73,6 +73,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_conf_ca_chain(sslConfig: Pointer, caChain: Pointer, caCrl: Pointer?)
     external fun mbedtls_ssl_conf_own_cert(sslConfig: Pointer, ownCert: Memory, pkKey: Pointer): Int
     external fun mbedtls_ssl_set_mtu(sslContext: Pointer, mtu: Int)
+    external fun mbedtls_ssl_get_peer_cert(sslContext: Pointer): Pointer?
 
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900

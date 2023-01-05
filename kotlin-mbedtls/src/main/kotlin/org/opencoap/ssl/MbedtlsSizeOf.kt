@@ -10,3 +10,8 @@ internal object MbedtlsSizeOf {
     const val mbedtls_x509_crt = 616L
     const val mbedtls_ssl_cookie_ctx = 32L
 }
+
+internal object MbedtlsOffsetOf {
+    const val mbedtls_x509_crt__raw = 8L
+    const val mbedtls_x509_buf__len = 8L
+}

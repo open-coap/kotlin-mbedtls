@@ -4,6 +4,7 @@
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_cookie.h"
+#include "mbedtls/x509_crt.h"
 
 int main( void )
 {
@@ -18,6 +19,11 @@ int main( void )
     printf("    const val mbedtls_pk_context = %ldL\n", sizeof(mbedtls_pk_context) );
     printf("    const val mbedtls_x509_crt = %ldL\n", sizeof(mbedtls_x509_crt) );
     printf("    const val mbedtls_ssl_cookie_ctx = %ldL\n", sizeof(mbedtls_ssl_cookie_ctx) );
+    printf("}\n");
+    printf("\n");
+    printf("internal object MbedtlsOffsetOf {\n");
+    printf("    const val mbedtls_x509_crt__raw = %ldL\n", offsetof(struct mbedtls_x509_crt, raw));
+    printf("    const val mbedtls_x509_buf__len = %ldL\n", offsetof(struct mbedtls_asn1_buf, len));
     printf("}\n");
 
 }
