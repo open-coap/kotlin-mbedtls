@@ -61,7 +61,8 @@ class DtlsTransmitterCertTest {
         runGC() // make sure none of needed objects is garbage collected
         client.send("dupa")
         assertEquals("dupa", server.join().receiveString())
-        assertNotNull(client.getCipherSuite())
+        assertNotNull(client.cipherSuite)
+        assertEquals("C=FI,O=Acme,CN=server", client.peerCertificateSubject)
     }
 
     @Test

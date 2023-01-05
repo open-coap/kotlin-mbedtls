@@ -69,7 +69,7 @@ class DtlsTransmitterTest {
         // and read with timeout
         assertTrue(client.receive(Duration.ofMillis(1)).join().isEmpty())
 
-        assertNotNull(client.getCipherSuite())
+        assertNotNull(client.cipherSuite)
         client.close()
         conf.close()
         server.await().close()
@@ -108,8 +108,8 @@ class DtlsTransmitterTest {
         // then
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
-        assertEquals("01", server.await().getPeerCid()?.toHex())
-        assertEquals("01", client.getOwnCid()?.toHex())
+        assertEquals("01", server.await().peerCid?.toHex())
+        assertEquals("01", client.ownCid?.toHex())
 
         println("val cliSession = \"" + client.saveSession().toHex() + "\".decodeHex()")
         println("val srvSession = \"" + server.await().saveSession().toHex() + "\".decodeHex()")
@@ -162,7 +162,7 @@ class DtlsTransmitterTest {
         client2.send("dupa")
         assertEquals("dupa", server.await().receiveString())
 
-        assertEquals("01", server.await().getPeerCid()?.toHex())
+        assertEquals("01", server.await().peerCid?.toHex())
         clientConf.close()
         server.await().close()
     }

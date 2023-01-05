@@ -61,10 +61,15 @@ class DtlsServerTest {
     private lateinit var server: DtlsServer
 
     private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
-        if (packet.buffer.decodeToString() == "error") {
+        val msg = packet.buffer.decodeToString()
+        if (msg == "error") {
             throw Exception("error")
+        } else if (msg.startsWith("Authenticate:")) {
+            server.setSessionAuthenticationContext(packet.peerAddress, msg.substring(12))
+            server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
         } else {
-            server.send(packet.map { it.plus(":resp".encodeToByteArray()) })
+            val ctx = (packet.sessionContext.authentication ?: "")
+            server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
         }
     }
 
@@ -295,22 +300,24 @@ class DtlsServerTest {
     @Test
     fun `should reuse stored session after it is expired`() {
         // given
-        server = DtlsServer.create(conf, expireAfter = 10.millis, sessionStore = sessionStore).listen(echoHandler)
+        server = DtlsServer.create(conf, expireAfter = 100.millis, sessionStore = sessionStore).listen(echoHandler)
         // client connected
         val client = DtlsTransmitter.connect(server, clientConfig).await()
-        client.send("perse")
-        client.receiveString()
-        // and session expired and stored
+        client.send("Authenticate:dev-007")
+        assertEquals("OK", client.receiveString())
+        client.send("hi")
+        assertEquals("hi:resp:dev-007", client.receiveString())
+        // and session is expired and stored
         await.atMost(1.seconds).untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
         assertEquals(1, sessionStore.size())
 
         // when
-        client.send("perse 2")
+        client.send("hi5")
 
         // then
-        assertEquals("perse 2:resp", client.receiveString())
+        assertEquals("hi5:resp:dev-007", client.receiveString())
         assertEquals(1, server.numberOfSessions())
         client.close()
     }
@@ -349,7 +356,31 @@ class DtlsServerTest {
     fun `should export executor without wrapping`() {
         server = DtlsServer.create(conf)
 
-        assertTrue(server.executor is ScheduledThreadPoolExecutor)
+        assertTrue(server.executor() is ScheduledThreadPoolExecutor)
+    }
+
+    @Test
+    fun `should set and use session context`() {
+        // given
+        server = DtlsServer.create(conf, sessionStore = sessionStore)
+        val serverReceived = server.receive(1.seconds)
+        // and, client connected
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("hello!")
+        assertEquals("hello!", serverReceived.await().buffer.decodeToString())
+
+        // when, session context is set
+        assertTrue(server.setSessionAuthenticationContext(serverReceived.await().peerAddress, "id:dev-007").await())
+
+        // and, client sends messages
+        client.send("msg1")
+        client.send("msg2")
+
+        // then
+        assertEquals(DtlsSessionContext("id:dev-007"), server.receive(1.seconds).await().sessionContext)
+        assertEquals(DtlsSessionContext("id:dev-007"), server.receive(1.seconds).await().sessionContext)
+
+        client.close()
     }
 
     private fun <T> Transport<T>.dropReceive(drop: (Int) -> Boolean): Transport<T> {

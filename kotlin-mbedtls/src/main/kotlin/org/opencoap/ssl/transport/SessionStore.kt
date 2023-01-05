@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,22 +21,27 @@ import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ConcurrentHashMap
 
 interface SessionStore {
-    fun read(cid: ByteArray): CompletableFuture<ByteArray?>
-    fun write(cid: ByteArray, session: ByteArray)
+    fun read(cid: ByteArray): CompletableFuture<SessionWithContext?>
+    fun write(cid: ByteArray, session: SessionWithContext)
 }
 
+data class SessionWithContext(
+    val sessionBlob: ByteArray,
+    val authenticationContext: String?
+)
+
 object NoOpsSessionStore : SessionStore {
-    override fun read(cid: ByteArray): CompletableFuture<ByteArray?> = completedFuture(null)
-    override fun write(cid: ByteArray, session: ByteArray) = Unit
+    override fun read(cid: ByteArray): CompletableFuture<SessionWithContext?> = completedFuture(null)
+    override fun write(cid: ByteArray, session: SessionWithContext) = Unit
 }
 
 class HashMapSessionStore : SessionStore {
-    private val map = ConcurrentHashMap<String, ByteArray>()
+    private val map = ConcurrentHashMap<String, SessionWithContext>()
 
-    override fun read(cid: ByteArray): CompletableFuture<ByteArray?> =
+    override fun read(cid: ByteArray): CompletableFuture<SessionWithContext?> =
         completedFuture(map.remove(cid.toHex()))
 
-    override fun write(cid: ByteArray, session: ByteArray) {
+    override fun write(cid: ByteArray, session: SessionWithContext) {
         map.put(cid.toHex(), session)
     }
 

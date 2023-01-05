@@ -16,15 +16,29 @@
 
 package org.opencoap.ssl.transport
 
-import java.nio.ByteBuffer
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+import java.util.concurrent.TimeUnit
 
-internal fun ByteArray.toHex(): String {
-    return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-}
+class SingleThreadExecutorTest {
 
-fun ByteBuffer.copyDirect(): ByteBuffer {
-    val bb = ByteBuffer.allocateDirect(this.remaining())
-    bb.put(this)
-    bb.flip()
-    return bb
+    @Volatile
+    private var test = ""
+
+    @Test
+    fun `should run immediately when executed from same thread`() {
+        val executor = SingleThreadExecutor.create("test")
+
+        executor.supply {
+            executor.execute { test += "11" }
+            test += "22"
+            executor.execute { test += "33" }
+            test += "44"
+        }.get()
+
+        executor.shutdown()
+        executor.awaitTermination(10, TimeUnit.SECONDS)
+
+        assertEquals("11223344", test)
+    }
 }

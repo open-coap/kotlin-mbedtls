@@ -16,15 +16,13 @@
 
 package org.opencoap.ssl.transport
 
-import java.nio.ByteBuffer
+data class DtlsSessionContext @JvmOverloads constructor(
+    val authentication: String? = null,
+    val peerCertificateSubject: String? = null
+) {
 
-internal fun ByteArray.toHex(): String {
-    return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-}
-
-fun ByteBuffer.copyDirect(): ByteBuffer {
-    val bb = ByteBuffer.allocateDirect(this.remaining())
-    bb.put(this)
-    bb.flip()
-    return bb
+    companion object {
+        @JvmField
+        val EMPTY = DtlsSessionContext()
+    }
 }

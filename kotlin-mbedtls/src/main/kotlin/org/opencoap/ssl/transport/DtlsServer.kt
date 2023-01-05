@@ -30,9 +30,7 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 /*
 Single threaded dtls server on top of DatagramChannel.
@@ -46,8 +44,6 @@ class DtlsServer private constructor(
 
     companion object {
         private val EMPTY_BUFFER = ByteBuffer.allocate(0)
-
-        private val threadIndex = AtomicInteger(0)
 
         @JvmStatic
         @JvmOverloads
@@ -63,7 +59,8 @@ class DtlsServer private constructor(
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    val executor = ScheduledThreadPoolExecutor(1) { r: Runnable -> Thread(r, "dtls-srv-" + threadIndex.getAndIncrement()) }
+    private val executor = SingleThreadExecutor.create("dtls-srv-")
+    fun executor() = executor.underlying
 
     // note: must be used only from executor
     private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
@@ -93,7 +90,7 @@ class DtlsServer private constructor(
             dtlsState is DtlsSession -> {
                 val plainBytes = dtlsState.decrypt(buf)
                 if (plainBytes.isNotEmpty())
-                    completedFuture(Packet(plainBytes, adr))
+                    completedFuture(Packet(plainBytes, adr, dtlsState.sessionContext))
                 else
                     receive(timeout)
             }
@@ -132,6 +129,11 @@ class DtlsServer private constructor(
 
     fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
 
+    fun setSessionAuthenticationContext(adr: InetSocketAddress, authenticationContext: String): CompletableFuture<Boolean> =
+        executor.supply {
+            (sessions[adr] as? DtlsSession)?.setAuthenticationContext(authenticationContext)?.let { true } ?: false
+        }
+
     override fun localPort() = transport.localPort()
 
     override fun close() {
@@ -156,7 +158,9 @@ class DtlsServer private constructor(
                         logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                         false
                     } else {
-                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf, adr), adr)
+                        val dtlsSession = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr)
+                        dtlsSession.setAuthenticationContext(sessBuf.authenticationContext)
+                        sessions[adr] = dtlsSession
                         true
                     }
                 } catch (ex: SslException) {
@@ -173,7 +177,11 @@ class DtlsServer private constructor(
     private sealed class DtlsState(val peerAddress: InetSocketAddress) {
         protected var scheduledTask: ScheduledFuture<*>? = null
 
-        abstract fun storeAndClose()
+        abstract fun storeAndClose0()
+        fun storeAndClose() {
+            scheduledTask?.cancel(false)
+            storeAndClose0()
+        }
     }
 
     private inner class DtlsHandshake(
@@ -219,22 +227,29 @@ class DtlsServer private constructor(
             logger.warn("[{}] DTLS handshake expired", peerAddress)
         }
 
-        override fun storeAndClose() {
+        override fun storeAndClose0() {
             ctx.close()
         }
     }
 
     private inner class DtlsSession(
         private val ctx: SslSession,
-        peerAddress: InetSocketAddress
+        peerAddress: InetSocketAddress,
+        var sessionContext: DtlsSessionContext = DtlsSessionContext(
+            peerCertificateSubject = ctx.peerCertificateSubject
+        )
     ) : DtlsState(peerAddress) {
 
-        override fun storeAndClose() {
+        override fun storeAndClose0() {
             if (ctx.ownCid != null) {
                 try {
-                    sessionStore.write(ctx.ownCid, ctx.saveAndClose())
+                    val session = SessionWithContext(
+                        sessionBlob = ctx.saveAndClose(),
+                        authenticationContext = sessionContext.authentication
+                    )
+                    sessionStore.write(ctx.ownCid, session)
                 } catch (ex: SslException) {
-                    logger.warn("[{}] DTLS failed to store session: {}", peerAddress, ex.message)
+                    logger.warn("[{}] DTLS failed to store session: {}, CID:{}", peerAddress, ex.message, ctx.ownCid.toHex())
                 }
             } else {
                 ctx.close()
@@ -270,6 +285,10 @@ class DtlsServer private constructor(
             sessions.remove(peerAddress, this)
             logger.info("[{}] DTLS connection expired", peerAddress)
             storeAndClose()
+        }
+
+        fun setAuthenticationContext(authentication: String?) {
+            sessionContext = sessionContext.copy(authentication = authentication)
         }
     }
 }
