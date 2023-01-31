@@ -35,11 +35,11 @@ import java.util.concurrent.TimeUnit
 /*
 Single threaded dtls server on top of DatagramChannel.
  */
-class DtlsServer private constructor(
+class DtlsServer(
     private val transport: Transport<ByteBufferPacket>,
     private val sslConfig: SslConfig,
-    private val expireAfter: Duration,
-    private val sessionStore: SessionStore,
+    private val expireAfter: Duration = Duration.ofSeconds(60),
+    private val sessionStore: SessionStore = NoOpsSessionStore,
 ) : Transport<BytesPacket> {
 
     companion object {
