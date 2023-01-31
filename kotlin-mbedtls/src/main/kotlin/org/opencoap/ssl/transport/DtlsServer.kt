@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
 /*
 Single threaded dtls server on top of DatagramChannel.
  */
-class DtlsServer (
+class DtlsServer(
     private val transport: Transport<ByteBufferPacket>,
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
