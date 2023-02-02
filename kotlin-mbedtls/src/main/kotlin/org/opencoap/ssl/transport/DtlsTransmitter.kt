@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /*
@@ -60,7 +61,7 @@ class DtlsTransmitter private constructor(
 
     override fun close() {
         transport.close()
-        executor.supply(sslSession::close).join()
+        executor.supply(sslSession::close).get(1, TimeUnit.SECONDS)
     }
 
     fun closeNotify() {
