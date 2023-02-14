@@ -40,6 +40,7 @@ class DtlsServer(
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
     private val sessionStore: SessionStore = NoOpsSessionStore,
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
 ) : Transport<BytesPacket> {
 
     companion object {
@@ -51,10 +52,11 @@ class DtlsServer(
             config: SslConfig,
             listenPort: Int = 0,
             expireAfter: Duration = Duration.ofSeconds(60),
-            sessionStore: SessionStore = NoOpsSessionStore
+            sessionStore: SessionStore = NoOpsSessionStore,
+            lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
         ): DtlsServer {
             val channel = DatagramChannelAdapter.open(listenPort)
-            return DtlsServer(channel, config, expireAfter, sessionStore)
+            return DtlsServer(channel, config, expireAfter, sessionStore, lifecycleCallbacks)
         }
     }
 
@@ -101,6 +103,7 @@ class DtlsServer(
                 @Suppress("UnsafeCallOnNullableType") // smart casting does not work for lazy delegate
                 loadSession(cid!!, adr).thenCompose { isLoaded ->
                     if (isLoaded) {
+                        lifecycleCallbacks.sessionStarted(adr, DtlsSessionLifecycleCallbacks.SessionState.RELOADED)
                         handleReceived(adr, copyBuf, timeout)
                     } else {
                         receive(timeout)
@@ -186,8 +189,12 @@ class DtlsServer(
 
     private inner class DtlsHandshake(
         private val ctx: SslHandshakeContext,
-        peerAddress: InetSocketAddress
+        peerAddress: InetSocketAddress,
     ) : DtlsState(peerAddress) {
+
+        init {
+            lifecycleCallbacks.handshakeStarted(peerAddress)
+        }
 
         private fun send(buf: ByteBuffer) {
             transport.send(Packet(buf, peerAddress))
@@ -208,21 +215,26 @@ class DtlsServer(
                         }
                     }
 
-                    is SslSession ->
+                    is SslSession -> {
+                        lifecycleCallbacks.handshakeFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.SUCCEED)
                         sessions[peerAddress] = DtlsSession(newCtx, peerAddress)
+                    }
                 }
-            } catch (ex: HelloVerifyRequired) {
-                closeAndRemove()
-            } catch (ex: SslException) {
-                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
-                closeAndRemove()
             } catch (ex: Exception) {
-                logger.error(ex.toString(), ex)
+                when (ex) {
+                    is HelloVerifyRequired -> {}
+                    is SslException ->
+                        logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                    else ->
+                        logger.error(ex.toString(), ex)
+                }
+                lifecycleCallbacks.handshakeFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 closeAndRemove()
             }
         }
 
         fun timeout() {
+            lifecycleCallbacks.handshakeFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             closeAndRemove()
             logger.warn("[{}] DTLS handshake expired", peerAddress)
         }
@@ -239,6 +251,10 @@ class DtlsServer(
             peerCertificateSubject = ctx.peerCertificateSubject
         )
     ) : DtlsState(peerAddress) {
+
+        init {
+            lifecycleCallbacks.sessionStarted(peerAddress)
+        }
 
         override fun storeAndClose0() {
             if (ctx.ownCid != null) {
@@ -264,9 +280,12 @@ class DtlsServer(
                 return plainBuf
             } catch (ex: CloseNotifyException) {
                 logger.info("[{}] DTLS received close notify", peerAddress)
+                lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.CLOSED)
             } catch (ex: SslException) {
                 logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
             }
+
             closeAndRemove()
             return byteArrayOf()
         }
@@ -276,12 +295,14 @@ class DtlsServer(
                 return ctx.encrypt(plainPacket)
             } catch (ex: SslException) {
                 logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 closeAndRemove()
                 throw ex
             }
         }
 
         fun timeout() {
+            lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sessions.remove(peerAddress, this)
             logger.info("[{}] DTLS connection expired", peerAddress)
             storeAndClose()
@@ -290,5 +311,18 @@ class DtlsServer(
         fun setAuthenticationContext(authentication: String?) {
             sessionContext = sessionContext.copy(authentication = authentication)
         }
+    }
+
+    interface DtlsSessionLifecycleCallbacks {
+        enum class Reason {
+            SUCCEED, FAILED, CLOSED, EXPIRED
+        }
+        enum class SessionState {
+            NEW, RELOADED
+        }
+        fun handshakeStarted(adr: InetSocketAddress) = Unit
+        fun handshakeFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
+        fun sessionStarted(adr: InetSocketAddress, state: SessionState = SessionState.NEW) = Unit
+        fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
     }
 }

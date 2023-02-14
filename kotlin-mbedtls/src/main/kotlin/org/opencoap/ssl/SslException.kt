@@ -22,11 +22,10 @@ import java.util.Locale
 open class SslException(message: String) : Exception(message) {
 
     companion object {
-        fun from(error: Int): SslException {
-            if (error == MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-                return CloseNotifyException
-            }
-            return SslException(String.format(Locale.US, "%s [-0x%04X]", translateError(error), -error))
+        fun from(error: Int): SslException = when (error) {
+            MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY -> CloseNotifyException
+            MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT -> OperationTimeoutException
+            else -> SslException(String.format(Locale.US, "%s [-0x%04X]", translateError(error), -error))
         }
 
         internal fun translateError(error: Int): String {
@@ -39,3 +38,4 @@ open class SslException(message: String) : Exception(message) {
 
 object HelloVerifyRequired : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED))
 object CloseNotifyException : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY))
+object OperationTimeoutException : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT))
