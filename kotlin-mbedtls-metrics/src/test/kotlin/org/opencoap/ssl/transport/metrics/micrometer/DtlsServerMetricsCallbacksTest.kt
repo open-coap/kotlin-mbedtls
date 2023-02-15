@@ -69,7 +69,7 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for happy scenario`() {
-        server = DtlsServer.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
         await.untilAsserted {
@@ -91,7 +91,7 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for expiring sessions`() {
-        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = metricsCallbacks, expireAfter = Duration.ofMillis(10)).listen(echoHandler)
+        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = listOf(metricsCallbacks), expireAfter = Duration.ofMillis(10)).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
         client.send("foo")

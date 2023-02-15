@@ -93,7 +93,7 @@ class DtlsServerTest {
 
     @Test
     fun testSingleConnection() {
-        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(sslLifecycleCallbacks))
         val receive = server.receive(2.seconds)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await()
@@ -153,7 +153,7 @@ class DtlsServerTest {
     @Test
     fun testFailedHandshake() {
         // given
-        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(sslLifecycleCallbacks))
         val srvReceive = server.receive(2.seconds)
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.copy(pskSecret = byteArrayOf(-128))))
 
@@ -180,7 +180,7 @@ class DtlsServerTest {
     @Test
     fun testReceiveMalformedPacket() {
         // given
-        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("perse")
 
@@ -222,7 +222,7 @@ class DtlsServerTest {
     @Test
     fun testMalformedHandshakeMessage() {
         // given
-        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val cliChannel: DatagramChannel = DatagramChannel.open()
             .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
 
@@ -275,7 +275,7 @@ class DtlsServerTest {
 
     @Test
     fun `should send close notify`() {
-        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         await.untilAsserted {
             assertEquals(1, server.numberOfSessions())
@@ -297,7 +297,7 @@ class DtlsServerTest {
 
     @Test
     fun `should successfully handshake with retransmission`() {
-        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val cli = DatagramChannelAdapter
             .connect(localAddress(server.localPort()))
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
@@ -322,7 +322,7 @@ class DtlsServerTest {
 
     @Test
     fun `should remove handshake session when handshake timeout`() {
-        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val cli = DatagramChannelAdapter
             .connect(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
@@ -350,7 +350,7 @@ class DtlsServerTest {
     @Test
     fun `should remove session after inactivity`() {
         // given
-        server = DtlsServer.create(conf, expireAfter = 10.millis, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, expireAfter = 10.millis, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("perse")
 
@@ -370,7 +370,7 @@ class DtlsServerTest {
     @Test
     fun `should reuse stored session after it is expired`() {
         // given
-        server = DtlsServer.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        server = DtlsServer.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = listOf(sslLifecycleCallbacks)).listen(echoHandler)
         // client connected
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("Authenticate:dev-007")
