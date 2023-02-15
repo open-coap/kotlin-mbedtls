@@ -389,6 +389,10 @@ class DtlsServerTest {
         // then
         assertEquals("hi5:resp:dev-007", client.receiveString())
         assertEquals(1, server.numberOfSessions())
+
+        await.atMost(1.seconds).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
         client.close()
 
         verifyOrder() {
@@ -399,6 +403,7 @@ class DtlsServerTest {
             sslLifecycleCallbacks.sessionStarted(any(), any())
             sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), match { it.reloaded })
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         // Check no more callbacks are called
