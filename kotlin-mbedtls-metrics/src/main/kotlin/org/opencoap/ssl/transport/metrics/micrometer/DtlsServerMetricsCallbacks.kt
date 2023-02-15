@@ -17,7 +17,10 @@
 package org.opencoap.ssl.transport.metrics.micrometer
 
 import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.config.MeterFilter
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig
 import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
@@ -25,7 +28,20 @@ import org.opencoap.ssl.transport.DtlsServer
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
-class DtlsServerMetricsCallbacks(private val registry: MeterRegistry, metricsPrefix: String = "dtls.server") : DtlsServer.DtlsSessionLifecycleCallbacks {
+class DtlsServerMetricsCallbacks(
+    private val registry: MeterRegistry,
+    metricsPrefix: String = "dtls.server",
+    private val distributionStatisticConfig: DistributionStatisticConfig =
+        DistributionStatisticConfig.Builder().percentiles(0.5, 0.9, 0.95, 0.99).build(),
+) : DtlsServer.DtlsSessionLifecycleCallbacks {
+    init {
+        // Meter filter must be initialized before actual meters will be registered
+        registry.config().meterFilter(object : MeterFilter {
+            override fun configure(id: Meter.Id, config: DistributionStatisticConfig): DistributionStatisticConfig =
+                if (id.name.startsWith("$metricsPrefix.handshakes.succeeded")) distributionStatisticConfig.merge(config) else config
+        })
+    }
+
     private val handshakesInitiated = registry.counter("$metricsPrefix.handshakes.initiated")
     private val handshakesSucceeded = registry.timer("$metricsPrefix.handshakes.succeeded")
     private val handshakesFailedBuilder = Counter.builder("$metricsPrefix.handshakes.failed")
