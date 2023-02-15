@@ -26,28 +26,28 @@ import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
 class DtlsServerMetricsCallbacks(private val registry: MeterRegistry, metricsPrefix: String = "dtls.server") : DtlsServer.DtlsSessionLifecycleCallbacks {
-    private val handshakesInitiated = registry.counter("${metricsPrefix}.handshakes.initiated")
-    private val handshakesSucceeded = registry.timer("${metricsPrefix}.handshakes.succeeded")
-    private val handshakesFailedBuilder = Counter.builder("${metricsPrefix}.handshakes.failed")
-    private val handshakesExpired = registry.counter("${metricsPrefix}.handshakes.expired")
-    private val sessionsStartedBuilder = Counter.builder("${metricsPrefix}.sessions.started")
-    private val sessionsClosed = registry.counter("${metricsPrefix}.sessions.closed")
-    private val sessionsFailedBuilder = Counter.builder("${metricsPrefix}.sessions.failed")
-    private val sessionsExpired = registry.counter("${metricsPrefix}.sessions.expired")
-    private val sessionsReloaded = registry.counter("${metricsPrefix}.sessions.reloaded")
+    private val handshakesInitiated = registry.counter("$metricsPrefix.handshakes.initiated")
+    private val handshakesSucceeded = registry.timer("$metricsPrefix.handshakes.succeeded")
+    private val handshakesFailedBuilder = Counter.builder("$metricsPrefix.handshakes.failed")
+    private val handshakesExpired = registry.counter("$metricsPrefix.handshakes.expired")
+    private val sessionsStartedBuilder = Counter.builder("$metricsPrefix.sessions.started")
+    private val sessionsClosed = registry.counter("$metricsPrefix.sessions.closed")
+    private val sessionsFailedBuilder = Counter.builder("$metricsPrefix.sessions.failed")
+    private val sessionsExpired = registry.counter("$metricsPrefix.sessions.expired")
+    private val sessionsReloaded = registry.counter("$metricsPrefix.sessions.reloaded")
 
     override fun handshakeStarted(adr: InetSocketAddress, ctx: SslHandshakeContext) {
         handshakesInitiated.increment()
     }
 
-    override fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when(reason) {
+    override fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
             handshakesSucceeded.record(System.currentTimeMillis() - ctx.startTimestamp, TimeUnit.MILLISECONDS)
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             if (throwable is HelloVerifyRequired) {
                 // Skip HelloVerifyRequired handshake states
             } else {
-                val reasonTag = when(throwable) {
+                val reasonTag = when (throwable) {
                     null -> "n/a"
                     else -> throwable::class.toString()
                 }
@@ -64,9 +64,9 @@ class DtlsServerMetricsCallbacks(private val registry: MeterRegistry, metricsPre
         sessionsStartedBuilder.tag("suite", ctx.cipherSuite).register(registry).increment()
     }
 
-    override fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when(reason) {
+    override fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED -> {
-            val reasonTag = when(throwable) {
+            val reasonTag = when (throwable) {
                 null -> "n/a"
                 else -> throwable::class.toString()
             }

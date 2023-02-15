@@ -19,7 +19,7 @@ package org.opencoap.ssl.transport.metrics.micrometer
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
@@ -31,8 +31,8 @@ import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.HashMapSessionStore
 import org.opencoap.ssl.transport.Packet
 import org.opencoap.ssl.transport.listen
-import java.util.concurrent.TimeUnit
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 
 class DtlsServerMetricsCallbacksTest {

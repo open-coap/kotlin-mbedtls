@@ -342,7 +342,7 @@ class DtlsServerTest {
 
         cli.close()
 
-        verify (exactly = 1) {
+        verify(exactly = 1) {
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
         }
     }
