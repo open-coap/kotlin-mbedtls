@@ -78,6 +78,10 @@ class DtlsServerMetricsCallbacksTest {
 
         client.closeNotify()
 
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+
         assertEquals(2, meterRegistry.find("dtls.server.handshakes.initiated").counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.handshakes.succeeded").timer()?.count()?.toInt())
         assertEquals(null, meterRegistry.find("dtls.server.handshakes.failed").counter()?.count()?.toInt())
@@ -91,16 +95,20 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for expiring sessions`() {
-        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = listOf(metricsCallbacks), expireAfter = Duration.ofMillis(10)).listen(echoHandler)
+        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = listOf(metricsCallbacks), expireAfter = Duration.ofMillis(200)).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
         client.send("foo")
+        client.receive().get(5, TimeUnit.SECONDS)
 
         await.atMost(Duration.ofSeconds(1)).untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
 
         client.send("bar")
+        client.receive().get(5, TimeUnit.SECONDS)
+
+        client.close()
 
         assertEquals(2, meterRegistry.find("dtls.server.handshakes.initiated").counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.handshakes.succeeded").timer()?.count()?.toInt())

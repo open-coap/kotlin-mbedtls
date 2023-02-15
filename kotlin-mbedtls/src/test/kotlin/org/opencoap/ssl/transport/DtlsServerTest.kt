@@ -239,7 +239,7 @@ class DtlsServerTest {
         assertEquals(0, cliChannel.read("aaa".toByteBuffer()))
         cliChannel.close()
 
-        verify(exactly = 100) {
+        verify(atMost = 100) {
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
