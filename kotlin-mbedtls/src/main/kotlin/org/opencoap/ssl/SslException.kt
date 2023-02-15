@@ -24,7 +24,6 @@ open class SslException(message: String) : Exception(message) {
     companion object {
         fun from(error: Int): SslException = when (error) {
             MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY -> CloseNotifyException
-            MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT -> OperationTimeoutException
             else -> SslException(String.format(Locale.US, "%s [-0x%04X]", translateError(error), -error))
         }
 
@@ -38,4 +37,3 @@ open class SslException(message: String) : Exception(message) {
 
 object HelloVerifyRequired : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED))
 object CloseNotifyException : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY))
-object OperationTimeoutException : SslException(translateError(MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT))
