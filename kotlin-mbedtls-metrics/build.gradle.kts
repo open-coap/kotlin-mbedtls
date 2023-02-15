@@ -19,9 +19,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
-    testImplementation("ch.qos.logback:logback-classic:1.3.0")
-    testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    testImplementation("io.mockk:mockk:1.13.4")
 }
 
 java {
