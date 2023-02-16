@@ -16,16 +16,14 @@
 
 package org.opencoap.ssl.transport
 
-import org.opencoap.ssl.SslHandshakeContext
-import org.opencoap.ssl.SslSession
 import java.net.InetSocketAddress
 
 interface DtlsSessionLifecycleCallbacks {
     enum class Reason {
         SUCCEEDED, FAILED, CLOSED, EXPIRED
     }
-    fun handshakeStarted(adr: InetSocketAddress, ctx: SslHandshakeContext) = Unit
-    fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: Reason, throwable: Throwable? = null) = Unit
-    fun sessionStarted(adr: InetSocketAddress, ctx: SslSession) = Unit
-    fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: Reason, throwable: Throwable? = null) = Unit
+    fun handshakeStarted(adr: InetSocketAddress) = Unit
+    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
+    fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) = Unit
+    fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
 }

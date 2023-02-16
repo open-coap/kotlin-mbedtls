@@ -114,11 +114,11 @@ class DtlsServerTest {
         client.close()
 
         verifyOrder {
-            sslLifecycleCallbacks.handshakeStarted(clientAddress, any())
+            sslLifecycleCallbacks.handshakeStarted(clientAddress)
             sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
-            sslLifecycleCallbacks.handshakeStarted(clientAddress, any())
+            sslLifecycleCallbacks.handshakeStarted(clientAddress)
             sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
-            sslLifecycleCallbacks.sessionStarted(clientAddress, any())
+            sslLifecycleCallbacks.sessionStarted(clientAddress, any(), false)
         }
 
         // Check no more callbacks are called
@@ -166,14 +166,14 @@ class DtlsServerTest {
         }
         assertFalse(srvReceive.isDone)
         verifyOrder {
-            sslLifecycleCallbacks.handshakeStarted(any(), any())
+            sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
-            sslLifecycleCallbacks.handshakeStarted(any(), any())
+            sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
-            sslLifecycleCallbacks.sessionStarted(any(), any())
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
         }
     }
 
@@ -196,10 +196,10 @@ class DtlsServerTest {
         client.close()
 
         verifyOrder {
-            sslLifecycleCallbacks.handshakeStarted(any(), any())
+            sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
-            sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
     }
 
@@ -290,8 +290,8 @@ class DtlsServerTest {
         }
 
         verifyOrder {
-            sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
         }
     }
 
@@ -363,7 +363,7 @@ class DtlsServerTest {
         client.close()
 
         verify {
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
     }
 
@@ -396,14 +396,14 @@ class DtlsServerTest {
         client.close()
 
         verifyOrder() {
-            sslLifecycleCallbacks.handshakeStarted(any(), any())
+            sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
-            sslLifecycleCallbacks.handshakeStarted(any(), any())
+            sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
-            sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
-            sslLifecycleCallbacks.sessionStarted(any(), match { it.reloaded })
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), false)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), true)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         // Check no more callbacks are called
