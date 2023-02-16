@@ -26,14 +26,20 @@ import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.BytesPacket
+import org.opencoap.ssl.transport.DatagramChannelAdapter
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.HashMapSessionStore
 import org.opencoap.ssl.transport.Packet
 import org.opencoap.ssl.transport.listen
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.DatagramChannel
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
+import kotlin.random.Random
 
 class DtlsServerMetricsCallbacksTest {
     private val psk = PskAuth("dupa", byteArrayOf(1))
@@ -115,5 +121,46 @@ class DtlsServerMetricsCallbacksTest {
         assertEquals(1, meterRegistry.find("dtls.server.sessions.started").tag("suite") { it.isNotEmpty() }.counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.sessions.expired").counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.sessions.reloaded").counter()?.count()?.toInt())
+    }
+
+    @Test
+    fun `should report DTLS server metrics for handshake errors`() {
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
+        val cliChannel: DatagramChannel = DatagramChannel.open()
+            .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
+
+        // when
+        cliChannel.write(ByteBuffer.wrap(Random.nextBytes(50)))
+
+        // then
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+
+        assertEquals(1, meterRegistry.find("dtls.server.handshakes.failed").tag("reason") { it.isNotEmpty() }.counter()?.count()?.toInt())
+    }
+
+    @Test
+    fun `should report DTLS server metrics for session errors`() {
+        // given
+        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
+        val dest = InetSocketAddress(InetAddress.getLocalHost(), server.localPort())
+        val transport = DatagramChannelAdapter.connect(dest, 0)
+        val client = DtlsTransmitter.connect(dest, clientConfig, transport).get(5, TimeUnit.SECONDS)
+        client.send("foo")
+
+        // when
+        transport.send(ByteBuffer.wrap("malformed dtls packet".encodeToByteArray()))
+        client.send("bar")
+
+        // then
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+
+        client.close()
+
+        print(meterRegistry.metersAsString)
+        assertEquals(1, meterRegistry.find("dtls.server.sessions.failed").tag("reason") { it.isNotEmpty() }.counter()?.count()?.toInt())
     }
 }

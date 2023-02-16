@@ -63,11 +63,7 @@ class DtlsServerMetricsCallbacks(
             if (throwable is HelloVerifyRequired) {
                 // Skip HelloVerifyRequired handshake states
             } else {
-                val reasonTag = when (throwable) {
-                    null -> "n/a"
-                    else -> throwable::class.toString()
-                }
-                handshakesFailedBuilder.tag("reason", reasonTag).register(registry).increment()
+                handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
             }
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             handshakesExpired.increment()
@@ -82,11 +78,7 @@ class DtlsServerMetricsCallbacks(
 
     override fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED -> {
-            val reasonTag = when (throwable) {
-                null -> "n/a"
-                else -> throwable::class.toString()
-            }
-            sessionsFailedBuilder.tag("reason", reasonTag).register(registry).increment()
+            sessionsFailedBuilder.reasonTag(throwable).register(registry).increment()
         }
         DtlsServer.DtlsSessionLifecycleCallbacks.Reason.CLOSED ->
             sessionsClosed.increment()
@@ -94,4 +86,13 @@ class DtlsServerMetricsCallbacks(
             sessionsExpired.increment()
         else -> {}
     }
+}
+
+private fun Counter.Builder.reasonTag(throwable: Throwable?): Counter.Builder {
+    val reason = when (throwable) {
+        null -> "n/a"
+        else -> throwable::class.qualifiedName ?: "n/a"
+    }
+
+    return this.tag("reason", reason)
 }
