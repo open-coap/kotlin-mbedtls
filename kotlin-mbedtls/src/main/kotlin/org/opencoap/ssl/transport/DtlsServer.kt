@@ -40,7 +40,7 @@ class DtlsServer(
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
     private val sessionStore: SessionStore = NoOpsSessionStore,
-    private val lifecycleCallbacks: Iterable<DtlsSessionLifecycleCallbacks> = listOf()
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
 ) : Transport<BytesPacket> {
 
     companion object {
@@ -53,7 +53,7 @@ class DtlsServer(
             listenPort: Int = 0,
             expireAfter: Duration = Duration.ofSeconds(60),
             sessionStore: SessionStore = NoOpsSessionStore,
-            lifecycleCallbacks: Iterable<DtlsSessionLifecycleCallbacks> = listOf()
+            lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
         ): DtlsServer {
             val channel = DatagramChannelAdapter.open(listenPort)
             return DtlsServer(channel, config, expireAfter, sessionStore, lifecycleCallbacks)
@@ -243,11 +243,11 @@ class DtlsServer(
         }
 
         private fun reportHandshakeStarted() {
-            lifecycleCallbacks.forEach { it.handshakeStarted(peerAddress) }
+            lifecycleCallbacks.handshakeStarted(peerAddress)
         }
 
         private fun reportHandshakeFinished(reason: DtlsSessionLifecycleCallbacks.Reason, err: Throwable? = null) {
-            lifecycleCallbacks.forEach { it.handshakeFinished(peerAddress, ctx.startTimestamp, reason, err) }
+            lifecycleCallbacks.handshakeFinished(peerAddress, ctx.startTimestamp, reason, err)
         }
     }
 
@@ -309,7 +309,7 @@ class DtlsServer(
         }
 
         fun timeout() {
-            lifecycleCallbacks.forEach { it.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED) }
+            lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sessions.remove(peerAddress, this)
             logger.info("[{}] DTLS connection expired", peerAddress)
             storeAndClose()
@@ -320,11 +320,11 @@ class DtlsServer(
         }
 
         private fun reportSessionStarted() {
-            lifecycleCallbacks.forEach { it.sessionStarted(peerAddress, ctx.cipherSuite, ctx.reloaded) }
+            lifecycleCallbacks.sessionStarted(peerAddress, ctx.cipherSuite, ctx.reloaded)
         }
 
         private fun reportSessionFinished(reason: DtlsSessionLifecycleCallbacks.Reason, err: Throwable? = null) {
-            lifecycleCallbacks.forEach { it.sessionFinished(peerAddress, reason, err) }
+            lifecycleCallbacks.sessionFinished(peerAddress, reason, err)
         }
     }
 }

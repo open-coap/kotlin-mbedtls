@@ -75,7 +75,7 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for happy scenario`() {
-        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
         await.untilAsserted {
@@ -101,7 +101,7 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for expiring sessions`() {
-        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = listOf(metricsCallbacks), expireAfter = Duration.ofMillis(200)).listen(echoHandler)
+        server = DtlsServer.create(conf, sessionStore = sessionStore, lifecycleCallbacks = metricsCallbacks, expireAfter = Duration.ofMillis(200)).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
         client.send("foo")
@@ -125,7 +125,7 @@ class DtlsServerMetricsCallbacksTest {
 
     @Test
     fun `should report DTLS server metrics for handshake errors`() {
-        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
         val cliChannel: DatagramChannel = DatagramChannel.open()
             .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
 
@@ -143,7 +143,7 @@ class DtlsServerMetricsCallbacksTest {
     @Test
     fun `should report DTLS server metrics for session errors`() {
         // given
-        server = DtlsServer.create(conf, lifecycleCallbacks = listOf(metricsCallbacks)).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
         val dest = InetSocketAddress(InetAddress.getLocalHost(), server.localPort())
         val transport = DatagramChannelAdapter.connect(dest, 0)
         val client = DtlsTransmitter.connect(dest, clientConfig, transport).get(5, TimeUnit.SECONDS)
