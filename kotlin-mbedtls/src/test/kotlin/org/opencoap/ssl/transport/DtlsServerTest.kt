@@ -18,7 +18,7 @@ package org.opencoap.ssl.transport
 
 import io.mockk.clearMocks
 import io.mockk.confirmVerified
-import io.mockk.spyk
+import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import org.awaitility.kotlin.await
@@ -63,7 +63,7 @@ class DtlsServerTest {
     private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
     private val sessionStore = HashMapSessionStore()
-    private val sslLifecycleCallbacks = spyk(object : DtlsServer.DtlsSessionLifecycleCallbacks {})
+    private val sslLifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
 
     private lateinit var server: DtlsServer
 
@@ -115,9 +115,9 @@ class DtlsServerTest {
 
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(clientAddress, any())
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(clientAddress, any())
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(clientAddress, any())
         }
 
@@ -167,9 +167,9 @@ class DtlsServerTest {
         assertFalse(srvReceive.isDone)
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(any(), any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any(), any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
@@ -197,9 +197,9 @@ class DtlsServerTest {
 
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(any(), any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
     }
 
@@ -240,11 +240,11 @@ class DtlsServerTest {
         cliChannel.close()
 
         verify(atMost = 100) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
         }
     }
 
@@ -291,7 +291,7 @@ class DtlsServerTest {
 
         verifyOrder {
             sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.CLOSED)
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
         }
     }
 
@@ -311,12 +311,12 @@ class DtlsServerTest {
 
         // No handshake failures other than HelloVerifyRequired
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
         }
 
         // One successful handshake must happen
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
         }
     }
 
@@ -343,7 +343,7 @@ class DtlsServerTest {
         cli.close()
 
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
         }
     }
 
@@ -363,7 +363,7 @@ class DtlsServerTest {
         client.close()
 
         verify {
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
     }
 
@@ -397,13 +397,13 @@ class DtlsServerTest {
 
         verifyOrder() {
             sslLifecycleCallbacks.handshakeStarted(any(), any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any(), any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), match { it.reloaded })
-            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         // Check no more callbacks are called

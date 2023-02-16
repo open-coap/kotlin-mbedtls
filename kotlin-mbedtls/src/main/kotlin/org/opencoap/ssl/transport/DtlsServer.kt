@@ -311,14 +311,4 @@ class DtlsServer(
             sessionContext = sessionContext.copy(authentication = authentication)
         }
     }
-
-    interface DtlsSessionLifecycleCallbacks {
-        enum class Reason {
-            SUCCEEDED, FAILED, CLOSED, EXPIRED
-        }
-        fun handshakeStarted(adr: InetSocketAddress, ctx: SslHandshakeContext) = Unit
-        fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: Reason, throwable: Throwable? = null) = Unit
-        fun sessionStarted(adr: InetSocketAddress, ctx: SslSession) = Unit
-        fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: Reason, throwable: Throwable? = null) = Unit
-    }
 }

@@ -24,7 +24,7 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig
 import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
-import org.opencoap.ssl.transport.DtlsServer
+import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
@@ -33,7 +33,7 @@ class DtlsServerMetricsCallbacks(
     metricsPrefix: String = "dtls.server",
     private val distributionStatisticConfig: DistributionStatisticConfig =
         DistributionStatisticConfig.Builder().percentiles(0.5, 0.9, 0.95, 0.99).build(),
-) : DtlsServer.DtlsSessionLifecycleCallbacks {
+) : DtlsSessionLifecycleCallbacks {
     init {
         // Meter filter must be initialized before actual meters will be registered
         registry.config().meterFilter(object : MeterFilter {
@@ -56,16 +56,16 @@ class DtlsServerMetricsCallbacks(
         handshakesInitiated.increment()
     }
 
-    override fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
+    override fun handshakeFinished(adr: InetSocketAddress, ctx: SslHandshakeContext, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
+        DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
             handshakesSucceeded.record(System.currentTimeMillis() - ctx.startTimestamp, TimeUnit.MILLISECONDS)
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED ->
+        DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             if (throwable is HelloVerifyRequired) {
                 // Skip HelloVerifyRequired handshake states
             } else {
                 handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
             }
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
+        DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             handshakesExpired.increment()
         else -> {}
     }
@@ -76,13 +76,13 @@ class DtlsServerMetricsCallbacks(
         sessionsStartedBuilder.tag("suite", ctx.cipherSuite).register(registry).increment()
     }
 
-    override fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: DtlsServer.DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.FAILED -> {
+    override fun sessionFinished(adr: InetSocketAddress, ctx: SslSession, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
+        DtlsSessionLifecycleCallbacks.Reason.FAILED -> {
             sessionsFailedBuilder.reasonTag(throwable).register(registry).increment()
         }
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.CLOSED ->
+        DtlsSessionLifecycleCallbacks.Reason.CLOSED ->
             sessionsClosed.increment()
-        DtlsServer.DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
+        DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             sessionsExpired.increment()
         else -> {}
     }
