@@ -16,6 +16,11 @@
 
 package org.opencoap.ssl.transport
 
+import io.mockk.clearMocks
+import io.mockk.confirmVerified
+import io.mockk.mockk
+import io.mockk.verify
+import io.mockk.verifyOrder
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,6 +30,7 @@ import org.junit.jupiter.api.Test
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.CertificateAuth.Companion.trusted
 import org.opencoap.ssl.EmptyCidSupplier
+import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
@@ -57,6 +63,7 @@ class DtlsServerTest {
     private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
     private val sessionStore = HashMapSessionStore()
+    private val sslLifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
 
     private lateinit var server: DtlsServer
 
@@ -81,11 +88,12 @@ class DtlsServerTest {
         timeoutConf.close()
         timeoutClientConf.close()
         sessionStore.clear()
+        clearMocks(sslLifecycleCallbacks)
     }
 
     @Test
     fun testSingleConnection() {
-        server = DtlsServer.create(conf)
+        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
         val receive = server.receive(2.seconds)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await()
@@ -101,7 +109,20 @@ class DtlsServerTest {
         }
 
         assertEquals(1, server.numberOfSessions())
+
+        val clientAddress = client.localAddress()
         client.close()
+
+        verifyOrder {
+            sslLifecycleCallbacks.handshakeStarted(clientAddress)
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeStarted(clientAddress)
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.sessionStarted(clientAddress, any(), false)
+        }
+
+        // Check no more callbacks are called
+        confirmVerified(sslLifecycleCallbacks)
     }
 
     @Test
@@ -132,7 +153,7 @@ class DtlsServerTest {
     @Test
     fun testFailedHandshake() {
         // given
-        server = DtlsServer.create(conf)
+        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
         val srvReceive = server.receive(2.seconds)
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.copy(pskSecret = byteArrayOf(-128))))
 
@@ -144,12 +165,22 @@ class DtlsServerTest {
             assertEquals(0, server.numberOfSessions())
         }
         assertFalse(srvReceive.isDone)
+        verifyOrder {
+            sslLifecycleCallbacks.handshakeStarted(any())
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeStarted(any())
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+        }
+
+        verify(exactly = 0) {
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
+        }
     }
 
     @Test
     fun testReceiveMalformedPacket() {
         // given
-        server = DtlsServer.create(conf).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("perse")
 
@@ -161,7 +192,15 @@ class DtlsServerTest {
         await.untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
+
         client.close()
+
+        verifyOrder {
+            sslLifecycleCallbacks.handshakeStarted(any())
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+        }
     }
 
     @Test
@@ -183,7 +222,7 @@ class DtlsServerTest {
     @Test
     fun testMalformedHandshakeMessage() {
         // given
-        server = DtlsServer.create(conf).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cliChannel: DatagramChannel = DatagramChannel.open()
             .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
 
@@ -199,6 +238,14 @@ class DtlsServerTest {
         cliChannel.configureBlocking(false)
         assertEquals(0, cliChannel.read("aaa".toByteBuffer()))
         cliChannel.close()
+
+        verify(atMost = 100) {
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+        }
+
+        verify(exactly = 0) {
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+        }
     }
 
     @Test
@@ -228,7 +275,7 @@ class DtlsServerTest {
 
     @Test
     fun `should send close notify`() {
-        server = DtlsServer.create(conf).listen(echoHandler)
+        server = DtlsServer.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         await.untilAsserted {
             assertEquals(1, server.numberOfSessions())
@@ -241,11 +288,16 @@ class DtlsServerTest {
         await.untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
+
+        verifyOrder {
+            sslLifecycleCallbacks.sessionStarted(any(), any(), any())
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
+        }
     }
 
     @Test
     fun `should successfully handshake with retransmission`() {
-        server = DtlsServer.create(timeoutConf).listen(echoHandler)
+        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cli = DatagramChannelAdapter
             .connect(localAddress(server.localPort()))
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
@@ -256,20 +308,30 @@ class DtlsServerTest {
         // then
         sslSession.close()
         cli.close()
+
+        // No handshake failures other than HelloVerifyRequired
+        verify(exactly = 0) {
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
+        }
+
+        // One successful handshake must happen
+        verify(exactly = 1) {
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+        }
     }
 
     @Test
     fun `should remove handshake session when handshake timeout`() {
-        server = DtlsServer.create(timeoutConf).listen(echoHandler)
+        server = DtlsServer.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cli = DatagramChannelAdapter
             .connect(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
 
-        // when
-        DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
-
-        // then
         await.untilAsserted {
+            // when
+            DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
+
+            // then
             assertEquals(1, server.numberOfSessions())
         }
 
@@ -279,12 +341,16 @@ class DtlsServerTest {
         }
 
         cli.close()
+
+        verify(exactly = 1) {
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
+        }
     }
 
     @Test
     fun `should remove session after inactivity`() {
         // given
-        server = DtlsServer.create(conf, expireAfter = 10.millis).listen(echoHandler)
+        server = DtlsServer.create(conf, expireAfter = 10.millis, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("perse")
 
@@ -295,12 +361,16 @@ class DtlsServerTest {
             assertEquals(0, server.numberOfSessions())
         }
         client.close()
+
+        verify {
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+        }
     }
 
     @Test
     fun `should reuse stored session after it is expired`() {
         // given
-        server = DtlsServer.create(conf, expireAfter = 100.millis, sessionStore = sessionStore).listen(echoHandler)
+        server = DtlsServer.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         // client connected
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("Authenticate:dev-007")
@@ -319,7 +389,25 @@ class DtlsServerTest {
         // then
         assertEquals("hi5:resp:dev-007", client.receiveString())
         assertEquals(1, server.numberOfSessions())
+
+        await.atMost(1.seconds).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
         client.close()
+
+        verifyOrder() {
+            sslLifecycleCallbacks.handshakeStarted(any())
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeStarted(any())
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), false)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            sslLifecycleCallbacks.sessionStarted(any(), any(), true)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+        }
+
+        // Check no more callbacks are called
+        confirmVerified(sslLifecycleCallbacks)
     }
 
     @Test

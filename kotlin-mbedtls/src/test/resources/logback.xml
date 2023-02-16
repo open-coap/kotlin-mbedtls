@@ -12,4 +12,5 @@
 
     <logger name="org.opencoap.ssl" level="debug"/>
     <logger name="org.opencoap.ssl.MbedtlsApi" level="info"/>
+    <logger name="io.mockk" level="info"/>
 </configuration>

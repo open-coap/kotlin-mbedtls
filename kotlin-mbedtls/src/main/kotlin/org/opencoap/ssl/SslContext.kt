@@ -67,7 +67,7 @@ class SslHandshakeContext internal constructor(
     private val peerAdr: InetSocketAddress,
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val startTimestamp: Long = System.currentTimeMillis()
+    val startTimestamp: Long = System.currentTimeMillis()
     private var stepTimeout: Duration = Duration.ZERO
 
     fun step(send: (ByteBuffer) -> Unit): SslContext {
@@ -108,6 +108,7 @@ class SslSession internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
     private val sslContext: Memory,
     private val cid: ByteArray?,
+    val reloaded: Boolean = false,
 ) : SslContext, Closeable {
 
     val peerCid: ByteArray? = readPeerCid()

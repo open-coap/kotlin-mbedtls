@@ -94,7 +94,7 @@ class SslConfig(
         mbedtls_ssl_context_load(sslContext, session, session.size).verify()
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
-        return SslSession(this, sslContext, cid).also {
+        return SslSession(this, sslContext, cid, true).also {
             logger.info("[{}] Reconnected {}", peerAddress, it)
         }
     }
