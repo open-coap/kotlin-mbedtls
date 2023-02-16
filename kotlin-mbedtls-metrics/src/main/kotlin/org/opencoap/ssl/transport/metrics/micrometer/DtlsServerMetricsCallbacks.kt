@@ -54,16 +54,13 @@ class DtlsServerMetricsCallbacks(
         handshakesInitiated.increment()
     }
 
-    override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
-        DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
+    override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when {
+        throwable is HelloVerifyRequired -> {} // Skip HelloVerifyRequired handshake states
+        reason == DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
             handshakesSucceeded.record(System.currentTimeMillis() - hanshakeStartTimestamp, TimeUnit.MILLISECONDS)
-        DtlsSessionLifecycleCallbacks.Reason.FAILED ->
-            if (throwable is HelloVerifyRequired) {
-                // Skip HelloVerifyRequired handshake states
-            } else {
-                handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
-            }
-        DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
+        reason == DtlsSessionLifecycleCallbacks.Reason.FAILED ->
+            handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
+        reason == DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             handshakesExpired.increment()
         else -> {}
     }
@@ -75,9 +72,8 @@ class DtlsServerMetricsCallbacks(
     }
 
     override fun sessionFinished(adr: InetSocketAddress, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
-        DtlsSessionLifecycleCallbacks.Reason.FAILED -> {
+        DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             sessionsFailedBuilder.reasonTag(throwable).register(registry).increment()
-        }
         DtlsSessionLifecycleCallbacks.Reason.CLOSED ->
             sessionsClosed.increment()
         DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
