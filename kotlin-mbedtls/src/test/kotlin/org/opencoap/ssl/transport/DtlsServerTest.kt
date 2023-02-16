@@ -327,11 +327,11 @@ class DtlsServerTest {
             .connect(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
 
-        // when
-        DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
-
-        // then
         await.untilAsserted {
+            // when
+            DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
+
+            // then
             assertEquals(1, server.numberOfSessions())
         }
 
