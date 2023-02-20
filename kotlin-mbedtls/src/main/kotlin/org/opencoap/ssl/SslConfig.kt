@@ -123,7 +123,6 @@ class SslConfig(
             retransmitMin: Duration,
             retransmitMax: Duration,
         ): SslConfig {
-
             val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
             val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi.Crypto::mbedtls_entropy_init)
             val ctrDrbg = Memory(MbedtlsSizeOf.mbedtls_ctr_drbg_context).also(MbedtlsApi.Crypto::mbedtls_ctr_drbg_init)
@@ -198,7 +197,6 @@ class SslConfig(
     private object LogCallback : Callback {
         private val logger = LoggerFactory.getLogger(javaClass)
         fun callback(ctx: Pointer?, debugLevel: Int, fileName: String, lineNumber: Int, message: String?) {
-
             // seems like a bug in log levels:
             if (debugLevel == 1 && message?.startsWith("got supported group") == true) return
 

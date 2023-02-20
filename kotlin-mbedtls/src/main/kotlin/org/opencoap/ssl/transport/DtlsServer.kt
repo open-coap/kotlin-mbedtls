@@ -91,10 +91,11 @@ class DtlsServer(
 
             dtlsState is DtlsSession -> {
                 val plainBytes = dtlsState.decrypt(buf)
-                if (plainBytes.isNotEmpty())
+                if (plainBytes.isNotEmpty()) {
                     completedFuture(Packet(plainBytes, adr, dtlsState.sessionContext))
-                else
+                } else {
                     receive(timeout)
+                }
             }
 
             // no session, but dtls packet contains CID

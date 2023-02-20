@@ -124,8 +124,11 @@ class DtlsTransmitter private constructor(
                         is HelloVerifyRequired -> {
                             sslHandshakeContext.close()
                             connect(dest, conf, trans, executor).whenComplete { t, ex2 ->
-                                if (ex2 != null) promise.completeExceptionally(ex2)
-                                else promise.complete(t)
+                                if (ex2 != null) {
+                                    promise.completeExceptionally(ex2)
+                                } else {
+                                    promise.complete(t)
+                                }
                             }
                         }
 
