@@ -16,8 +16,6 @@
 
 package org.opencoap.ssl.transport
 
-import javax.security.auth.login.CredentialException
-
 typealias AuthenticationContext = Map<String, String?>
 
 data class DtlsSessionContext @JvmOverloads constructor(

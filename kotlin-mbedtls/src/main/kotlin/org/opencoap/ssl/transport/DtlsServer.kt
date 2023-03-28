@@ -137,13 +137,13 @@ class DtlsServer(
 
     fun updateSessionAuthenticationContext(adr: InetSocketAddress, label: String, authenticationCredentials: String?): CompletableFuture<Boolean> =
         executor.supply {
-             when (val s = sessions[adr]) {
-                 is DtlsSession -> {
-                     s.authenticationContext += (label to authenticationCredentials)
-                     true
-                 }
-                 else -> false
-             }
+            when (val s = sessions[adr]) {
+                is DtlsSession -> {
+                    s.authenticationContext += (label to authenticationCredentials)
+                    true
+                }
+                else -> false
+            }
         }
 
     override fun localPort() = transport.localPort()
