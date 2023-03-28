@@ -16,13 +16,20 @@
 
 package org.opencoap.ssl.transport
 
+import javax.security.auth.login.CredentialException
+
+typealias AuthenticationContext = Map<String, String?>
+
 data class DtlsSessionContext @JvmOverloads constructor(
-    val authentication: String? = null,
+    val authenticationContext: AuthenticationContext = emptyMap(),
     val peerCertificateSubject: String? = null
 ) {
+    constructor(authenticationCredentials: String, peerCertificateSubject: String? = null) :
+        this(mapOf(DEFAULT_AUTH_CTX_LABEL to authenticationCredentials), peerCertificateSubject)
 
     companion object {
         @JvmField
         val EMPTY = DtlsSessionContext()
+        const val DEFAULT_AUTH_CTX_LABEL = "DEFAULT_AUTH_CTX_LABEL"
     }
 }

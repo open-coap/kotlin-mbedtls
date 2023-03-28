@@ -75,7 +75,7 @@ class DtlsServerTest {
             server.setSessionAuthenticationContext(packet.peerAddress, msg.substring(12))
             server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
         } else {
-            val ctx = (packet.sessionContext.authentication ?: "")
+            val ctx = (packet.sessionContext.authenticationContext[DtlsSessionContext.DEFAULT_AUTH_CTX_LABEL] ?: "")
             server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
         }
     }

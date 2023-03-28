@@ -132,9 +132,18 @@ class DtlsServer(
 
     fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
 
-    fun setSessionAuthenticationContext(adr: InetSocketAddress, authenticationContext: String): CompletableFuture<Boolean> =
+    fun setSessionAuthenticationContext(adr: InetSocketAddress, authenticationCredentials: String?): CompletableFuture<Boolean> =
+        updateSessionAuthenticationContext(adr, DtlsSessionContext.DEFAULT_AUTH_CTX_LABEL, authenticationCredentials)
+
+    fun updateSessionAuthenticationContext(adr: InetSocketAddress, label: String, authenticationCredentials: String?): CompletableFuture<Boolean> =
         executor.supply {
-            (sessions[adr] as? DtlsSession)?.setAuthenticationContext(authenticationContext)?.let { true } ?: false
+             when (val s = sessions[adr]) {
+                 is DtlsSession -> {
+                     s.authenticationContext += (label to authenticationCredentials)
+                     true
+                 }
+                 else -> false
+             }
         }
 
     override fun localPort() = transport.localPort()
@@ -161,9 +170,7 @@ class DtlsServer(
                         logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                         false
                     } else {
-                        val dtlsSession = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr)
-                        dtlsSession.setAuthenticationContext(sessBuf.authenticationContext)
-                        sessions[adr] = dtlsSession
+                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext ?: emptyMap())
                         true
                     }
                 } catch (ex: SslException) {
@@ -255,10 +262,14 @@ class DtlsServer(
     private inner class DtlsSession(
         private val ctx: SslSession,
         peerAddress: InetSocketAddress,
-        var sessionContext: DtlsSessionContext = DtlsSessionContext(
-            peerCertificateSubject = ctx.peerCertificateSubject
-        )
+        var authenticationContext: AuthenticationContext = emptyMap()
     ) : DtlsState(peerAddress) {
+
+        val sessionContext: DtlsSessionContext
+            get() = DtlsSessionContext(
+                peerCertificateSubject = ctx.peerCertificateSubject,
+                authenticationContext = authenticationContext
+            )
 
         init {
             reportSessionStarted()
@@ -269,7 +280,7 @@ class DtlsServer(
                 try {
                     val session = SessionWithContext(
                         sessionBlob = ctx.saveAndClose(),
-                        authenticationContext = sessionContext.authentication
+                        authenticationContext = authenticationContext
                     )
                     sessionStore.write(ctx.ownCid, session)
                 } catch (ex: SslException) {
@@ -314,10 +325,6 @@ class DtlsServer(
             sessions.remove(peerAddress, this)
             logger.info("[{}] DTLS connection expired", peerAddress)
             storeAndClose()
-        }
-
-        fun setAuthenticationContext(authentication: String?) {
-            sessionContext = sessionContext.copy(authentication = authentication)
         }
 
         private fun reportSessionStarted() {

@@ -59,7 +59,7 @@ class DtlsServerMetricsCallbacksTest {
             server.setSessionAuthenticationContext(packet.peerAddress, msg.substring(12))
             server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
         } else {
-            val ctx = (packet.sessionContext.authentication ?: "")
+            val ctx = packet.sessionContext.authenticationContext
             server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
         }
     }
