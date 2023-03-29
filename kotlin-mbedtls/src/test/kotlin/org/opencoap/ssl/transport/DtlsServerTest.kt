@@ -72,10 +72,10 @@ class DtlsServerTest {
         if (msg == "error") {
             throw Exception("error")
         } else if (msg.startsWith("Authenticate:")) {
-            server.setSessionAuthenticationContext(packet.peerAddress, msg.substring(12))
+            server.updateSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
             server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
         } else {
-            val ctx = (packet.sessionContext.authenticationContext[DtlsSessionContext.DEFAULT_AUTH_CTX_LABEL] ?: "")
+            val ctx = (packet.sessionContext.authenticationContext["auth"] ?: "")
             server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
         }
     }
@@ -458,15 +458,15 @@ class DtlsServerTest {
         assertEquals("hello!", serverReceived.await().buffer.decodeToString())
 
         // when, session context is set
-        assertTrue(server.setSessionAuthenticationContext(serverReceived.await().peerAddress, "id:dev-007").await())
+        assertTrue(server.updateSessionAuthenticationContext(serverReceived.await().peerAddress, "auth", "id:dev-007").await())
 
         // and, client sends messages
         client.send("msg1")
         client.send("msg2")
 
         // then
-        assertEquals(DtlsSessionContext("id:dev-007"), server.receive(1.seconds).await().sessionContext)
-        assertEquals(DtlsSessionContext("id:dev-007"), server.receive(1.seconds).await().sessionContext)
+        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
+        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
 
         client.close()
     }

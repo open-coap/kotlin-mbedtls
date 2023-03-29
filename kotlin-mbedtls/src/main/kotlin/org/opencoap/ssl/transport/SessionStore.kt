@@ -27,7 +27,7 @@ interface SessionStore {
 
 data class SessionWithContext(
     val sessionBlob: ByteArray,
-    val authenticationContext: AuthenticationContext?
+    val authenticationContext: AuthenticationContext
 )
 
 object NoOpsSessionStore : SessionStore {

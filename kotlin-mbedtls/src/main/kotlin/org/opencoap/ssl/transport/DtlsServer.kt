@@ -132,14 +132,11 @@ class DtlsServer(
 
     fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
 
-    fun setSessionAuthenticationContext(adr: InetSocketAddress, authenticationCredentials: String?): CompletableFuture<Boolean> =
-        updateSessionAuthenticationContext(adr, DtlsSessionContext.DEFAULT_AUTH_CTX_LABEL, authenticationCredentials)
-
-    fun updateSessionAuthenticationContext(adr: InetSocketAddress, label: String, authenticationCredentials: String?): CompletableFuture<Boolean> =
+    fun updateSessionAuthenticationContext(adr: InetSocketAddress, key: String, creds: String?): CompletableFuture<Boolean> =
         executor.supply {
             when (val s = sessions[adr]) {
                 is DtlsSession -> {
-                    s.authenticationContext += (label to authenticationCredentials)
+                    s.authenticationContext += (key to creds)
                     true
                 }
                 else -> false
@@ -170,7 +167,7 @@ class DtlsServer(
                         logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                         false
                     } else {
-                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext ?: emptyMap())
+                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext)
                         true
                     }
                 } catch (ex: SslException) {
