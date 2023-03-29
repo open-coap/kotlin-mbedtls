@@ -132,11 +132,11 @@ class DtlsServer(
 
     fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
 
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, creds: String?): CompletableFuture<Boolean> =
+    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): CompletableFuture<Boolean> =
         executor.supply {
             when (val s = sessions[adr]) {
                 is DtlsSession -> {
-                    s.authenticationContext += (key to creds)
+                    s.authenticationContext += (key to value)
                     true
                 }
                 else -> false
