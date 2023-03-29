@@ -56,10 +56,10 @@ class DtlsServerMetricsCallbacksTest {
         if (msg == "error") {
             throw Exception("error")
         } else if (msg.startsWith("Authenticate:")) {
-            server.setSessionAuthenticationContext(packet.peerAddress, msg.substring(12))
+            server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
             server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
         } else {
-            val ctx = (packet.sessionContext.authentication ?: "")
+            val ctx = packet.sessionContext.authenticationContext
             server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
         }
     }

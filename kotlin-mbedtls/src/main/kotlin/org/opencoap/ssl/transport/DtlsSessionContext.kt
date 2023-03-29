@@ -16,11 +16,12 @@
 
 package org.opencoap.ssl.transport
 
+typealias AuthenticationContext = Map<String, String?>
+
 data class DtlsSessionContext @JvmOverloads constructor(
-    val authentication: String? = null,
+    val authenticationContext: AuthenticationContext = emptyMap(),
     val peerCertificateSubject: String? = null
 ) {
-
     companion object {
         @JvmField
         val EMPTY = DtlsSessionContext()
