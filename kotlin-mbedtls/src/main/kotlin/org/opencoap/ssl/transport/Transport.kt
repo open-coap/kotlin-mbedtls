@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
 import java.util.function.Consumer
 
 interface Transport<P> : Closeable {
@@ -38,12 +39,12 @@ interface Transport<P> : Closeable {
     }
 }
 
-fun <P, T : Transport<P>> T.listen(handler: Consumer<P>): T {
+fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Executor(Runnable::run)): T {
     val logger = LoggerFactory.getLogger(javaClass)
 
     fun handle(packet: P?, err: Throwable?) {
         if (err != null) {
-            logger.warn("Listener stopped: {}", err.message)
+            logger.warn("Listener stopped: {}", err.message, err)
             return
         }
 
@@ -55,7 +56,7 @@ fun <P, T : Transport<P>> T.listen(handler: Consumer<P>): T {
             }
         }
         // continue
-        receive(Duration.ofSeconds(5)).whenComplete(::handle)
+        receive(Duration.ofSeconds(5)).whenCompleteAsync(::handle, executor)
     }
 
     // start loop

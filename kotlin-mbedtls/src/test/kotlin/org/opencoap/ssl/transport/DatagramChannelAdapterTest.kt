@@ -78,9 +78,9 @@ class DatagramChannelAdapterTest {
     @Test
     fun listen() {
         val trans = DatagramChannelAdapter.open()
-        trans.listen { packet ->
+        trans.listen({ packet ->
             trans.send(packet.map(ByteBuffer::decodeToString).map { "echo:$it" }.map(String::toByteBuffer))
-        }
+        })
         val cli = DatagramChannelAdapter.open()
 
         for (i in 1..10) {
