@@ -2,8 +2,8 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.8.10"
-    id("org.jlleitschuh.gradle.ktlint") version "11.2.0"
+    id("org.jetbrains.kotlin.jvm")
+    id("org.jlleitschuh.gradle.ktlint") version "11.3.1"
     id("com.adarshr.test-logger") version "3.2.0"
     id("io.gitlab.arturbosch.detekt") version "1.22.0"
     id("me.champeau.jmh") version "0.7.0"
@@ -15,7 +15,7 @@ dependencies {
     api(platform("org.jetbrains.kotlin:kotlin-bom"))
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    api("org.slf4j:slf4j-api:2.0.6")
+    api("org.slf4j:slf4j-api:2.0.7")
     api("net.java.dev.jna:jna:5.13.0")
 
     // TESTS
