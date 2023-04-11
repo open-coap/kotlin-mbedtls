@@ -22,7 +22,7 @@ import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.BytesPacket
 import org.opencoap.ssl.transport.Certs
-import org.opencoap.ssl.transport.DtlsServer
+import org.opencoap.ssl.transport.DtlsServerTransport
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.listen
 import org.opencoap.ssl.util.await
@@ -44,8 +44,8 @@ import kotlin.random.Random
 @Fork(1)
 @Threads(1)
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 1, time = 20)
-open class DtlsServerBenchmark {
+@Measurement(iterations = 4, time = 5)
+open class DtlsServerTransportBenchmark {
 
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
@@ -55,13 +55,13 @@ open class DtlsServerBenchmark {
         val resp = packet.map { echoMessage.plus(it) }
         server.send(resp)
     }
-    lateinit var server: DtlsServer
+    lateinit var server: DtlsServerTransport
     lateinit var client: DtlsTransmitter
     private val message = Random.nextBytes(1280) // usual IP MTU
 
     @Setup
     fun setUp() {
-        server = DtlsServer.create(serverConf).also { it.listen(echoHandler, it.executor()) }
+        server = DtlsServerTransport.create(serverConf).also { it.listen(echoHandler, it.executor()) }
         client = DtlsTransmitter.connect(server, clientConf).await()
     }
 

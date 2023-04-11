@@ -25,6 +25,7 @@ data class Packet<T> @JvmOverloads constructor(
     val sessionContext: DtlsSessionContext = DtlsSessionContext.EMPTY
 ) {
     fun <T2> map(f: (T) -> T2): Packet<T2> = Packet(f(buffer), peerAddress, sessionContext)
+    fun <T2> map(newBuf: T2): Packet<T2> = Packet(newBuf, peerAddress, sessionContext)
 
     companion object {
         val EmptyByteBufferPacket: ByteBufferPacket = Packet(ByteBuffer.allocate(0), InetSocketAddress.createUnresolved("", 0))

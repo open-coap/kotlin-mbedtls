@@ -29,64 +29,36 @@ import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 
-/*
-Single threaded dtls server on top of DatagramChannel.
- */
 class DtlsServer(
-    private val transport: Transport<ByteBufferPacket>,
+    private val transport: TransportOutbound<ByteBufferPacket>,
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
     private val sessionStore: SessionStore = NoOpsSessionStore,
-    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
-) : Transport<BytesPacket> {
-
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
+    private val executor: ScheduledExecutorService
+) {
     companion object {
         private val EMPTY_BUFFER = ByteBuffer.allocate(0)
-
-        @JvmStatic
-        @JvmOverloads
-        fun create(
-            config: SslConfig,
-            listenPort: Int = 0,
-            expireAfter: Duration = Duration.ofSeconds(60),
-            sessionStore: SessionStore = NoOpsSessionStore,
-            lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
-        ): DtlsServer {
-            val channel = DatagramChannelAdapter.open(listenPort)
-            return DtlsServer(channel, config, expireAfter, sessionStore, lifecycleCallbacks)
-        }
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val executor = SingleThreadExecutor.create("dtls-srv-")
-    fun executor() = executor.underlying
 
-    // note: must be used only from executor
+    // note: non thread save, must be used only from same thread
     private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
     private val cidSize = sslConfig.cidSupplier.next().size
+    val numberOfSessions get() = sessions.size
 
-    override fun receive(timeout: Duration): CompletableFuture<BytesPacket> {
-        return transport.receive(timeout).thenComposeAsync({ packet ->
-            if (packet == Packet.EmptyByteBufferPacket) return@thenComposeAsync completedFuture(Packet.EmptyBytesPacket)
-
-            val adr: InetSocketAddress = packet.peerAddress
-            val buf: ByteBuffer = packet.buffer
-
-            handleReceived(adr, buf, timeout)
-        }, executor)
-    }
-
-    private fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer, timeout: Duration): CompletableFuture<BytesPacket> {
+    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<BytesPacket>? {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
         val dtlsState = sessions[adr]
 
         return when {
             dtlsState is DtlsHandshake -> {
                 dtlsState.step(buf)
-                receive(timeout)
+                null
             }
 
             dtlsState is DtlsSession -> {
@@ -94,7 +66,7 @@ class DtlsServer(
                 if (plainBytes.isNotEmpty()) {
                     completedFuture(Packet(plainBytes, adr, dtlsState.sessionContext))
                 } else {
-                    receive(timeout)
+                    null
                 }
             }
 
@@ -104,9 +76,9 @@ class DtlsServer(
                 @Suppress("UnsafeCallOnNullableType") // smart casting does not work for lazy delegate
                 loadSession(cid!!, adr).thenCompose { isLoaded ->
                     if (isLoaded) {
-                        handleReceived(adr, copyBuf, timeout)
+                        handleReceived(adr, copyBuf)
                     } else {
-                        receive(timeout)
+                        null
                     }
                 }
             }
@@ -114,15 +86,19 @@ class DtlsServer(
             // new handshake
             else -> {
                 sessions[adr] = DtlsHandshake(sslConfig.newContext(adr), adr)
-                handleReceived(adr, buf, timeout)
+                handleReceived(adr, buf)
             }
         }
     }
 
-    override fun send(packet: Packet<ByteArray>): CompletableFuture<Boolean> = executor.supply {
-        when (val dtlsState = sessions[packet.peerAddress]) {
+    fun encrypt(plainPacket: ByteArray, peerAddress: InetSocketAddress): ByteBuffer? {
+        return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
+    }
+
+    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean {
+        return when (val s = sessions[adr]) {
             is DtlsSession -> {
-                transport.send(packet.map(dtlsState::encrypt))
+                s.authenticationContext += (key to value)
                 true
             }
 
@@ -130,33 +106,13 @@ class DtlsServer(
         }
     }
 
-    fun numberOfSessions(): Int = executor.supply { sessions.size }.join()
-
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): CompletableFuture<Boolean> =
-        executor.supply {
-            when (val s = sessions[adr]) {
-                is DtlsSession -> {
-                    s.authenticationContext += (key to value)
-                    true
-                }
-                else -> false
-            }
+    fun close() {
+        val iterator = sessions.iterator()
+        while (iterator.hasNext()) {
+            val dtlsState = iterator.next().value
+            iterator.remove()
+            dtlsState.storeAndClose()
         }
-
-    override fun localPort() = transport.localPort()
-
-    override fun close() {
-        executor.supply {
-            transport.close()
-
-            val iterator = sessions.iterator()
-            while (iterator.hasNext()) {
-                val dtlsState = iterator.next().value
-                iterator.remove()
-                dtlsState.storeAndClose()
-            }
-        }.get(30, TimeUnit.SECONDS)
-        executor.shutdown()
     }
 
     private fun loadSession(cid: ByteArray, adr: InetSocketAddress): CompletableFuture<Boolean> {
@@ -229,6 +185,7 @@ class DtlsServer(
                     is HelloVerifyRequired -> {}
                     is SslException ->
                         logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+
                     else ->
                         logger.error(ex.toString(), ex)
                 }

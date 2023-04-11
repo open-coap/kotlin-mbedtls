@@ -23,9 +23,8 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.function.Consumer
 
-interface Transport<P> : Closeable {
+interface Transport<P> : TransportOutbound<P>, Closeable {
     fun receive(timeout: Duration): CompletableFuture<P>
-    fun send(packet: P): CompletableFuture<Boolean>
     fun localPort(): Int
 
     fun <P2> map(f: (P) -> P2, f2: (P2) -> P): Transport<P2> {
@@ -37,6 +36,10 @@ interface Transport<P> : Closeable {
             override fun close() = underlying.close()
         }
     }
+}
+
+fun interface TransportOutbound<P> {
+    fun send(packet: P): CompletableFuture<Boolean>
 }
 
 fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Executor(Runnable::run)): T {
