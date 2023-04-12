@@ -17,11 +17,11 @@
 package benchmark
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.opencoap.ssl.EmptyCidSupplier
-import org.opencoap.ssl.PskAuth
+import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.BytesPacket
+import org.opencoap.ssl.transport.Certs
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.listen
@@ -46,9 +46,9 @@ import kotlin.random.Random
 @Warmup(iterations = 1, time = 5)
 @Measurement(iterations = 1, time = 20)
 open class DtlsServerBenchmark {
-    private val psk = PskAuth("dupa", byteArrayOf(1))
-    private val conf: SslConfig = SslConfig.server(psk, cidSupplier = RandomCidSupplier(6))
-    private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
+
+    val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
 
     private val echoMessage = "echo:".encodeToByteArray()
     private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
@@ -57,28 +57,31 @@ open class DtlsServerBenchmark {
     }
     lateinit var server: DtlsServer
     lateinit var client: DtlsTransmitter
-    private val cliMessage = Random.nextBytes(7)
+    private val message = Random.nextBytes(1280) // usual IP MTU
 
     @Setup
     fun setUp() {
-        server = DtlsServer.create(conf).also { it.listen(echoHandler, it.executor()) }
-        client = DtlsTransmitter.connect(server, clientConfig).await()
+        server = DtlsServer.create(serverConf).also { it.listen(echoHandler, it.executor()) }
+        client = DtlsTransmitter.connect(server, clientConf).await()
     }
 
     @TearDown
     fun tearDown() {
         client.close()
         server.close()
+
+        clientConf.close()
+        serverConf.close()
     }
 
     @Benchmark
     @OperationsPerInvocation(1)
-    fun exchange_messages(bh: Blackhole) {
-        client.send(cliMessage)
+    fun exchange_1k_message(bh: Blackhole) {
+        client.send(message)
 
         val received = client.receive().await()
         bh.consume(received)
-        assertEquals(cliMessage.size + echoMessage.size, received.size)
+        assertEquals(message.size + echoMessage.size, received.size)
     }
 
     companion object {
@@ -87,9 +90,9 @@ open class DtlsServerBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(maxTransactions)
-    fun exchange_messages_20_concurrent_transactions(bh: Blackhole) {
+    fun exchange_1k_messages_20_concurrent_transactions(bh: Blackhole) {
         repeat(maxTransactions) {
-            client.send(cliMessage)
+            client.send(message)
         }
 
         repeat(maxTransactions) {

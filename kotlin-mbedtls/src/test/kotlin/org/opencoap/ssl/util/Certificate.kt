@@ -33,7 +33,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Date
 
-internal data class Certificate(
+data class Certificate(
     val privateKey: PrivateKey,
     private val x509Cert: X509CertificateHolder,
     private val alg: String,

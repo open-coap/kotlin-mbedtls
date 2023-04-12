@@ -18,7 +18,7 @@ package org.opencoap.ssl.transport
 
 import org.opencoap.ssl.util.Certificate
 
-internal object Certs {
+object Certs {
     val root = Certificate.createRootEC("root-ca")
     val server = root.signNew("server", false)
     val serverChain = listOf(server, root).map(Certificate::asX509)

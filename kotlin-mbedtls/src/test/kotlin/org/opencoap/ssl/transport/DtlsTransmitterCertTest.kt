@@ -90,6 +90,9 @@ class DtlsTransmitterCertTest {
 
         client.send("dupa")
         assertEquals("dupa", server.await().receiveString())
+
+        println("val cliSession = \"" + client.saveSession().toHex() + "\".decodeHex()")
+        println("val srvSession = \"" + server.await().saveSession().toHex() + "\".decodeHex()")
     }
 
     @Test
