@@ -114,7 +114,7 @@ internal object MbedtlsApi {
     private fun configureLogThreshold() {
         val logger = LoggerFactory.getLogger(javaClass)
         if (logger.isTraceEnabled) {
-            mbedtls_debug_set_threshold(3)
+            mbedtls_debug_set_threshold(4)
         } else if (logger.isDebugEnabled) {
             mbedtls_debug_set_threshold(2)
         } else if (logger.isWarnEnabled) {
