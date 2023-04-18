@@ -18,6 +18,8 @@ package org.opencoap.ssl.util
 
 import com.sun.jna.Memory
 import org.opencoap.ssl.transport.Transport
+import org.opencoap.ssl.transport.decodeToString
+import org.opencoap.ssl.transport.toByteBuffer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -37,18 +39,8 @@ fun String.decodeHex(): ByteArray {
         .toByteArray()
 }
 
-fun String.toByteBuffer(): ByteBuffer = this.encodeToByteArray().asByteBuffer()
-
-fun ByteArray.asByteBuffer(): ByteBuffer = ByteBuffer.wrap(this)
-
 fun <T> CompletableFuture<T>.await(): T {
     return this.get(5, TimeUnit.SECONDS)
-}
-
-fun ByteBuffer.decodeToString(): String {
-    val bb = ByteArray(this.remaining())
-    this.get(bb)
-    return bb.decodeToString()
 }
 
 fun String.toMemory(): Memory {
@@ -71,3 +63,6 @@ val Int.millis: Duration
 
 fun <B> Transport<B>.localAddress(): InetSocketAddress =
     InetSocketAddress(InetAddress.getLocalHost(), this.localPort())
+
+fun Transport<ByteBuffer>.mapToString(): Transport<String> =
+    this.map(ByteBuffer::decodeToString, String::toByteBuffer)

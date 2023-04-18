@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.transport.BytesPacket
+import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DtlsServerTransport
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.listen
@@ -37,6 +37,7 @@ import org.openjdk.jmh.annotations.TearDown
 import org.openjdk.jmh.annotations.Threads
 import org.openjdk.jmh.annotations.Warmup
 import org.openjdk.jmh.infra.Blackhole
+import java.nio.ByteBuffer
 import java.util.function.Consumer
 import kotlin.random.Random
 
@@ -51,13 +52,17 @@ open class DtlsServerTransportBenchmark {
     val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
 
     private val echoMessage = "echo:".encodeToByteArray()
-    private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
-        val resp = packet.map { echoMessage.plus(it) }
+    private val echoHandler: Consumer<ByteBufferPacket> = Consumer<ByteBufferPacket> { packet ->
+        val bb = ByteBuffer.allocate(echoMessage.size + packet.buffer.remaining())
+        bb.put(echoMessage)
+        bb.put(packet.buffer)
+        bb.flip()
+        val resp = packet.map { bb }
         server.send(resp)
     }
     lateinit var server: DtlsServerTransport
     lateinit var client: DtlsTransmitter
-    private val message = Random.nextBytes(1280) // usual IP MTU
+    private val message = ByteBuffer.wrap(Random.nextBytes(1280)) // usual IP MTU
 
     @Setup
     fun setUp() {
@@ -81,7 +86,7 @@ open class DtlsServerTransportBenchmark {
 
         val received = client.receive().await()
         bh.consume(received)
-        assertEquals(message.size + echoMessage.size, received.size)
+        assertEquals(message.remaining() + echoMessage.size, received.remaining())
     }
 
     companion object {

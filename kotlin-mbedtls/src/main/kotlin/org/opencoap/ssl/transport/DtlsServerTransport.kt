@@ -33,7 +33,7 @@ class DtlsServerTransport internal constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
     private val executor: SingleThreadExecutor
-) : Transport<BytesPacket> {
+) : Transport<ByteBufferPacket> {
 
     companion object {
         @JvmStatic
@@ -55,9 +55,9 @@ class DtlsServerTransport internal constructor(
     fun numberOfSessions(): Int = executor.supply { dtlsServer.numberOfSessions }.join()
     fun executor(): ScheduledExecutorService = executor.underlying
 
-    override fun receive(timeout: Duration): CompletableFuture<BytesPacket> {
+    override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
         return transport.receive(timeout).thenComposeAsync({ packet ->
-            if (packet == Packet.EmptyByteBufferPacket) return@thenComposeAsync completedFuture(Packet.EmptyBytesPacket)
+            if (packet == Packet.EmptyByteBufferPacket) return@thenComposeAsync completedFuture(Packet.EmptyByteBufferPacket)
 
             val adr: InetSocketAddress = packet.peerAddress
             val buf: ByteBuffer = packet.buffer
@@ -66,7 +66,7 @@ class DtlsServerTransport internal constructor(
         }, executor)
     }
 
-    override fun send(packet: Packet<ByteArray>): CompletableFuture<Boolean> = executor.supply {
+    override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> = executor.supply {
         val encPacket = dtlsServer.encrypt(packet.buffer, packet.peerAddress)?.let(packet::map)
 
         when (encPacket) {
@@ -80,7 +80,7 @@ class DtlsServerTransport internal constructor(
     override fun close() {
         executor.supply {
             transport.close()
-            dtlsServer.close()
+            dtlsServer.closeSessions()
         }.get(30, TimeUnit.SECONDS)
         executor.shutdown()
     }

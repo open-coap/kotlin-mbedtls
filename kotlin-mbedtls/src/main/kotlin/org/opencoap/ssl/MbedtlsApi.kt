@@ -25,6 +25,7 @@ import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
+import java.nio.ByteBuffer
 
 /*
 Defines mbedtls native functions that can be used from jvm.
@@ -59,12 +60,12 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_get_ciphersuite_id(name: String): Int
     external fun mbedtls_ssl_handshake(sslContext: Pointer): Int
     external fun mbedtls_ssl_init(sslContext: Pointer)
-    external fun mbedtls_ssl_read(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_read(sslContext: Pointer, buf: ByteBuffer, len: Int): Int
     external fun mbedtls_ssl_set_client_transport_id(sslContext: Pointer, info: String, ilen: Int): Int
     external fun mbedtls_ssl_set_bio(sslContext: Pointer, pBaseIO: Pointer?, fSend: Callback, fRecv: Callback?, fRecvTimeout: Callback?)
     external fun mbedtls_ssl_set_timer_cb(ssl: Pointer, timer: Pointer?, timingSetDelay: Callback, timingGetDelay: Callback)
     external fun mbedtls_ssl_setup(sslContext: Pointer, mbedtlsSslConfig: Pointer): Int
-    external fun mbedtls_ssl_write(sslContext: Pointer, buf: Pointer, len: Int): Int
+    external fun mbedtls_ssl_write(sslContext: Pointer, buf: ByteBuffer, len: Int): Int
     external fun mbedtls_ssl_conf_cid(mbedtlsSslConfig: Pointer, len: Int, ignoreOtherCids: Int): Int
     external fun mbedtls_ssl_set_cid(sslContext: Pointer, enable: Int, ownCid: ByteArray, ownCidLen: Int): Int
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int

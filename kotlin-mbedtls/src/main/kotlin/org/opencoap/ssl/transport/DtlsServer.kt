@@ -23,6 +23,7 @@ import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -51,7 +52,7 @@ class DtlsServer(
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
 
-    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<BytesPacket>? {
+    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<ByteBufferPacket>? {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
         val dtlsState = sessions[adr]
 
@@ -72,7 +73,7 @@ class DtlsServer(
 
             // no session, but dtls packet contains CID
             cid != null -> {
-                val copyBuf = buf.copyDirect()
+                val copyBuf = buf.copy()
                 @Suppress("UnsafeCallOnNullableType") // smart casting does not work for lazy delegate
                 loadSession(cid!!, adr).thenCompose { isLoaded ->
                     if (isLoaded) {
@@ -91,7 +92,7 @@ class DtlsServer(
         }
     }
 
-    fun encrypt(plainPacket: ByteArray, peerAddress: InetSocketAddress): ByteBuffer? {
+    fun encrypt(plainPacket: ByteBuffer, peerAddress: InetSocketAddress): ByteBuffer? {
         return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
     }
 
@@ -106,7 +107,7 @@ class DtlsServer(
         }
     }
 
-    fun close() {
+    fun closeSessions() {
         val iterator = sessions.iterator()
         while (iterator.hasNext()) {
             val dtlsState = iterator.next().value
@@ -245,7 +246,7 @@ class DtlsServer(
             }
         }
 
-        fun decrypt(encPacket: ByteBuffer): ByteArray {
+        fun decrypt(encPacket: ByteBuffer): ByteBuffer {
             scheduledTask?.cancel(false)
             try {
                 val plainBuf = ctx.decrypt(encPacket)
@@ -260,10 +261,10 @@ class DtlsServer(
             }
 
             closeAndRemove()
-            return byteArrayOf()
+            return EMPTY_BYTEBUFFER
         }
 
-        fun encrypt(plainPacket: ByteArray): ByteBuffer {
+        fun encrypt(plainPacket: ByteBuffer): ByteBuffer {
             try {
                 return ctx.encrypt(plainPacket)
             } catch (ex: SslException) {

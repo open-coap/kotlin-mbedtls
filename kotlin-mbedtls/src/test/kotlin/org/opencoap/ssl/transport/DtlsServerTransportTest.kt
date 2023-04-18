@@ -38,9 +38,9 @@ import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.mapToString
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
-import org.opencoap.ssl.util.toByteBuffer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
@@ -66,16 +66,16 @@ class DtlsServerTransportTest {
 
     private lateinit var server: DtlsServerTransport
 
-    private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
+    private val echoHandler: Consumer<ByteBufferPacket> = Consumer<ByteBufferPacket> { packet ->
         val msg = packet.buffer.decodeToString()
         if (msg == "error") {
             throw Exception("error")
         } else if (msg.startsWith("Authenticate:")) {
             server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
-            server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
+            server.send(Packet("OK".toByteBuffer(), packet.peerAddress))
         } else {
             val ctx = (packet.sessionContext.authenticationContext["auth"] ?: "")
-            server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
+            server.send(packet.map { "$msg:resp$ctx".toByteBuffer() })
         }
     }
 
@@ -95,12 +95,12 @@ class DtlsServerTransportTest {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
         val receive = server.receive(2.seconds)
 
-        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
 
         client.send("hi")
         assertEquals("hi", receive.await().buffer.decodeToString())
-        server.send(Packet("czesc".encodeToByteArray(), receive.await().peerAddress))
-        assertEquals("czesc", client.receiveString())
+        server.send(Packet("czesc".toByteBuffer(), receive.await().peerAddress))
+        assertEquals("czesc", client.receive(1.seconds).await())
 
         repeat(5) { i ->
             client.send("perse$i")
@@ -493,6 +493,6 @@ class DtlsServerTransportTest {
     }
 }
 
-fun Transport<ByteArray>.receiveString(): String {
+fun Transport<ByteBuffer>.receiveString(): String {
     return receive(Duration.ofSeconds(5)).join().decodeToString()
 }

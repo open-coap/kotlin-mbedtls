@@ -25,13 +25,14 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.transport.BytesPacket
+import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DatagramChannelAdapter
 import org.opencoap.ssl.transport.DtlsServerTransport
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.HashMapSessionStore
-import org.opencoap.ssl.transport.Packet
+import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.listen
+import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
@@ -50,17 +51,9 @@ class DtlsServerMetricsCallbacksTest {
 
     private lateinit var server: DtlsServerTransport
 
-    private val echoHandler: Consumer<BytesPacket> = Consumer<BytesPacket> { packet ->
+    private val echoHandler: Consumer<ByteBufferPacket> = Consumer<ByteBufferPacket> { packet ->
         val msg = packet.buffer.decodeToString()
-        if (msg == "error") {
-            throw Exception("error")
-        } else if (msg.startsWith("Authenticate:")) {
-            server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
-            server.send(Packet("OK".encodeToByteArray(), packet.peerAddress))
-        } else {
-            val ctx = packet.sessionContext.authenticationContext
-            server.send(packet.map { it.plus(":resp$ctx".encodeToByteArray()) })
-        }
+        server.send(packet.map { "$msg:resp".toByteBuffer() })
     }
 
     @AfterEach

@@ -206,7 +206,7 @@ class DtlsTransmitterTest {
 
         // send and receive packets
         val sendResult: CompletableFuture<Boolean> = client.send("hello")
-        val receive: CompletableFuture<ByteArray> = client.receive(timeout = Duration.ofSeconds(2))
+        val receive: CompletableFuture<ByteBuffer> = client.receive(timeout = Duration.ofSeconds(2))
 
         // ---------------------
         assertEquals("hello", server.await().receiveString())

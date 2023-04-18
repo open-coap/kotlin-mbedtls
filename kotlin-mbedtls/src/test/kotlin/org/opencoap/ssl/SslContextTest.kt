@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,30 @@
 
 package org.opencoap.ssl
 
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.transport.asByteBuffer
+import org.opencoap.ssl.transport.decodeToString
+import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.transport.toHex
-import org.opencoap.ssl.util.asByteBuffer
+import org.opencoap.ssl.util.Certs
+import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.decodeHex
+import org.opencoap.ssl.util.localAddress
+import java.nio.ByteBuffer
 
 class SslContextTest {
+    val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+
+    @AfterEach
+    fun tearDown() {
+        serverConf.close()
+        clientConf.close()
+    }
 
     @Test
     fun `should peek CID from DTLS Packet`() {
@@ -64,5 +80,67 @@ class SslContextTest {
         assertNull(
             SslContext.peekCID(2, "19fefd".decodeHex().asByteBuffer())?.toHex()
         )
+    }
+
+    @Test
+    fun `should handshake with certificate`() {
+        var sendingBuffer: ByteBuffer? = null
+        val send: (ByteBuffer) -> Unit = { sendingBuffer = it }
+        var srvHandshake = serverConf.newContext(localAddress(1_5684))
+        val cliHandshake = clientConf.newContext(localAddress(2_5684))
+
+        cliHandshake.step(send)
+        try {
+            srvHandshake.step(sendingBuffer) { cliHandshake.step(it, send) }
+        } catch (ex: HelloVerifyRequired) {
+            srvHandshake.close()
+            srvHandshake = serverConf.newContext(localAddress(1_5684))
+        }
+        srvHandshake.step(sendingBuffer) { cliHandshake.step(it, send) }
+
+        // last step
+        val serverSslSession = srvHandshake.step(sendingBuffer) {
+            assertTrue(cliHandshake.step(it, send) is SslSession)
+        }
+
+        assertTrue(serverSslSession is SslSession)
+        serverSslSession.close()
+    }
+
+    @Test
+    fun `should load sessions and exchange data`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+
+        val encryptedDtls = clientSession.encrypt("perse".toByteBuffer())
+        assertEquals("perse", serverSession.decrypt(encryptedDtls).decodeToString())
+
+        // buffer with shifted position
+        val buf = "--perse--".toByteBuffer()
+        buf.position(2)
+        buf.limit(7)
+        val encryptedDtls2 = clientSession.encrypt(buf)
+        assertEquals("perse", serverSession.decrypt(encryptedDtls2).decodeToString())
+    }
+
+    @Test
+    fun `should exchange data with direct byte buffer`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+
+        // direct memory with shifted position
+        val buf = ByteBuffer.allocateDirect(10)
+        buf.put("--dupa".encodeToByteArray())
+        buf.flip()
+        buf.position(2)
+        val encryptedDtls3 = clientSession.encrypt(buf)
+
+        buf.clear()
+        buf.put("==".encodeToByteArray())
+        serverSession.decrypt(encryptedDtls3, buf)
+        assertEquals("dupa", buf.decodeToString())
+
+        clientSession.close()
+        serverSession.close()
     }
 }

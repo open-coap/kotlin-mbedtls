@@ -148,22 +148,21 @@ class SslSession internal constructor(
 
     val cipherSuite: String get() = mbedtls_ssl_get_ciphersuite(sslContext)
 
-    fun encrypt(data: ByteArray): ByteBuffer {
-        val buffer = Memory(data.size.toLong())
-        buffer.write(0, data, 0, data.size)
-
-        return SendCallback {
-            mbedtls_ssl_write(sslContext, buffer, data.size).verify()
+    fun encrypt(data: ByteBuffer): ByteBuffer {
+        return SendCallback.invoke {
+            mbedtls_ssl_write(sslContext, data, data.remaining()).verify()
         } ?: ByteBuffer.allocate(0)
     }
 
-    fun decrypt(encBuffer: ByteBuffer): ByteArray {
-        val plainBuffer = Memory(encBuffer.remaining().toLong())
+    fun decrypt(encBuffer: ByteBuffer, plainBuffer: ByteBuffer) {
         val size = ReceiveCallback(encBuffer) {
-            mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.size().toInt()).verify()
+            mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.remaining()).verify()
         }
+        plainBuffer.limit(size + plainBuffer.position())
+    }
 
-        return plainBuffer.getByteArray(0, size)
+    fun decrypt(encBuffer: ByteBuffer): ByteBuffer = ByteBuffer.allocate(encBuffer.remaining()).also {
+        decrypt(encBuffer, it)
     }
 
     fun saveAndClose(): ByteArray {

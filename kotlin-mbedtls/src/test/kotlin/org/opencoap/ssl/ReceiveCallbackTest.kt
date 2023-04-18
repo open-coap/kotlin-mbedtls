@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import com.sun.jna.Memory
 import com.sun.jna.Pointer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.opencoap.ssl.util.decodeToString
-import org.opencoap.ssl.util.toByteBuffer
+import org.opencoap.ssl.transport.decodeToString
+import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.toMemory
 import java.nio.ByteBuffer
 

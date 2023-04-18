@@ -22,9 +22,22 @@ internal fun ByteArray.toHex(): String {
     return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
 }
 
-fun ByteBuffer.copyDirect(): ByteBuffer {
+fun ByteBuffer.copy(): ByteBuffer {
     val bb = ByteBuffer.allocateDirect(this.remaining())
     bb.put(this)
     bb.flip()
     return bb
+}
+
+fun ByteBuffer.isNotEmpty(): Boolean = this.hasRemaining()
+fun ByteBuffer.isEmpty(): Boolean = !this.hasRemaining()
+
+fun ByteArray.asByteBuffer(): ByteBuffer = ByteBuffer.wrap(this)
+
+fun String.toByteBuffer(): ByteBuffer = this.encodeToByteArray().asByteBuffer()
+
+fun ByteBuffer.decodeToString(): String {
+    val bb = ByteArray(this.remaining())
+    this.get(bb)
+    return bb.decodeToString()
 }
