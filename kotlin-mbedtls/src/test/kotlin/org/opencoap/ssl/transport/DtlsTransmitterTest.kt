@@ -27,6 +27,8 @@ import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.runGC
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -201,12 +203,12 @@ class DtlsTransmitterTest {
         )
         // create client and initiate handshake
         val client: DtlsTransmitter = DtlsTransmitter
-            .connect(localAddress(1_5684), conf, 6001)
+            .connect(InetSocketAddress(InetAddress.getLocalHost(), 1_5684), conf, 6001)
             .get(10, TimeUnit.SECONDS)
 
         // send and receive packets
         val sendResult: CompletableFuture<Boolean> = client.send("hello")
-        val receive: CompletableFuture<ByteArray> = client.receive(timeout = Duration.ofSeconds(2))
+        val receive: CompletableFuture<ByteBuffer> = client.receive(timeout = Duration.ofSeconds(2))
 
         // ---------------------
         assertEquals("hello", server.await().receiveString())

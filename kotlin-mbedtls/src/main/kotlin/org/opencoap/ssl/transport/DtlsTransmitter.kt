@@ -20,6 +20,7 @@ import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -38,19 +39,19 @@ class DtlsTransmitter private constructor(
     internal val transport: Transport<ByteBuffer>,
     private val sslSession: SslSession,
     private val executor: ExecutorService,
-) : Transport<ByteArray> {
+) : Transport<ByteBuffer> {
 
-    override fun send(packet: ByteArray): CompletableFuture<Boolean> {
+    override fun send(packet: ByteBuffer): CompletableFuture<Boolean> {
         return executor
             .supply { sslSession.encrypt(packet) }
             .thenCompose(transport::send)
     }
 
-    fun send(text: String) = send(text.encodeToByteArray())
+    fun send(text: String) = send(text.toByteBuffer())
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteArray> {
+    override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> {
         return transport.receive(timeout).thenApplyAsync({
-            if (it.remaining() == 0) byteArrayOf() else sslSession.decrypt(it)
+            if (it.remaining() == 0) EMPTY_BYTEBUFFER else sslSession.decrypt(it)
         }, executor)
     }
 

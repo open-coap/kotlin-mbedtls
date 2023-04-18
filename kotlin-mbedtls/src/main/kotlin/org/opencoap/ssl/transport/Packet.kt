@@ -28,11 +28,12 @@ data class Packet<T> @JvmOverloads constructor(
     fun <T2> map(newBuf: T2): Packet<T2> = Packet(newBuf, peerAddress, sessionContext)
 
     companion object {
-        val EmptyByteBufferPacket: ByteBufferPacket = Packet(ByteBuffer.allocate(0), InetSocketAddress.createUnresolved("", 0))
-        val EmptyBytesPacket: BytesPacket = Packet(byteArrayOf(), InetSocketAddress.createUnresolved("", 0))
+        @JvmStatic
+        val EMPTY_BYTEBUFFER: ByteBuffer = ByteBuffer.allocate(0)
+
+        @JvmStatic
+        val EmptyByteBufferPacket: ByteBufferPacket = Packet(EMPTY_BYTEBUFFER, InetSocketAddress.createUnresolved("", 0))
     }
 }
 
 typealias ByteBufferPacket = Packet<ByteBuffer>
-
-typealias BytesPacket = Packet<ByteArray>
