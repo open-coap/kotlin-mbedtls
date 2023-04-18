@@ -9,8 +9,15 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
 ## Features:
 
-- Client DTLS with PSK authentication
-- DTLS CID support (RFC 9146)
+- Precompiled mbedtls binaries for
+  - linux (x64)
+  - macos (intel and arm)
+- DTLS 1.2 client and server modes
+- DTLS 1.2 CID support (RFC 9146)
+  - Storing and restoring sessions
+- Certificate and PSK authentication
+- Micrometer integration
+- Netty integration (client and server)
 
 ## Usage:
 
@@ -18,7 +25,10 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
 ```kotlin
 dependencies {
-    implementation("io.github.open-coap:kotlin-mbedtls:[VERSION]")
+  implementation("io.github.open-coap:kotlin-mbedtls:[VERSION]")
+  // optional modules:
+  implementation("io.github.open-coap:kotlin-mbedtls-metrics:[VERSION]")
+  implementation("io.github.open-coap:kotlin-mbedtls-netty:[VERSION]")
 }
 ```
 
