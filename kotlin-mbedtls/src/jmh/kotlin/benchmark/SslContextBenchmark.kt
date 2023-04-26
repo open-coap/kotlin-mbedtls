@@ -23,7 +23,7 @@ import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslSession
-import org.opencoap.ssl.transport.Certs
+import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.openjdk.jmh.annotations.Benchmark

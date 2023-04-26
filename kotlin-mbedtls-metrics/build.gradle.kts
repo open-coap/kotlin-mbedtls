@@ -17,6 +17,7 @@ dependencies {
     implementation("io.micrometer:micrometer-core:1.10.6")
 
     // TESTS
+    testImplementation(testFixtures(project(":kotlin-mbedtls")))
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")

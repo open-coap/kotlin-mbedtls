@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-package org.opencoap.ssl.transport
-
-import org.opencoap.ssl.util.Certificate
+package org.opencoap.ssl.util
 
 object Certs {
     val root = Certificate.createRootEC("root-ca")

@@ -35,14 +35,13 @@ import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
+import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
 import org.opencoap.ssl.util.toByteBuffer
 import org.slf4j.LoggerFactory
-import java.net.InetAddress
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.time.Duration
@@ -224,7 +223,7 @@ class DtlsServerTransportTest {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cliChannel: DatagramChannel = DatagramChannel.open()
-            .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
+            .connect(server.localAddress())
 
         // when
         repeat(100) {

@@ -26,6 +26,7 @@ import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.CertificateAuth.Companion.trusted
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.runGC

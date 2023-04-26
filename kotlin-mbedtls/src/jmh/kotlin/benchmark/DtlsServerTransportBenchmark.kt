@@ -21,10 +21,10 @@ import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.BytesPacket
-import org.opencoap.ssl.transport.Certs
 import org.opencoap.ssl.transport.DtlsServerTransport
 import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.listen
+import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.Fork

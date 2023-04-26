@@ -32,12 +32,11 @@ import org.opencoap.ssl.transport.DtlsTransmitter
 import org.opencoap.ssl.transport.HashMapSessionStore
 import org.opencoap.ssl.transport.Packet
 import org.opencoap.ssl.transport.listen
-import java.net.InetAddress
-import java.net.InetSocketAddress
+import org.opencoap.ssl.util.await
+import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.time.Duration
-import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 import kotlin.random.Random
 
@@ -77,7 +76,7 @@ class DtlsServerMetricsCallbacksTest {
     fun `should report DTLS server metrics for happy scenario`() {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
 
-        val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
         await.untilAsserted {
             assertEquals(1, server.numberOfSessions())
         }
@@ -103,16 +102,16 @@ class DtlsServerMetricsCallbacksTest {
     fun `should report DTLS server metrics for expiring sessions`() {
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore, lifecycleCallbacks = metricsCallbacks, expireAfter = Duration.ofMillis(200)).listen(echoHandler)
 
-        val client = DtlsTransmitter.connect(server, clientConfig).get(5, TimeUnit.SECONDS)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("foo")
-        client.receive().get(5, TimeUnit.SECONDS)
+        client.receive().await()
 
         await.atMost(Duration.ofSeconds(1)).untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
 
         client.send("bar")
-        client.receive().get(5, TimeUnit.SECONDS)
+        client.receive().await()
 
         client.close()
 
@@ -127,7 +126,7 @@ class DtlsServerMetricsCallbacksTest {
     fun `should report DTLS server metrics for handshake errors`() {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
         val cliChannel: DatagramChannel = DatagramChannel.open()
-            .connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()))
+            .connect(localAddress(server.localPort()))
 
         // when
         cliChannel.write(ByteBuffer.wrap(Random.nextBytes(50)))
@@ -144,9 +143,9 @@ class DtlsServerMetricsCallbacksTest {
     fun `should report DTLS server metrics for session errors`() {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)
-        val dest = InetSocketAddress(InetAddress.getLocalHost(), server.localPort())
+        val dest = server.localAddress()
         val transport = DatagramChannelAdapter.connect(dest, 0)
-        val client = DtlsTransmitter.connect(dest, clientConfig, transport).get(5, TimeUnit.SECONDS)
+        val client = DtlsTransmitter.connect(dest, clientConfig, transport).await()
         client.send("foo")
 
         // when
