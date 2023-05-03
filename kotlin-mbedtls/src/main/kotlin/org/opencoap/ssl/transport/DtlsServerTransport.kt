@@ -43,12 +43,12 @@ class DtlsServerTransport internal constructor(
             listenPort: Int = 0,
             expireAfter: Duration = Duration.ofSeconds(60),
             sessionStore: SessionStore = NoOpsSessionStore,
+            transport: Transport<ByteBufferPacket> = DatagramChannelAdapter.open(listenPort),
             lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
         ): DtlsServerTransport {
-            val channel = DatagramChannelAdapter.open(listenPort)
             val executor = SingleThreadExecutor.create("dtls-srv-")
-            val dtlsServerBytes = DtlsServer(channel, config, expireAfter, sessionStore, lifecycleCallbacks, executor)
-            return DtlsServerTransport(channel, dtlsServerBytes, executor)
+            val dtlsServer = DtlsServer(transport, config, expireAfter, sessionStore, lifecycleCallbacks, executor)
+            return DtlsServerTransport(transport, dtlsServer, executor)
         }
     }
 
