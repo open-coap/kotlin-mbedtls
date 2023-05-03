@@ -136,6 +136,7 @@ class DtlsServer(
 
     private fun DtlsState.closeAndRemove() {
         sessions.remove(this.peerAddress, this)
+        this.close()
     }
 
     private sealed class DtlsState(val peerAddress: InetSocketAddress) {
@@ -146,6 +147,8 @@ class DtlsServer(
             scheduledTask?.cancel(false)
             storeAndClose0()
         }
+
+        abstract fun close()
     }
 
     private inner class DtlsHandshake(
@@ -201,9 +204,9 @@ class DtlsServer(
             logger.warn("[{}] DTLS handshake expired", peerAddress)
         }
 
-        override fun storeAndClose0() {
-            ctx.close()
-        }
+        override fun storeAndClose0() = close()
+
+        override fun close() = ctx.close()
 
         private fun reportHandshakeStarted() {
             lifecycleCallbacks.handshakeStarted(peerAddress)
@@ -242,9 +245,11 @@ class DtlsServer(
                     logger.warn("[{}] DTLS failed to store session: {}, CID:{}", peerAddress, ex.message, ctx.ownCid.toHex())
                 }
             } else {
-                ctx.close()
+                close()
             }
         }
+
+        override fun close() = ctx.close()
 
         fun decrypt(encPacket: ByteBuffer): ByteBuffer {
             scheduledTask?.cancel(false)
