@@ -23,6 +23,7 @@ import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DtlsServer
+import org.opencoap.ssl.transport.Packet
 import java.nio.ByteBuffer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
@@ -53,8 +54,10 @@ class DtlsChannelHandler(private val sslConfig: SslConfig) : ChannelDuplexHandle
 
         msg.useAndRelease {
             dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer())
-                ?.thenAccept {
-                    ctx.fireChannelRead(DatagramPacketWithContext.from(it))
+                .thenAccept {
+                    if (it != Packet.EmptyByteBufferPacket) {
+                        ctx.fireChannelRead(DatagramPacketWithContext.from(it))
+                    }
                 }
         }
     }

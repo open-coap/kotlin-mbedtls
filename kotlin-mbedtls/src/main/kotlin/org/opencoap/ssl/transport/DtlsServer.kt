@@ -24,6 +24,7 @@ import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
 import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
+import org.opencoap.ssl.transport.Packet.Companion.EmptyByteBufferPacket
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -52,14 +53,14 @@ class DtlsServer(
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
 
-    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<ByteBufferPacket>? {
+    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<ByteBufferPacket> {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
         val dtlsState = sessions[adr]
 
         return when {
             dtlsState is DtlsHandshake -> {
                 dtlsState.step(buf)
-                null
+                completedFuture(EmptyByteBufferPacket)
             }
 
             dtlsState is DtlsSession -> {
@@ -67,7 +68,7 @@ class DtlsServer(
                 if (plainBytes.isNotEmpty()) {
                     completedFuture(Packet(plainBytes, adr, dtlsState.sessionContext))
                 } else {
-                    null
+                    completedFuture(EmptyByteBufferPacket)
                 }
             }
 
@@ -79,7 +80,7 @@ class DtlsServer(
                     if (isLoaded) {
                         handleReceived(adr, copyBuf)
                     } else {
-                        null
+                        completedFuture(EmptyByteBufferPacket)
                     }
                 }
             }
