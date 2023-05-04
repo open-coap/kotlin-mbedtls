@@ -62,7 +62,13 @@ class DtlsServerTransport internal constructor(
             val adr: InetSocketAddress = packet.peerAddress
             val buf: ByteBuffer = packet.buffer
 
-            dtlsServer.handleReceived(adr, buf) ?: receive(timeout)
+            dtlsServer.handleReceived(adr, buf).thenCompose {
+                if (it == Packet.EmptyByteBufferPacket) {
+                    receive(timeout)
+                } else {
+                    completedFuture(it)
+                }
+            }
         }, executor)
     }
 
