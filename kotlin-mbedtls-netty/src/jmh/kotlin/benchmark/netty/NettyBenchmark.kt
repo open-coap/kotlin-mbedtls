@@ -38,6 +38,7 @@ import org.openjdk.jmh.annotations.TearDown
 import org.openjdk.jmh.annotations.Threads
 import org.openjdk.jmh.annotations.Warmup
 import org.openjdk.jmh.infra.Blackhole
+import java.nio.ByteBuffer
 import java.time.Duration.ZERO
 import kotlin.random.Random
 
@@ -52,7 +53,7 @@ open class NettyBenchmark {
     private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     private lateinit var serverChannel: Channel
     private lateinit var client: NettyTransportAdapter
-    private val message = Random.nextBytes(1280) // usual IP MTU
+    private val message = ByteBuffer.wrap(Random.nextBytes(1280)) // usual IP MTU
     private val directBufMessage = Unpooled.directBuffer().writeBytes(message)
 
     @Setup

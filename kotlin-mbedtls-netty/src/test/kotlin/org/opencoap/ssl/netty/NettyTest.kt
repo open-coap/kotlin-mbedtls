@@ -36,11 +36,14 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.Transport
+import org.opencoap.ssl.transport.decodeToString
+import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
@@ -76,7 +79,7 @@ class NettyTest {
     fun testSingleConnection() {
         // connect and handshake
         val client = NettyTransportAdapter.connect(clientConf, srvAddress)
-            .map(ByteArray::decodeToString, String::encodeToByteArray)
+            .map(ByteBuffer::decodeToString, String::toByteBuffer)
 
         assertTrue(client.send("hi").await())
         assertEquals("ECHO:hi", client.receive(5.seconds).await())
@@ -107,7 +110,7 @@ class NettyTest {
     fun `ignore malformed packet`() {
         // given, connected and handshake done
         val client = NettyTransportAdapter.connect(clientConf, srvAddress)
-        val textClient = client.map(ByteArray::decodeToString, String::encodeToByteArray)
+        val textClient = client.map(ByteBuffer::decodeToString, String::toByteBuffer)
 
         assertTrue(textClient.send("hi").await())
         assertEquals("ECHO:hi", textClient.receive(5.seconds).await())
@@ -128,7 +131,7 @@ class NettyTest {
         val clientConfig2 = SslConfig.client(PskAuth("wrong", byteArrayOf(1)), cidSupplier = EmptyCidSupplier)
         // connect and handshake
         val client = NettyTransportAdapter.connect(clientConfig2, srvAddress)
-            .map(ByteArray::decodeToString, String::encodeToByteArray)
+            .map(ByteBuffer::decodeToString, String::toByteBuffer)
 
         // when
         assertThrows<ExecutionException> { client.send("hi").await() }
@@ -147,7 +150,7 @@ class NettyTest {
         val clients = (1..MAX)
             .map {
                 NettyTransportAdapter.connect(clientConf, srvAddress, eventLoopGroup)
-                    .map(ByteArray::decodeToString, String::encodeToByteArray)
+                    .map(ByteBuffer::decodeToString, String::toByteBuffer)
             }
 
         clients.forEach { client ->
@@ -164,7 +167,7 @@ class NettyTest {
     fun `should forward authentication context`() {
         // connect and handshake
         val client = NettyTransportAdapter.connect(clientConf, srvAddress)
-            .map(ByteArray::decodeToString, String::encodeToByteArray)
+            .map(ByteBuffer::decodeToString, String::toByteBuffer)
 
         assertTrue(client.send("hi").await())
         assertEquals("ECHO:hi", client.receive(5.seconds).await())

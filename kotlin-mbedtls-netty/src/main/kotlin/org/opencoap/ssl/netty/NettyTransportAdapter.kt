@@ -31,6 +31,7 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.Transport
 import java.io.IOException
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -38,14 +39,14 @@ import java.util.concurrent.TimeUnit
 class NettyTransportAdapter(
     val channel: DatagramChannel,
     private val destinationAddress: InetSocketAddress
-) : Transport<ByteArray> {
+) : Transport<ByteBuffer> {
     private val inboundMessageReceiver = InboundMessageReceiver()
 
     init {
         channel.pipeline().addLast(inboundMessageReceiver)
     }
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteArray> {
+    override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> {
         val promise = inboundMessageReceiver.queue.poll()
 
         val timeoutFuture = channel.eventLoop().schedule({ promise.cancel(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -68,7 +69,7 @@ class NettyTransportAdapter(
         }
     }
 
-    override fun send(packet: ByteArray): CompletableFuture<Boolean> {
+    override fun send(packet: ByteBuffer): CompletableFuture<Boolean> {
         return send(Unpooled.wrappedBuffer(packet))
     }
 
@@ -92,10 +93,10 @@ class NettyTransportAdapter(
     }
 
     private class InboundMessageReceiver : ChannelInboundHandlerAdapter() {
-        val queue = CompletableQueue<ByteArray>()
+        val queue = CompletableQueue<ByteBuffer>()
 
         override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-            val content = (msg as DatagramPacket).content().toByteArray()
+            val content = (msg as DatagramPacket).content().nioBuffer()
             queue.add(content)
         }
     }
