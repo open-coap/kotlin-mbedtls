@@ -73,6 +73,8 @@ class NettyTransportAdapter(
     }
 
     companion object {
+        @JvmStatic
+        @JvmOverloads
         fun connect(
             sslConfig: SslConfig,
             destinationAddress: InetSocketAddress,

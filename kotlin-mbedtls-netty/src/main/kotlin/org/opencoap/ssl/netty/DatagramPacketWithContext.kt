@@ -34,6 +34,7 @@ class DatagramPacketWithContext(
             return DatagramPacketWithContext(packet.buffer.toByteBuf(), null, packet.peerAddress, packet.sessionContext)
         }
 
+        @JvmStatic
         fun contextFrom(msg: DatagramPacket): DtlsSessionContext = when (msg) {
             is DatagramPacketWithContext -> msg.sessionContext
             else -> DtlsSessionContext.EMPTY

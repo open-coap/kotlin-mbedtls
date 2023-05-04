@@ -19,7 +19,7 @@ package org.opencoap.ssl.netty
 import java.util.LinkedList
 import java.util.concurrent.CompletableFuture
 
-class CompletableQueue<T> {
+internal class CompletableQueue<T> {
     private val queue = LinkedList<CompletableFuture<T>>()
 
     @Synchronized
