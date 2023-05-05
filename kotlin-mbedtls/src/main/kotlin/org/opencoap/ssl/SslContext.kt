@@ -161,8 +161,10 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    fun decrypt(encBuffer: ByteBuffer): ByteBuffer = ByteBuffer.allocate(encBuffer.remaining()).also {
-        decrypt(encBuffer, it)
+    fun decrypt(encBuffer: ByteBuffer): ByteBuffer {
+        val buf = ByteBuffer.allocate(encBuffer.remaining())
+        decrypt(encBuffer, buf)
+        return buf
     }
 
     fun saveAndClose(): ByteArray {

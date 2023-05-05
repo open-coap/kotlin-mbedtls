@@ -24,7 +24,8 @@ import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslSession
 import org.slf4j.LoggerFactory
 
-class DtlsClientChannelHandler(private val sslSession: SslSession) : ChannelDuplexHandler() {
+class DtlsClientChannelHandler(private val sslSession: SslSession, private val storeSession: (ByteArray) -> Unit) :
+    ChannelDuplexHandler() {
     private val logger = LoggerFactory.getLogger(javaClass)
     private lateinit var ctx: ChannelHandlerContext
 
@@ -32,8 +33,13 @@ class DtlsClientChannelHandler(private val sslSession: SslSession) : ChannelDupl
         this.ctx = ctx
     }
 
-    override fun handlerRemoved(ctx: ChannelHandlerContext?) {
-        sslSession.close()
+    override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
+        try {
+            storeSession(sslSession.saveAndClose())
+        } catch (ex: Exception) {
+            logger.warn("Could not store session: {}", ex.toString())
+        }
+        ctx.close(promise)
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {

@@ -19,15 +19,16 @@ package org.opencoap.ssl.transport
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.transport.DtlsServer.ReceiveResult
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
-import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteOrder
@@ -43,7 +44,7 @@ class DtlsServerTest {
 
     @BeforeEach
     fun setUp() {
-        dtlsServer = DtlsServer({ completedFuture(true) }, serverConf, sessionStore = sessionStore, executor = SingleThreadExecutor.create("dtls-srv-"))
+        dtlsServer = DtlsServer({ completedFuture(true) }, serverConf, storeSession = sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"))
     }
 
     @AfterEach
@@ -59,13 +60,16 @@ class DtlsServerTest {
 
     @Test
     fun `should load session from store and exchange messages`() {
-        sessionStore.write("f935adc57425e1b214f8640d56e0c733".decodeHex(), SessionWithContext(StoredSessionPair.srvSession, mapOf()))
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
 
-        // when
         val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
-        assertEquals("hello", dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket).await().buffer.decodeToString())
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.CidSessionMissing)
 
+        // when
+        dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf()), localAddress(2_5684), "f935adc57425e1b214f8640d56e0c733".decodeHex())
+
+        // then
+        assertEquals("hello", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
         val dtlsPacket2 = dtlsServer.encrypt("hello2".toByteBuffer(), localAddress(2_5684))!!.order(ByteOrder.BIG_ENDIAN)
         assertEquals("hello2", clientSession.decrypt(dtlsPacket2).decodeToString())
 
@@ -74,11 +78,10 @@ class DtlsServerTest {
 
     @Test
     fun `should ignore when session not found in store`() {
-        sessionStore.clear()
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
 
         val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
-        assertEquals(Packet.EmptyByteBufferPacket, dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket).await())
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.CidSessionMissing)
 
         clientSession.close()
     }

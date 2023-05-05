@@ -23,12 +23,20 @@ import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DtlsServer
-import org.opencoap.ssl.transport.Packet
+import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
+import org.opencoap.ssl.transport.NoOpsSessionStore
+import org.opencoap.ssl.transport.SessionStore
 import java.nio.ByteBuffer
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 
-class DtlsChannelHandler(private val sslConfig: SslConfig) : ChannelDuplexHandler() {
+class DtlsChannelHandler @JvmOverloads constructor(
+    private val sslConfig: SslConfig,
+    private val expireAfter: Duration = Duration.ofSeconds(60),
+    private val sessionStore: SessionStore = NoOpsSessionStore,
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
+) : ChannelDuplexHandler() {
     private lateinit var ctx: ChannelHandlerContext
     lateinit var dtlsServer: DtlsServer
 
@@ -43,7 +51,7 @@ class DtlsChannelHandler(private val sslConfig: SslConfig) : ChannelDuplexHandle
 
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
-        this.dtlsServer = DtlsServer(::write, sslConfig, executor = ctx.executor())
+        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, sessionStore::write, lifecycleCallbacks, ctx.executor())
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
@@ -53,13 +61,29 @@ class DtlsChannelHandler(private val sslConfig: SslConfig) : ChannelDuplexHandle
         }
 
         msg.useAndRelease {
-            dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer())
-                .thenAccept {
-                    if (it != Packet.EmptyByteBufferPacket) {
-                        ctx.fireChannelRead(DatagramPacketWithContext.from(it))
-                    }
-                }
+            val result = dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer())
+
+            when (result) {
+                is DtlsServer.ReceiveResult.Handled -> Unit // do nothing
+                is DtlsServer.ReceiveResult.DecryptFailed -> Unit // do nothing
+
+                is DtlsServer.ReceiveResult.Decrypted -> ctx.fireChannelRead(DatagramPacketWithContext.from(result.packet))
+
+                is DtlsServer.ReceiveResult.CidSessionMissing -> loadSession(result, msg.retain(), ctx)
+            }
         }
+    }
+
+    private fun loadSession(result: DtlsServer.ReceiveResult.CidSessionMissing, msg: DatagramPacket, ctx: ChannelHandlerContext) {
+        sessionStore.read(result.cid)
+            .thenApplyAsync({ sessBuf -> dtlsServer.loadSession(sessBuf, msg.sender(), result.cid) }, ctx.executor())
+            .whenComplete { isLoaded: Boolean?, _ ->
+                if (isLoaded == true) {
+                    channelRead(ctx, msg)
+                } else {
+                    msg.release()
+                }
+            }
     }
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {

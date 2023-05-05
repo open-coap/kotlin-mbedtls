@@ -29,9 +29,10 @@ import java.util.function.Function
 /*
 Single threaded dtls server on top of DatagramChannel.
  */
-class DtlsServerTransport internal constructor(
+class DtlsServerTransport private constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
+    private val sessionStore: SessionStore,
     private val executor: SingleThreadExecutor
 ) : Transport<ByteBufferPacket> {
 
@@ -47,8 +48,8 @@ class DtlsServerTransport internal constructor(
             lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
         ): DtlsServerTransport {
             val executor = SingleThreadExecutor.create("dtls-srv-")
-            val dtlsServer = DtlsServer(transport, config, expireAfter, sessionStore, lifecycleCallbacks, executor)
-            return DtlsServerTransport(transport, dtlsServer, executor)
+            val dtlsServer = DtlsServer(transport, config, expireAfter, sessionStore::write, lifecycleCallbacks, executor)
+            return DtlsServerTransport(transport, dtlsServer, sessionStore, executor)
         }
     }
 
@@ -57,19 +58,37 @@ class DtlsServerTransport internal constructor(
 
     override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
         return transport.receive(timeout).thenComposeAsync({ packet ->
-            if (packet == Packet.EmptyByteBufferPacket) return@thenComposeAsync completedFuture(Packet.EmptyByteBufferPacket)
-
-            val adr: InetSocketAddress = packet.peerAddress
-            val buf: ByteBuffer = packet.buffer
-
-            dtlsServer.handleReceived(adr, buf).thenCompose {
-                if (it == Packet.EmptyByteBufferPacket) {
-                    receive(timeout)
-                } else {
-                    completedFuture(it)
-                }
+            if (packet == Packet.EmptyByteBufferPacket) {
+                completedFuture(Packet.EmptyByteBufferPacket)
+            } else {
+                receive0(packet.peerAddress, packet.buffer, timeout)
             }
         }, executor)
+    }
+
+    private fun receive0(adr: InetSocketAddress, buf: ByteBuffer, timeout: Duration): CompletableFuture<ByteBufferPacket>? {
+        val result = dtlsServer.handleReceived(adr, buf)
+
+        return when (result) {
+            is DtlsServer.ReceiveResult.Handled -> receive(timeout)
+            is DtlsServer.ReceiveResult.DecryptFailed -> receive(timeout)
+            is DtlsServer.ReceiveResult.Decrypted -> completedFuture(result.packet)
+
+            is DtlsServer.ReceiveResult.CidSessionMissing -> {
+                val copyBuf = buf.copy()
+
+                sessionStore.read(result.cid).thenApplyAsync(
+                    { sessBuf -> dtlsServer.loadSession(sessBuf, adr, result.cid) },
+                    executor
+                ).thenCompose { isLoaded ->
+                    if (isLoaded) {
+                        receive0(adr, copyBuf, timeout)
+                    } else {
+                        receive(timeout)
+                    }
+                }
+            }
+        }
     }
 
     override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> = executor.supply {

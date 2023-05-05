@@ -28,13 +28,12 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.nio.NioDatagramChannel
 import io.netty.util.concurrent.DefaultThreadFactory
-import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.Transport
 import java.nio.charset.Charset
 
 object NettyHelpers {
 
-    fun createBootstrap(port: Int, conf: SslConfig, pipelineBuilder: ChannelPipeline.() -> Unit): Bootstrap {
+    fun createBootstrap(port: Int, dtlsChannelHandler: DtlsChannelHandler, pipelineBuilder: ChannelPipeline.() -> Unit): Bootstrap {
         val group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
 
         return Bootstrap()
@@ -43,7 +42,7 @@ object NettyHelpers {
             .channel(NioDatagramChannel::class.java)
             .handler(object : ChannelInitializer<DatagramChannel>() {
                 override fun initChannel(ch: DatagramChannel) {
-                    ch.pipeline().addFirst("DTLS", DtlsChannelHandler(conf))
+                    ch.pipeline().addFirst("DTLS", dtlsChannelHandler)
                     pipelineBuilder(ch.pipeline())
                 }
             })

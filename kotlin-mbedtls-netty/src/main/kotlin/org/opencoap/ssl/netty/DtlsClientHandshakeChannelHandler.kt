@@ -31,7 +31,8 @@ import java.util.concurrent.TimeUnit
 
 class DtlsClientHandshakeChannelHandler(
     private val sslHandshakeContext: SslHandshakeContext,
-    private val peerAddress: InetSocketAddress
+    private val peerAddress: InetSocketAddress,
+    private val storeSession: (ByteArray) -> Unit
 ) : ChannelDuplexHandler() {
     private val logger = LoggerFactory.getLogger(javaClass)
     private lateinit var ctx: ChannelHandlerContext
@@ -71,7 +72,7 @@ class DtlsClientHandshakeChannelHandler(
             scheduledRetransmission?.cancel(false)
             val sslContext = sslHandshakeContext.step(msg.content().nioBuffer(), ::write)
             if (sslContext is SslSession) {
-                ctx.channel().pipeline().replace(this, "DTLS-Client", DtlsClientChannelHandler(sslContext))
+                ctx.channel().pipeline().replace(this, "DTLS-Client", DtlsClientChannelHandler(sslContext, storeSession))
 
                 outboundMessages.forEach { (plain, promise) ->
                     ctx.channel().writeAndFlush(plain, promise)

@@ -47,7 +47,7 @@ class NettyRetransmissionTestTest {
 
     @BeforeAll
     fun beforeAll() {
-        udpChannel = createBootstrap(0, serverConf) { addLast("echo", EchoHandler()) }.bind().sync().channel() as DatagramChannel
+        udpChannel = createBootstrap(0, DtlsChannelHandler(serverConf)) { addLast("echo", EchoHandler()) }.bind().sync().channel() as DatagramChannel
     }
 
     @AfterAll

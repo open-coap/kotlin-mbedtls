@@ -21,6 +21,7 @@ import io.netty.channel.Channel
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.netty.DtlsChannelHandler
 import org.opencoap.ssl.netty.EchoHandler
 import org.opencoap.ssl.netty.NettyHelpers
 import org.opencoap.ssl.netty.NettyTransportAdapter
@@ -58,7 +59,7 @@ open class NettyBenchmark {
 
     @Setup
     fun setUp() {
-        serverChannel = NettyHelpers.createBootstrap(5685, serverConf) { addLast("reply", EchoHandler()) }
+        serverChannel = NettyHelpers.createBootstrap(5685, DtlsChannelHandler(serverConf)) { addLast("reply", EchoHandler()) }
             .bind().sync().channel()
 
         client = NettyTransportAdapter.connect(clientConf, localAddress(5685))

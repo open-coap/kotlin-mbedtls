@@ -40,6 +40,7 @@ dependencies {
     testImplementation("ch.qos.logback:logback-classic:1.3.0")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("io.netty:netty-all:4.1.92.Final")
+    testImplementation("io.mockk:mockk:1.13.4")
 }
 
 java {

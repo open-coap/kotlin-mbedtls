@@ -23,14 +23,10 @@ import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
-import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
-import org.opencoap.ssl.transport.Packet.Companion.EmptyByteBufferPacket
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 
@@ -38,7 +34,7 @@ class DtlsServer(
     private val transport: TransportOutbound<ByteBufferPacket>,
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
-    private val sessionStore: SessionStore = NoOpsSessionStore,
+    private val storeSession: (cid: ByteArray, session: SessionWithContext) -> Unit,
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
     private val executor: ScheduledExecutorService
 ) {
@@ -53,42 +49,23 @@ class DtlsServer(
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
 
-    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): CompletableFuture<ByteBufferPacket> {
+    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
         val dtlsState = sessions[adr]
 
         return when {
-            dtlsState is DtlsHandshake -> {
-                dtlsState.step(buf)
-                completedFuture(EmptyByteBufferPacket)
-            }
-
-            dtlsState is DtlsSession -> {
-                val plainBytes = dtlsState.decrypt(buf)
-                if (plainBytes.isNotEmpty()) {
-                    completedFuture(Packet(plainBytes, adr, dtlsState.sessionContext))
-                } else {
-                    completedFuture(EmptyByteBufferPacket)
-                }
-            }
+            dtlsState is DtlsHandshake -> dtlsState.step(buf)
+            dtlsState is DtlsSession -> dtlsState.decrypt(buf)
 
             // no session, but dtls packet contains CID
-            cid != null -> {
-                val copyBuf = buf.copy()
-                @Suppress("UnsafeCallOnNullableType") // smart casting does not work for lazy delegate
-                loadSession(cid!!, adr).thenCompose { isLoaded ->
-                    if (isLoaded) {
-                        handleReceived(adr, copyBuf)
-                    } else {
-                        completedFuture(EmptyByteBufferPacket)
-                    }
-                }
-            }
+            cid != null -> ReceiveResult.CidSessionMissing(cid!!)
 
             // new handshake
             else -> {
-                sessions[adr] = DtlsHandshake(sslConfig.newContext(adr), adr)
-                handleReceived(adr, buf)
+                val dtlsHandshake = DtlsHandshake(sslConfig.newContext(adr), adr)
+                sessions[adr] = dtlsHandshake
+                dtlsHandshake.step(buf)
+                ReceiveResult.Handled
             }
         }
     }
@@ -121,27 +98,31 @@ class DtlsServer(
         }
     }
 
-    private fun loadSession(cid: ByteArray, adr: InetSocketAddress): CompletableFuture<Boolean> {
-        return sessionStore.read(cid)
-            .thenApplyAsync({ sessBuf ->
-                try {
-                    if (sessBuf == null) {
-                        logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
-                        false
-                    } else {
-                        sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext)
-                        true
-                    }
-                } catch (ex: SslException) {
-                    logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
-                    false
-                }
-            }, executor)
+    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray): Boolean {
+        return try {
+            if (sessBuf == null) {
+                logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
+                false
+            } else {
+                sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext)
+                true
+            }
+        } catch (ex: SslException) {
+            logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
+            false
+        }
     }
 
     private fun DtlsState.closeAndRemove() {
         sessions.remove(this.peerAddress, this)
         this.close()
+    }
+
+    sealed interface ReceiveResult {
+        object Handled : ReceiveResult
+        object DecryptFailed : ReceiveResult
+        class Decrypted(val packet: Packet<ByteBuffer>) : ReceiveResult
+        class CidSessionMissing(val cid: ByteArray) : ReceiveResult
     }
 
     private sealed class DtlsState(val peerAddress: InetSocketAddress) {
@@ -171,7 +152,7 @@ class DtlsServer(
 
         private fun retryStep() = step(EMPTY_BUFFER)
 
-        fun step(encPacket: ByteBuffer) {
+        fun step(encPacket: ByteBuffer): ReceiveResult {
             scheduledTask?.cancel(false)
 
             try {
@@ -201,6 +182,7 @@ class DtlsServer(
                 reportHandshakeFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 closeAndRemove()
             }
+            return ReceiveResult.Handled
         }
 
         fun timeout() {
@@ -245,7 +227,7 @@ class DtlsServer(
                         sessionBlob = ctx.saveAndClose(),
                         authenticationContext = authenticationContext
                     )
-                    sessionStore.write(ctx.ownCid, session)
+                    storeSession(ctx.ownCid, session)
                 } catch (ex: SslException) {
                     logger.warn("[{}] DTLS failed to store session: {}, CID:{}", peerAddress, ex.message, ctx.ownCid.toHex())
                 }
@@ -256,12 +238,12 @@ class DtlsServer(
 
         override fun close() = ctx.close()
 
-        fun decrypt(encPacket: ByteBuffer): ByteBuffer {
+        fun decrypt(encPacket: ByteBuffer): ReceiveResult {
             scheduledTask?.cancel(false)
             try {
                 val plainBuf = ctx.decrypt(encPacket)
                 scheduledTask = executor.schedule(::timeout, expireAfter)
-                return plainBuf
+                return ReceiveResult.Decrypted(Packet(plainBuf, peerAddress, sessionContext))
             } catch (ex: CloseNotifyException) {
                 logger.info("[{}] DTLS received close notify", peerAddress)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
@@ -271,7 +253,7 @@ class DtlsServer(
             }
 
             closeAndRemove()
-            return EMPTY_BYTEBUFFER
+            return ReceiveResult.DecryptFailed
         }
 
         fun encrypt(plainPacket: ByteBuffer): ByteBuffer {
