@@ -100,7 +100,11 @@ class DtlsServer(
     fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean {
         return when (val s = sessions[adr]) {
             is DtlsSession -> {
-                s.authenticationContext += (key to value)
+                if (value != null) {
+                    s.authenticationContext += (key to value)
+                } else {
+                    s.authenticationContext -= key
+                }
                 true
             }
 
