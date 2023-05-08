@@ -25,8 +25,8 @@ import org.opencoap.ssl.netty.EchoHandler
 import org.opencoap.ssl.netty.NettyHelpers
 import org.opencoap.ssl.netty.NettyTransportAdapter
 import org.opencoap.ssl.util.Certs
-import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.seconds
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.Fork
 import org.openjdk.jmh.annotations.Measurement
@@ -39,7 +39,6 @@ import org.openjdk.jmh.annotations.Threads
 import org.openjdk.jmh.annotations.Warmup
 import org.openjdk.jmh.infra.Blackhole
 import java.nio.ByteBuffer
-import java.time.Duration.ZERO
 import kotlin.random.Random
 
 @State(Scope.Benchmark)
@@ -54,6 +53,7 @@ open class NettyBenchmark {
     private lateinit var serverChannel: Channel
     private lateinit var client: NettyTransportAdapter
     private val message = ByteBuffer.wrap(Random.nextBytes(1280)) // usual IP MTU
+    private val heapBufMessage = Unpooled.wrappedBuffer(message)
     private val directBufMessage = Unpooled.directBuffer().writeBytes(message)
 
     @Setup
@@ -75,9 +75,9 @@ open class NettyBenchmark {
     @Benchmark
     @OperationsPerInvocation(1)
     fun exchange_1k_message(bh: Blackhole) {
-        client.send(message)
+        client.send(heapBufMessage.retain())
 
-        val received = client.receive(ZERO).await()
+        val received = client.receive(1.seconds).join()
         bh.consume(received)
         // Assertions.assertEquals(message.size + echoMessage.size, received.size)
     }
@@ -87,7 +87,7 @@ open class NettyBenchmark {
     fun exchange_1k_message_direct_buf(bh: Blackhole) {
         client.send(directBufMessage.retain())
 
-        val received = client.receive(ZERO).await()
+        val received = client.receive(1.seconds).join()
         bh.consume(received)
         // Assertions.assertEquals(message.size + echoMessage.size, received.size)
     }
@@ -96,11 +96,11 @@ open class NettyBenchmark {
     @OperationsPerInvocation(maxTransactions)
     fun exchange_1k_messages_20_concurrent_transactions(bh: Blackhole) {
         repeat(maxTransactions) {
-            client.send(message)
+            client.send(heapBufMessage.retain())
         }
 
         repeat(maxTransactions) {
-            val received = client.receive(ZERO).await()
+            val received = client.receive(1.seconds).join()
             bh.consume(received)
             // assertEquals(cliMessage.size + echoMessage.size, received.size)
         }
@@ -114,7 +114,7 @@ open class NettyBenchmark {
         }
 
         repeat(maxTransactions) {
-            val received = client.receive(ZERO).await()
+            val received = client.receive(1.seconds).join()
             bh.consume(received)
             // assertEquals(cliMessage.size + echoMessage.size, received.size)
         }
