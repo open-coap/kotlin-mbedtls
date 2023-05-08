@@ -78,6 +78,15 @@ class DtlsTransmitter private constructor(
 
     fun saveSession() = sslSession.saveAndClose()
 
+    fun storeOnClose(store: (ByteArray) -> Unit): Transport<ByteBuffer> = object : Transport<ByteBuffer> by this {
+        override fun close() {
+            transport.close()
+            executor.supply {
+                store(sslSession.saveAndClose())
+            }.join()
+        }
+    }
+
     companion object {
         private val threadIndex = AtomicInteger(0)
         internal fun newSingleExecutor(): ExecutorService {

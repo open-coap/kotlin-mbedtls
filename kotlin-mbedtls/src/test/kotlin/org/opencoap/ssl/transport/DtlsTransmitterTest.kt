@@ -33,6 +33,7 @@ import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.random.Random
 
 class DtlsTransmitterTest {
@@ -149,14 +150,14 @@ class DtlsTransmitterTest {
         )
 
         // and
-        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).await()
+        val storedSession = AtomicReference<ByteArray>()
+        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).await().storeOnClose(storedSession::set)
 
         // when
-        val storedSession: ByteArray = client.saveSession()
-        assertTrue(storedSession.isNotEmpty())
-        println(storedSession.size)
         client.close()
-        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession, localAddress(1_5684)), 6004)
+        assertTrue(storedSession.get().isNotEmpty())
+        println(storedSession.get().size)
+        val client2 = DtlsTransmitter.create(localAddress(1_5684), clientConf.loadSession(byteArrayOf(0x01), storedSession.get(), localAddress(1_5684)), 6004)
 
         // then
         client2.send("dupa")
