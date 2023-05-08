@@ -19,6 +19,7 @@ package org.opencoap.ssl.netty
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.socket.DatagramChannel
+import io.netty.channel.socket.DatagramPacket
 import io.netty.util.ReferenceCountUtil
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -36,12 +37,13 @@ import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
+import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyRetransmissionTestTest {
 
     private val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, cidSupplier = RandomCidSupplier(6), retransmitMin = 100.millis)
-    private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), retransmitMin = 200.millis)
+    private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), retransmitMin = 10.millis)
     private lateinit var udpChannel: DatagramChannel
     private val srvAddress: InetSocketAddress by lazy { localAddress(udpChannel.localAddress().port) }
 
@@ -72,10 +74,16 @@ class NettyRetransmissionTestTest {
 }
 
 class DroppingHandler : ChannelInboundHandlerAdapter() {
-    private var index = 0
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-        if (index++ == 2) {
+        if ((msg as DatagramPacket).content().getByte(0) == 0x19.toByte()) {
+            // not dropping application record as DTLS does not retransmit those
+            ctx.fireChannelRead(msg)
+            return
+        }
+
+        // 50% chance to drop
+        if (Random.nextInt(2) == 0) {
             println("DROPPED: $msg")
             ReferenceCountUtil.release(msg)
         } else {

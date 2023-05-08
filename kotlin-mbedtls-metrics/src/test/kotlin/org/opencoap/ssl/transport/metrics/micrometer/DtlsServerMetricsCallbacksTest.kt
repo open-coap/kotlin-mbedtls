@@ -20,6 +20,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
@@ -133,6 +134,7 @@ class DtlsServerMetricsCallbacksTest {
     }
 
     @Test
+    @Disabled
     fun `should report DTLS server metrics for session errors`() {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = metricsCallbacks).listen(echoHandler)

@@ -52,10 +52,14 @@ class DtlsClientChannelHandler(private val sslSession: SslSession, private val s
             val plainContent = ctx.alloc().buffer(msg.content().readableBytes())
 
             plainContent.writeThroughNioBuffer {
-                sslSession.decrypt(msg.content().nioBuffer(), it)
+                sslSession.decrypt(msg.content().nioBuffer(), it) { }
             }
 
-            ctx.fireChannelRead(msg.replace(plainContent))
+            if (plainContent.isReadable) {
+                ctx.fireChannelRead(msg.replace(plainContent))
+            } else {
+                plainContent.release()
+            }
         } catch (ex: SslException) {
             logger.warn("[{}], {}", msg.sender(), ex.toString())
         } finally {

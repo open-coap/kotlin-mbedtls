@@ -125,13 +125,17 @@ class DtlsServer(
         class CidSessionMissing(val cid: ByteArray) : ReceiveResult
     }
 
-    private sealed class DtlsState(val peerAddress: InetSocketAddress) {
+    private abstract inner class DtlsState(val peerAddress: InetSocketAddress) {
         protected var scheduledTask: ScheduledFuture<*>? = null
 
         abstract fun storeAndClose0()
         fun storeAndClose() {
             scheduledTask?.cancel(false)
             storeAndClose0()
+        }
+
+        fun send(buf: ByteBuffer) {
+            transport.send(Packet(buf, peerAddress))
         }
 
         abstract fun close()
@@ -144,10 +148,6 @@ class DtlsServer(
 
         init {
             reportHandshakeStarted()
-        }
-
-        private fun send(buf: ByteBuffer) {
-            transport.send(Packet(buf, peerAddress))
         }
 
         private fun retryStep() = step(EMPTY_BUFFER)
@@ -241,9 +241,13 @@ class DtlsServer(
         fun decrypt(encPacket: ByteBuffer): ReceiveResult {
             scheduledTask?.cancel(false)
             try {
-                val plainBuf = ctx.decrypt(encPacket)
+                val plainBuf = ctx.decrypt(encPacket, ::send)
                 scheduledTask = executor.schedule(::timeout, expireAfter)
-                return ReceiveResult.Decrypted(Packet(plainBuf, peerAddress, sessionContext))
+                return if (plainBuf.isNotEmpty()) {
+                    ReceiveResult.Decrypted(Packet(plainBuf, peerAddress, sessionContext))
+                } else {
+                    ReceiveResult.Handled
+                }
             } catch (ex: CloseNotifyException) {
                 logger.info("[{}] DTLS received close notify", peerAddress)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)

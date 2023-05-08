@@ -46,6 +46,10 @@ class NettyTransportAdapter(
     }
 
     override fun receive(timeout: Duration): CompletableFuture<ByteBuf> {
+        if (!channel.isActive) {
+            return CompletableFuture<ByteBuf>().apply { completeExceptionally(IOException("Channel closed")) }
+        }
+
         val promise = inboundMessageReceiver.queue.poll()
 
         val timeoutFuture = channel.eventLoop().schedule({ promise.cancel(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -109,6 +113,11 @@ class NettyTransportAdapter(
 
         override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
             queue.add((msg as DatagramPacket).content())
+        }
+
+        override fun channelInactive(ctx: ChannelHandlerContext) {
+            ctx.fireChannelInactive()
+            queue.cancelAll()
         }
     }
 }

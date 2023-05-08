@@ -26,12 +26,17 @@ import org.junit.jupiter.api.TestInstance
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.SslSession
 import org.opencoap.ssl.transport.DtlsServer.ReceiveResult
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.decodeHex
+import org.opencoap.ssl.util.flip0
 import org.opencoap.ssl.util.localAddress
+import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.LinkedList
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -41,10 +46,16 @@ class DtlsServerTest {
 
     private val sessionStore = HashMapSessionStore()
     private lateinit var dtlsServer: DtlsServer
+    private val serverOutboundQueue = LinkedList<ByteBuffer>()
 
     @BeforeEach
     fun setUp() {
-        dtlsServer = DtlsServer({ completedFuture(true) }, serverConf, storeSession = sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"))
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, storeSession = sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"))
+    }
+
+    private fun outboundTransport(it: ByteBufferPacket): CompletableFuture<Boolean> {
+        serverOutboundQueue.add(it.buffer.copy())
+        return completedFuture(true)
     }
 
     @AfterEach
@@ -60,7 +71,7 @@ class DtlsServerTest {
 
     @Test
     fun `should load session from store and exchange messages`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(5684))
 
         val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.CidSessionMissing)
@@ -71,7 +82,7 @@ class DtlsServerTest {
         // then
         assertEquals("hello", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
         val dtlsPacket2 = dtlsServer.encrypt("hello2".toByteBuffer(), localAddress(2_5684))!!.order(ByteOrder.BIG_ENDIAN)
-        assertEquals("hello2", clientSession.decrypt(dtlsPacket2).decodeToString())
+        assertEquals("hello2", clientSession.decrypt(dtlsPacket2, noSend).decodeToString())
 
         clientSession.close()
     }
@@ -85,4 +96,105 @@ class DtlsServerTest {
 
         clientSession.close()
     }
+
+    @Test
+    fun `should handshake`() {
+        val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
+        val cliHandshake = clientConf.newContext(localAddress(5684))
+
+        cliHandshake.step(send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+        val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
+
+        val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        assertEquals("terve", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
+
+        assertTrue(serverOutboundQueue.isEmpty())
+        clientSession.close()
+    }
+
+    @Test
+    fun `should handshake with replaying records`() {
+        lateinit var sendingBuffer: ByteBuffer
+        val send: (ByteBuffer) -> Unit = { sendingBuffer = it }
+        val cliHandshake = clientConf.newContext(localAddress(5684))
+
+        cliHandshake.step(send)
+
+        println("Flight 1")
+        dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer)
+        dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer.flip0()) // replayed record
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+
+        println("Flight  2")
+        dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer)
+        dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer.flip0()) // replayed record
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+
+        println("Flight  3")
+        dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer)
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer.flip0()) is ReceiveResult.Handled) // replayed record
+        val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
+
+        println("Flights over")
+        val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        assertEquals("terve", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
+        //  replayed record
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
+
+        // replayed record from handshake
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), sendingBuffer.flip0()) is ReceiveResult.Handled)
+
+        assertTrue(serverOutboundQueue.isEmpty())
+        clientSession.close()
+    }
+
+    @Test
+    fun `should handshake with client retransmission`() {
+        val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
+        val cliHandshake = clientConf.newContext(localAddress(5684))
+
+        cliHandshake.step(send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+
+        // Drop and trigger resend
+        println("DROP " + serverOutboundQueue.size)
+        serverOutboundQueue.remove(); cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
+
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+        val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
+
+        val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        assertEquals("terve", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
+
+        assertTrue(serverOutboundQueue.isEmpty())
+        clientSession.close()
+    }
+
+    @Test
+    fun `should handshake with client retransmission of last flight`() {
+        val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
+        val cliHandshake = clientConf.newContext(localAddress(5684))
+
+        cliHandshake.step(send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+        cliHandshake.step(serverOutboundQueue.remove(), send)
+
+        // Drop and trigger resend
+        println("DROP " + serverOutboundQueue.size)
+        serverOutboundQueue.remove(); cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
+
+        val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
+
+        val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        assertEquals("terve", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
+
+        assertTrue(serverOutboundQueue.isEmpty())
+        clientSession.close()
+    }
+
+    private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
 }

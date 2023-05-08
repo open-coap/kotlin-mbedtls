@@ -66,3 +66,9 @@ fun <B> Transport<B>.localAddress(): InetSocketAddress =
 
 fun Transport<ByteBuffer>.mapToString(): Transport<String> =
     this.map(ByteBuffer::decodeToString, String::toByteBuffer)
+
+// JDK8 compatible
+fun ByteBuffer.flip0(): ByteBuffer {
+    this.flip()
+    return this
+}

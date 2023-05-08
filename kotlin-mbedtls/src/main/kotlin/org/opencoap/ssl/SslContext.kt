@@ -70,11 +70,10 @@ class SslHandshakeContext internal constructor(
     val startTimestamp: Long = System.currentTimeMillis()
     private var stepTimeout: Duration = Duration.ZERO
 
-    fun step(send: (ByteBuffer) -> Unit): SslContext {
-        return step(null, send)
-    }
+    fun step(send: (ByteBuffer) -> Unit): SslContext = step0(null, send)
+    fun step(receivedBuf: ByteBuffer, send: (ByteBuffer) -> Unit): SslContext = step0(receivedBuf, send)
 
-    fun step(receivedBuf: ByteBuffer?, send: (ByteBuffer) -> Unit): SslContext {
+    private fun step0(receivedBuf: ByteBuffer?, send: (ByteBuffer) -> Unit): SslContext {
         val ret = ReceiveCallback.invoke(receivedBuf) {
             SendCallback(send) {
                 mbedtls_ssl_handshake(sslContext)
@@ -154,17 +153,28 @@ class SslSession internal constructor(
         } ?: ByteBuffer.allocate(0)
     }
 
-    fun decrypt(encBuffer: ByteBuffer, plainBuffer: ByteBuffer) {
-        val size = ReceiveCallback(encBuffer) {
-            mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.remaining()).verify()
+    fun decrypt(encBuffer: ByteBuffer, plainBuffer: ByteBuffer, send: (ByteBuffer) -> Unit) {
+        // note, send function will only be use when there is retransmission
+        val size = SendCallback.invoke(send) {
+            ReceiveCallback(encBuffer) { sslRead(plainBuffer) }
         }
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    fun decrypt(encBuffer: ByteBuffer): ByteBuffer {
+    fun decrypt(encBuffer: ByteBuffer, send: (ByteBuffer) -> Unit): ByteBuffer {
         val buf = ByteBuffer.allocate(encBuffer.remaining())
-        decrypt(encBuffer, buf)
+        decrypt(encBuffer, buf, send)
         return buf
+    }
+
+    private fun sslRead(plainBuffer: ByteBuffer): Int {
+        val ret = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.remaining())
+        return when {
+            ret >= 0 -> ret
+            ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> 0
+            // ret == MBEDTLS_ERR_SSL_WANT_WRITE -> 0
+            else -> throw SslException.from(ret)
+        }
     }
 
     fun saveAndClose(): ByteArray {

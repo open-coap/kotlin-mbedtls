@@ -40,4 +40,9 @@ internal class CompletableQueue<T> {
         queue.addLast(promise)
         return promise
     }
+
+    fun cancelAll() {
+        queue.forEach { it.cancel(false) }
+        queue.clear()
+    }
 }
