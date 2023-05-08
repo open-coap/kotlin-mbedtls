@@ -177,7 +177,7 @@ class DtlsServerTransportTest {
     }
 
     @Test
-    fun testReceiveMalformedPacket() {
+    fun `should discard malformed`() {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
@@ -188,9 +188,7 @@ class DtlsServerTransportTest {
         client.send("perse")
 
         // then
-        await.untilAsserted {
-            assertEquals(0, server.numberOfSessions())
-        }
+        assertEquals(1, server.numberOfSessions())
 
         client.close()
 
@@ -198,7 +196,6 @@ class DtlsServerTransportTest {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
-            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
     }
 

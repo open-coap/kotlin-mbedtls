@@ -24,6 +24,7 @@ import io.netty.util.concurrent.ScheduledFuture
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -51,7 +52,7 @@ class DtlsClientHandshakeChannelHandler(
 
     private fun stepAndSchedule() {
         scheduledRetransmission?.cancel(false)
-        sslHandshakeContext.step(::write)
+        sslHandshakeContext.step(EMPTY_BYTEBUFFER, ::write)
         scheduleRetransmission()
     }
 

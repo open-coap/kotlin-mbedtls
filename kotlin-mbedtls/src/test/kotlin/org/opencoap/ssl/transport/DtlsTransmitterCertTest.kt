@@ -29,18 +29,20 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.runGC
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import kotlin.random.Random
 
 class DtlsTransmitterCertTest {
 
     private lateinit var srvTrans: Transport<ByteBuffer>
     private val randomCid = RandomCidSupplier(16)
-    private var serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey, Certs.root.asX509()))
+    private var serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey, Certs.root.asX509()), retransmitMin = 100.millis)
 
     @AfterEach
     fun after() {
@@ -144,19 +146,25 @@ class DtlsTransmitterCertTest {
         val clientConf = SslConfig.client(
             CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()),
             retransmitMin = Duration.ofMillis(10),
-            retransmitMax = Duration.ofMillis(100)
         )
         val cli = DatagramChannelAdapter
             .connect(srvTrans.localAddress(), 7007)
-            .dropSend { it % 3 != 2 }
+            .dropSend { it.get(0).toInt() == 0x16 && Random.nextBoolean() }
 
         // when
         val sslSession = DtlsTransmitter.connect(srvTrans.localAddress(), clientConf, cli).await()
 
         // then
+        sslSession.send("Works!")
+        await.untilAsserted {
+            assertEquals("Works!", server.await().receiveString())
+        }
+
+        // close
         sslSession.close()
-        clientConf.close()
         cli.close()
+        clientConf.close()
+        server.await().close()
     }
 
     @Test
@@ -182,15 +190,14 @@ class DtlsTransmitterCertTest {
     }
 }
 
-internal fun <P> Transport<P>.dropSend(drop: (Int) -> Boolean): Transport<P> {
+internal fun <P> Transport<P>.dropSend(drop: (P) -> Boolean): Transport<P> {
     val underlying = this
-    var i = 0
 
     return object : Transport<P> by this {
         private val logger = LoggerFactory.getLogger(javaClass)
 
         override fun send(packet: P): CompletableFuture<Boolean> {
-            return if (!drop(i++)) {
+            return if (!drop(packet)) {
                 underlying.send(packet)
             } else {
                 logger.info("send DROPPED {}", packet)

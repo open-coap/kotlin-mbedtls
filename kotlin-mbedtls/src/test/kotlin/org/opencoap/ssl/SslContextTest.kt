@@ -84,7 +84,7 @@ class SslContextTest {
 
     @Test
     fun `should handshake with certificate`() {
-        var sendingBuffer: ByteBuffer? = null
+        lateinit var sendingBuffer: ByteBuffer
         val send: (ByteBuffer) -> Unit = { sendingBuffer = it }
         var srvHandshake = serverConf.newContext(localAddress(1_5684))
         val cliHandshake = clientConf.newContext(localAddress(2_5684))
@@ -113,14 +113,14 @@ class SslContextTest {
         val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
 
         val encryptedDtls = clientSession.encrypt("perse".toByteBuffer())
-        assertEquals("perse", serverSession.decrypt(encryptedDtls).decodeToString())
+        assertEquals("perse", serverSession.decrypt(encryptedDtls, noSend).decodeToString())
 
         // buffer with shifted position
         val buf = "--perse--".toByteBuffer()
         buf.position(2)
         buf.limit(7)
         val encryptedDtls2 = clientSession.encrypt(buf)
-        assertEquals("perse", serverSession.decrypt(encryptedDtls2).decodeToString())
+        assertEquals("perse", serverSession.decrypt(encryptedDtls2, noSend).decodeToString())
     }
 
     @Test
@@ -137,10 +137,12 @@ class SslContextTest {
 
         buf.clear()
         buf.put("==".encodeToByteArray())
-        serverSession.decrypt(encryptedDtls3, buf)
+        serverSession.decrypt(encryptedDtls3, buf, noSend)
         assertEquals("dupa", buf.decodeToString())
 
         clientSession.close()
         serverSession.close()
     }
+
+    private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
 }

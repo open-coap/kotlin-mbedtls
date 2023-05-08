@@ -51,7 +51,7 @@ class DtlsTransmitter private constructor(
 
     override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> {
         return transport.receive(timeout).thenApplyAsync({
-            if (it.remaining() == 0) EMPTY_BYTEBUFFER else sslSession.decrypt(it)
+            if (it.remaining() == 0) EMPTY_BYTEBUFFER else sslSession.decrypt(it, transport::send)
         }, executor)
     }
 

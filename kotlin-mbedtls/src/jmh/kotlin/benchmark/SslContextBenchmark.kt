@@ -101,7 +101,7 @@ open class SslContextBenchmark {
     @Benchmark
     fun encrypt_and_decrypt_1kb(bh: Blackhole) {
         val encryptedMsg: ByteBuffer = clientSession.encrypt(largeMessage)
-        val plainMsg = serverSession.decrypt(encryptedMsg)
+        val plainMsg = serverSession.decrypt(encryptedMsg, noSend)
 
         bh.consume(encryptedMsg)
         bh.consume(plainMsg)
@@ -111,13 +111,13 @@ open class SslContextBenchmark {
     fun encrypt_and_decrypt_1kb_direct_memory(bh: Blackhole) {
         byteBufferDirect.clear()
         val encryptedMsg: ByteBuffer = clientSession.encrypt(largeMessageDirectBuf)
-        serverSession.decrypt(encryptedMsg, byteBufferDirect)
+        serverSession.decrypt(encryptedMsg, byteBufferDirect, noSend)
 
         bh.consume(encryptedMsg)
         bh.consume(byteBufferDirect)
     }
 
-    private var sendingBuffer: ByteBuffer? = null
+    private lateinit var sendingBuffer: ByteBuffer
     private val send: (ByteBuffer) -> Unit = { sendingBuffer = it }
 
     @Benchmark
@@ -156,4 +156,6 @@ open class SslContextBenchmark {
 
         bh.consume(sessionData)
     }
+
+    private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
 }
