@@ -18,7 +18,6 @@ package org.opencoap.ssl.netty
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.ByteBuf
-import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.EventLoopGroup
@@ -31,7 +30,6 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.Transport
 import java.io.IOException
 import java.net.InetSocketAddress
-import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -39,14 +37,14 @@ import java.util.concurrent.TimeUnit
 class NettyTransportAdapter(
     val channel: DatagramChannel,
     private val destinationAddress: InetSocketAddress
-) : Transport<ByteBuffer> {
+) : Transport<ByteBuf> {
     private val inboundMessageReceiver = InboundMessageReceiver()
 
     init {
         channel.pipeline().addLast(inboundMessageReceiver)
     }
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> {
+    override fun receive(timeout: Duration): CompletableFuture<ByteBuf> {
         val promise = inboundMessageReceiver.queue.poll()
 
         val timeoutFuture = channel.eventLoop().schedule({ promise.cancel(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
@@ -60,17 +58,13 @@ class NettyTransportAdapter(
         channel.close().sync()
     }
 
-    fun send(packet: ByteBuf): CompletableFuture<Boolean> {
+    override fun send(packet: ByteBuf): CompletableFuture<Boolean> {
         return if (channel.isActive) {
             val dgramPacket = DatagramPacket(packet, destinationAddress)
             return channel.writeAndFlush(dgramPacket).toCompletableFuture()
         } else {
             CompletableFuture<Boolean>().apply { completeExceptionally(IOException("Channel closed")) }
         }
-    }
-
-    override fun send(packet: ByteBuffer): CompletableFuture<Boolean> {
-        return send(Unpooled.wrappedBuffer(packet))
     }
 
     companion object {
@@ -93,11 +87,10 @@ class NettyTransportAdapter(
     }
 
     private class InboundMessageReceiver : ChannelInboundHandlerAdapter() {
-        val queue = CompletableQueue<ByteBuffer>()
+        val queue = CompletableQueue<ByteBuf>()
 
         override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-            val content = (msg as DatagramPacket).content().nioBuffer()
-            queue.add(content)
+            queue.add((msg as DatagramPacket).content())
         }
     }
 }

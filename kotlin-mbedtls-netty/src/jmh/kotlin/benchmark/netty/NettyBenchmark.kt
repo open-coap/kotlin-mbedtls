@@ -79,6 +79,7 @@ open class NettyBenchmark {
 
         val received = client.receive(1.seconds).join()
         bh.consume(received)
+        received.release()
         // Assertions.assertEquals(message.size + echoMessage.size, received.size)
     }
 
@@ -89,6 +90,7 @@ open class NettyBenchmark {
 
         val received = client.receive(1.seconds).join()
         bh.consume(received)
+        received.release()
         // Assertions.assertEquals(message.size + echoMessage.size, received.size)
     }
 
@@ -102,6 +104,7 @@ open class NettyBenchmark {
         repeat(maxTransactions) {
             val received = client.receive(1.seconds).join()
             bh.consume(received)
+            received.release()
             // assertEquals(cliMessage.size + echoMessage.size, received.size)
         }
     }
@@ -116,6 +119,7 @@ open class NettyBenchmark {
         repeat(maxTransactions) {
             val received = client.receive(1.seconds).join()
             bh.consume(received)
+            received.release()
             // assertEquals(cliMessage.size + echoMessage.size, received.size)
         }
     }

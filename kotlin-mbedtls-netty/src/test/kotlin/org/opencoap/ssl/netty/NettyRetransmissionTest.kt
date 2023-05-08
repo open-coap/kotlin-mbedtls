@@ -30,15 +30,12 @@ import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
-import org.opencoap.ssl.transport.decodeToString
-import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
-import java.nio.ByteBuffer
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyRetransmissionTestTest {
@@ -64,8 +61,7 @@ class NettyRetransmissionTestTest {
         udpChannel.pipeline().addFirst("DROPPING", DroppingHandler())
 
         // connect and handshake
-        val client = NettyTransportAdapter.connect(clientConf, srvAddress)
-            .map(ByteBuffer::decodeToString, String::toByteBuffer)
+        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
 
         assertTrue(client.send("hi").await())
         assertEquals("ECHO:hi", client.receive(5.seconds).await())
