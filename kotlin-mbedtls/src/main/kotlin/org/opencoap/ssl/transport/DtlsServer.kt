@@ -52,13 +52,13 @@ class DtlsServer(
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
 
-    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
+    fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer, allocatePlainBuffer: (Int) -> ByteBuffer = ByteBuffer::allocate): ReceiveResult {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
         val dtlsState = sessions[adr]
 
         return when {
             dtlsState is DtlsHandshake -> dtlsState.step(buf)
-            dtlsState is DtlsSession -> dtlsState.decrypt(buf)
+            dtlsState is DtlsSession -> dtlsState.decrypt(buf, allocatePlainBuffer(buf.remaining()))
 
             // no session, but dtls packet contains CID
             cid != null -> ReceiveResult.CidSessionMissing(cid!!)
@@ -254,13 +254,13 @@ class DtlsServer(
 
         override fun close() = ctx.close()
 
-        fun decrypt(encPacket: ByteBuffer): ReceiveResult {
+        fun decrypt(encPacket: ByteBuffer, buf: ByteBuffer): ReceiveResult {
             scheduledTask.cancel(false)
             try {
-                val plainBuf = ctx.decrypt(encPacket, ::send)
+                ctx.decrypt(encPacket, buf, ::send)
                 scheduledTask = executor.schedule(::timeout, expireAfter)
-                return if (plainBuf.isNotEmpty()) {
-                    ReceiveResult.Decrypted(Packet(plainBuf, peerAddress, sessionContext))
+                return if (buf.isNotEmpty()) {
+                    ReceiveResult.Decrypted(Packet(buf, peerAddress, sessionContext))
                 } else {
                     ReceiveResult.Handled
                 }

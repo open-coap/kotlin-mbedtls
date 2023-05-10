@@ -62,15 +62,24 @@ class DtlsChannelHandler @JvmOverloads constructor(
         }
 
         msg.useAndRelease {
-            val result = dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer())
+            val buffer = ctx.alloc().buffer(msg.content().readableBytes())
+            buffer.useAndRelease { contentBuffer ->
 
-            when (result) {
-                is DtlsServer.ReceiveResult.Handled -> Unit // do nothing
-                is DtlsServer.ReceiveResult.DecryptFailed -> Unit // do nothing
+                val result = contentBuffer.writeThroughNioBuffer { buf ->
+                    dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer()) { buf }
+                }
 
-                is DtlsServer.ReceiveResult.Decrypted -> ctx.fireChannelRead(DatagramPacketWithContext.from(result.packet))
+                when (result) {
+                    is DtlsServer.ReceiveResult.Handled -> Unit // do nothing
+                    is DtlsServer.ReceiveResult.DecryptFailed -> Unit // do nothing
 
-                is DtlsServer.ReceiveResult.CidSessionMissing -> loadSession(result, msg.retain(), ctx)
+                    is DtlsServer.ReceiveResult.Decrypted -> {
+                        val datagramPacket = DatagramPacketWithContext(contentBuffer.retain(), null, result.packet.peerAddress, result.packet.sessionContext)
+                        ctx.fireChannelRead(datagramPacket)
+                    }
+
+                    is DtlsServer.ReceiveResult.CidSessionMissing -> loadSession(result, msg.retain(), ctx)
+                }
             }
         }
     }

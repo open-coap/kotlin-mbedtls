@@ -49,13 +49,14 @@ fun ByteBuf.toByteArray(): ByteArray {
         .also { this.release() }
 }
 
-fun ByteBuf.writeThroughNioBuffer(f: (ByteBuffer) -> Unit) {
+fun <T> ByteBuf.writeThroughNioBuffer(f: (ByteBuffer) -> T): T {
     require(this.nioBufferCount() == 1)
 
     val nioBuffer = this.nioBuffer(0, this.writableBytes())
-    f.invoke(nioBuffer)
+    val result = f.invoke(nioBuffer)
 
     this.writerIndex(nioBuffer.remaining())
+    return result
 }
 
 inline fun <T : ReferenceCounted> T.useAndRelease(f: (T) -> Unit) {
