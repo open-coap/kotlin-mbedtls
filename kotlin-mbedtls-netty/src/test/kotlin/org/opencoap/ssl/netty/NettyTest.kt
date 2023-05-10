@@ -22,6 +22,7 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
 import io.netty.util.concurrent.DefaultThreadFactory
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -29,7 +30,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.junit.jupiter.api.assertThrows
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
@@ -45,11 +45,10 @@ import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
-import org.opencoap.ssl.util.mapToString
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
+import java.nio.channels.ClosedChannelException
 import java.nio.charset.Charset
-import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -136,12 +135,13 @@ class NettyTest {
     @Test
     fun testFailedHandshake() {
         val clientConfig2 = SslConfig.client(PskAuth("wrong", byteArrayOf(1)), cidSupplier = EmptyCidSupplier)
-        // connect and handshake
-        val client = NettyTransportAdapter.connect(clientConfig2, srvAddress).mapToString()
 
         // when
-        assertThrows<ExecutionException> { client.send("hi").await() }
-        assertThrows<ExecutionException> { client.send("hi").await() }
+        val client = NettyTransportAdapter.connect(clientConfig2, srvAddress).mapToString()
+
+        // then
+        assertThatThrownBy { client.send("hi").await() }.hasCauseInstanceOf(ClosedChannelException::class.java)
+        assertThatThrownBy { client.send("hi").await() }.hasCauseInstanceOf(ClosedChannelException::class.java)
 
         client.close()
         clientConfig2.close()

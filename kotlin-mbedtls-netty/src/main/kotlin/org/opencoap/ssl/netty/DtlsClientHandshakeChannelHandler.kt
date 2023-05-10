@@ -28,6 +28,7 @@ import org.opencoap.ssl.transport.Packet.Companion.EMPTY_BYTEBUFFER
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
 
 class DtlsClientHandshakeChannelHandler(
@@ -85,16 +86,21 @@ class DtlsClientHandshakeChannelHandler(
         } catch (ex: SslException) {
             // non-recoverable exception, we need to close
             logger.warn("Closing channel ({}) due to SslException: {}", ctx.channel(), ex.toString())
-            ctx.close()
-            sslHandshakeContext.close()
-            outboundMessages.forEach { (plain, promise) ->
-                plain.release()
-                promise.setFailure(ex)
-            }
-            outboundMessages.clear()
+            ctx.channel().close()
         } finally {
             msg.release()
         }
+    }
+
+    override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
+        sslHandshakeContext.close()
+        outboundMessages.forEach { (plain, promise) ->
+            plain.release()
+            promise.setFailure(ClosedChannelException())
+        }
+        outboundMessages.clear()
+
+        super.close(ctx, promise)
     }
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {
