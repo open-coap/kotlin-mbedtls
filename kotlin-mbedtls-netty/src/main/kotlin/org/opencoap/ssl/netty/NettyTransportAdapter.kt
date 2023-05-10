@@ -76,12 +76,14 @@ class NettyTransportAdapter(
             sslConfig: SslConfig,
             destinationAddress: InetSocketAddress,
             group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true)),
-            sessionWriter: SessionWriter = SessionWriter.NO_OPS
+            sessionWriter: SessionWriter = SessionWriter.NO_OPS,
+            bootstrapConfig: (Bootstrap) -> Unit = {},
         ): NettyTransportAdapter {
             return Bootstrap()
                 .group(group)
                 .channel(NioDatagramChannel::class.java)
                 .handler(DtlsClientHandshakeChannelHandler(sslConfig.newContext(destinationAddress), destinationAddress, sessionWriter))
+                .also(bootstrapConfig)
                 .bind(0)
                 .sync()
                 .channel()

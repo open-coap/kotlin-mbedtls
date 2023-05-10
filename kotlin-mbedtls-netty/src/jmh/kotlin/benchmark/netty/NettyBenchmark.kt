@@ -70,7 +70,7 @@ open class NettyBenchmark {
         serverChannel = NettyHelpers.createBootstrap(5685, DtlsChannelHandler(serverConf), { addLast("reply", EchoHandler()) }, profile::configure)
             .bind().sync().channel()
 
-        client = NettyTransportAdapter.connect(clientConf, InetSocketAddress("127.0.0.1", 5685))
+        client = NettyTransportAdapter.connect(clientConf, InetSocketAddress("127.0.0.1", 5685), bootstrapConfig = profile::configure)
     }
 
     @TearDown
