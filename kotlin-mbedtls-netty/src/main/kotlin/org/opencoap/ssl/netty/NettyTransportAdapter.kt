@@ -64,12 +64,8 @@ class NettyTransportAdapter(
     }
 
     override fun send(packet: ByteBuf): CompletableFuture<Boolean> {
-        return if (channel.isActive) {
-            val dgramPacket = DatagramPacket(packet, destinationAddress)
-            return channel.writeAndFlush(dgramPacket).toCompletableFuture()
-        } else {
-            CompletableFuture<Boolean>().apply { completeExceptionally(IOException("Channel closed")) }
-        }
+        val dgramPacket = DatagramPacket(packet, destinationAddress)
+        return channel.writeAndFlush(dgramPacket).toCompletableFuture()
     }
 
     companion object {

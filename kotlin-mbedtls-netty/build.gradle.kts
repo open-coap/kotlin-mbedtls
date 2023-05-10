@@ -41,6 +41,7 @@ dependencies {
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("io.netty:netty-all:4.1.92.Final")
     testImplementation("io.mockk:mockk:1.13.4")
+    testImplementation("org.assertj:assertj-core:3.24.2")
 }
 
 java {
