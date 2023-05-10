@@ -33,7 +33,7 @@ import java.nio.charset.Charset
 
 object NettyHelpers {
 
-    fun createBootstrap(port: Int, dtlsChannelHandler: DtlsChannelHandler, pipelineBuilder: ChannelPipeline.() -> Unit): Bootstrap {
+    fun createBootstrap(port: Int, dtlsChannelHandler: DtlsChannelHandler, pipelineBuilder: ChannelPipeline.() -> Unit, bootstrapConfig: (Bootstrap) -> Unit = {}): Bootstrap {
         val group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
 
         return Bootstrap()
@@ -46,6 +46,7 @@ object NettyHelpers {
                     pipelineBuilder(ch.pipeline())
                 }
             })
+            .also(bootstrapConfig::invoke)
     }
 }
 

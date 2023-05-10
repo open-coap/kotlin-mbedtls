@@ -37,6 +37,7 @@ import org.openjdk.jmh.annotations.TearDown
 import org.openjdk.jmh.annotations.Threads
 import org.openjdk.jmh.annotations.Warmup
 import org.openjdk.jmh.infra.Blackhole
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.function.Consumer
 import kotlin.random.Random
@@ -45,7 +46,7 @@ import kotlin.random.Random
 @Fork(1)
 @Threads(1)
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 4, time = 5)
+@Measurement(iterations = 1, time = 10)
 open class DtlsServerTransportBenchmark {
 
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
@@ -67,7 +68,7 @@ open class DtlsServerTransportBenchmark {
     @Setup
     fun setUp() {
         server = DtlsServerTransport.create(serverConf).also { it.listen(echoHandler, it.executor()) }
-        client = DtlsTransmitter.connect(server, clientConf).await()
+        client = DtlsTransmitter.connect(InetSocketAddress("127.0.0.1", server.localPort()), clientConf).await()
     }
 
     @TearDown

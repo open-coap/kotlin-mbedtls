@@ -63,7 +63,7 @@ class NettyTest {
 
     @BeforeAll
     fun beforeAll() {
-        srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = sessionStore)) { addLast("echo", EchoHandler()) }.bind().sync().channel() as DatagramChannel
+        srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = sessionStore), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
     }
 
     @AfterAll
