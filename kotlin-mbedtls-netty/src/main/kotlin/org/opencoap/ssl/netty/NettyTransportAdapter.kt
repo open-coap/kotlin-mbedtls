@@ -28,6 +28,7 @@ import io.netty.channel.socket.nio.NioDatagramChannel
 import io.netty.util.concurrent.DefaultThreadFactory
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.transport.SessionWriter
 import org.opencoap.ssl.transport.Transport
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -75,12 +76,12 @@ class NettyTransportAdapter(
             sslConfig: SslConfig,
             destinationAddress: InetSocketAddress,
             group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true)),
-            storeSession: (ByteArray) -> Unit = {},
+            sessionWriter: SessionWriter = SessionWriter.NO_OPS
         ): NettyTransportAdapter {
             return Bootstrap()
                 .group(group)
                 .channel(NioDatagramChannel::class.java)
-                .handler(DtlsClientHandshakeChannelHandler(sslConfig.newContext(destinationAddress), destinationAddress, storeSession))
+                .handler(DtlsClientHandshakeChannelHandler(sslConfig.newContext(destinationAddress), destinationAddress, sessionWriter))
                 .bind(0)
                 .sync()
                 .channel()
@@ -90,13 +91,13 @@ class NettyTransportAdapter(
         fun reload(
             sslSession: SslSession,
             destinationAddress: InetSocketAddress,
-            storeSession: (ByteArray) -> Unit,
+            sessionWriter: SessionWriter,
             group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
         ): NettyTransportAdapter {
             return Bootstrap()
                 .group(group)
                 .channel(NioDatagramChannel::class.java)
-                .handler(DtlsClientChannelHandler(sslSession, storeSession))
+                .handler(DtlsClientChannelHandler(sslSession, sessionWriter))
                 .bind(0)
                 .sync()
                 .channel()

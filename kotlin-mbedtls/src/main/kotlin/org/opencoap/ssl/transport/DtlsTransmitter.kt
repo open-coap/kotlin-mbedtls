@@ -40,6 +40,7 @@ class DtlsTransmitter private constructor(
     private val sslSession: SslSession,
     private val executor: ExecutorService,
 ) : Transport<ByteBuffer> {
+    private var storeSession: SessionWriter = SessionWriter.NO_OPS
 
     override fun send(packet: ByteBuffer): CompletableFuture<Boolean> {
         return executor
@@ -61,7 +62,13 @@ class DtlsTransmitter private constructor(
 
     override fun close() {
         transport.close()
-        executor.supply(sslSession::close).join()
+        executor.supply {
+            if (sslSession.ownCid != null && storeSession != SessionWriter.NO_OPS) {
+                storeSession(sslSession.ownCid, sslSession.saveAndClose())
+            } else {
+                sslSession.close()
+            }
+        }.join()
     }
 
     fun closeNotify() {
@@ -78,13 +85,8 @@ class DtlsTransmitter private constructor(
 
     fun saveSession() = sslSession.saveAndClose()
 
-    fun storeOnClose(store: (ByteArray) -> Unit): Transport<ByteBuffer> = object : Transport<ByteBuffer> by this {
-        override fun close() {
-            transport.close()
-            executor.supply {
-                store(sslSession.saveAndClose())
-            }.join()
-        }
+    fun storeOnClose(sessionWriter: SessionWriter) = this.also {
+        this.storeSession = sessionWriter
     }
 
     companion object {
