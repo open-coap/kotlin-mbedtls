@@ -27,8 +27,9 @@ import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Future
 import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.ScheduledFuture
 
 class DtlsServer(
     private val transport: TransportOutbound<ByteBufferPacket>,
@@ -40,6 +41,7 @@ class DtlsServer(
 ) {
     companion object {
         private val EMPTY_BUFFER = ByteBuffer.allocate(0)
+        private val NO_SCHEDULE_TASK: Future<*> = CompletableFuture.completedFuture(null)
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -65,7 +67,6 @@ class DtlsServer(
                 val dtlsHandshake = DtlsHandshake(sslConfig.newContext(adr), adr)
                 sessions[adr] = dtlsHandshake
                 dtlsHandshake.step(buf)
-                ReceiveResult.Handled
             }
         }
     }
@@ -126,11 +127,11 @@ class DtlsServer(
     }
 
     private abstract inner class DtlsState(val peerAddress: InetSocketAddress) {
-        protected var scheduledTask: ScheduledFuture<*>? = null
+        protected lateinit var scheduledTask: Future<*>
 
         abstract fun storeAndClose0()
         fun storeAndClose() {
-            scheduledTask?.cancel(false)
+            scheduledTask.cancel(false)
             storeAndClose0()
         }
 
@@ -147,13 +148,14 @@ class DtlsServer(
     ) : DtlsState(peerAddress) {
 
         init {
+            scheduledTask = NO_SCHEDULE_TASK
             reportHandshakeStarted()
         }
 
         private fun retryStep() = step(EMPTY_BUFFER)
 
         fun step(encPacket: ByteBuffer): ReceiveResult {
-            scheduledTask?.cancel(false)
+            scheduledTask.cancel(false)
 
             try {
                 when (val newCtx = ctx.step(encPacket, ::send)) {
@@ -217,6 +219,7 @@ class DtlsServer(
             )
 
         init {
+            scheduledTask = executor.schedule(::timeout, expireAfter)
             reportSessionStarted()
         }
 
@@ -239,7 +242,7 @@ class DtlsServer(
         override fun close() = ctx.close()
 
         fun decrypt(encPacket: ByteBuffer): ReceiveResult {
-            scheduledTask?.cancel(false)
+            scheduledTask.cancel(false)
             try {
                 val plainBuf = ctx.decrypt(encPacket, ::send)
                 scheduledTask = executor.schedule(::timeout, expireAfter)
