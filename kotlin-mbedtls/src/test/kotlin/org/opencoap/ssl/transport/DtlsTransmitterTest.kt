@@ -151,7 +151,7 @@ class DtlsTransmitterTest {
 
         // and
         val storedSession = AtomicReference<ByteArray>()
-        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).await().storeOnClose(storedSession::set)
+        val client = DtlsTransmitter.connect(localAddress(1_5684), clientConf, 6004).await().storeOnClose { _, s -> storedSession.set(s) }
 
         // when
         client.close()

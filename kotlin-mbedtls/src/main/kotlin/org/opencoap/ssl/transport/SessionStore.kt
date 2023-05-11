@@ -20,9 +20,11 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ConcurrentHashMap
 
+typealias CID = ByteArray
+
 interface SessionStore {
-    fun read(cid: ByteArray): CompletableFuture<SessionWithContext?>
-    fun write(cid: ByteArray, session: SessionWithContext)
+    fun read(cid: CID): CompletableFuture<SessionWithContext?>
+    fun write(cid: CID, session: SessionWithContext)
 }
 
 data class SessionWithContext(
@@ -30,18 +32,27 @@ data class SessionWithContext(
     val authenticationContext: AuthenticationContext
 )
 
+fun interface SessionWriter {
+    operator fun invoke(cid: CID, session: ByteArray)
+
+    companion object {
+        @JvmField
+        val NO_OPS: SessionWriter = SessionWriter { _, _ -> }
+    }
+}
+
 object NoOpsSessionStore : SessionStore {
-    override fun read(cid: ByteArray): CompletableFuture<SessionWithContext?> = completedFuture(null)
-    override fun write(cid: ByteArray, session: SessionWithContext) = Unit
+    override fun read(cid: CID): CompletableFuture<SessionWithContext?> = completedFuture(null)
+    override fun write(cid: CID, session: SessionWithContext) = Unit
 }
 
 class HashMapSessionStore : SessionStore {
     private val map = ConcurrentHashMap<String, SessionWithContext>()
 
-    override fun read(cid: ByteArray): CompletableFuture<SessionWithContext?> =
+    override fun read(cid: CID): CompletableFuture<SessionWithContext?> =
         completedFuture(map.remove(cid.toHex()))
 
-    override fun write(cid: ByteArray, session: SessionWithContext) {
+    override fun write(cid: CID, session: SessionWithContext) {
         map.put(cid.toHex(), session)
     }
 

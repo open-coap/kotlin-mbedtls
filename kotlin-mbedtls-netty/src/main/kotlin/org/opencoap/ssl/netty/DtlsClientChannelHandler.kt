@@ -22,9 +22,10 @@ import io.netty.channel.ChannelPromise
 import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.transport.SessionWriter
 import org.slf4j.LoggerFactory
 
-class DtlsClientChannelHandler(private val sslSession: SslSession, private val storeSession: (ByteArray) -> Unit) :
+class DtlsClientChannelHandler(private val sslSession: SslSession, private val sessionWriter: SessionWriter) :
     ChannelDuplexHandler() {
     private val logger = LoggerFactory.getLogger(javaClass)
     private lateinit var ctx: ChannelHandlerContext
@@ -35,7 +36,12 @@ class DtlsClientChannelHandler(private val sslSession: SslSession, private val s
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         try {
-            storeSession(sslSession.saveAndClose())
+            val cid = sslSession.ownCid
+            if (cid != null && sessionWriter != SessionWriter.NO_OPS) {
+                sessionWriter(cid, sslSession.saveAndClose())
+            } else {
+                sslSession.close()
+            }
         } catch (ex: Exception) {
             logger.warn("Could not store session: {}", ex.toString())
         }
