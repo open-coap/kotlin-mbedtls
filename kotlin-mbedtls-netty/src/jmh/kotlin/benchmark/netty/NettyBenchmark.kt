@@ -113,13 +113,13 @@ open class NettyBenchmark {
 
     @State(Scope.Benchmark)
     open class TestProfile {
-        @Param("direct", "heap", "unpooled")
+        @Param("direct", "heap", "heap-8kb", "unpooled")
         var bufAllocator = "heap"
 
         fun wrap(bb: ByteBuffer): ByteBuf {
             return when (bufAllocator) {
                 "direct" -> Unpooled.directBuffer().writeBytes(bb)
-                "heap", "unpooled" -> Unpooled.wrappedBuffer(bb)
+                "heap", "unpooled", "heap-8kb" -> Unpooled.wrappedBuffer(bb)
                 else -> throw IllegalArgumentException()
             }
         }
@@ -133,6 +133,9 @@ open class NettyBenchmark {
                 "direct" -> PooledByteBufAllocator(true)
                 "unpooled" -> UnpooledByteBufAllocator(false)
                 "heap" -> PooledByteBufAllocator(false)
+                "heap-8kb" -> PooledByteBufAllocator(false, 2, 2, 8192, 1)
+                // Note: max order is set to 2 so that allocated single byte[] is 8kB, with default one it is 4MB and slows down drastically performance
+
                 else -> throw IllegalArgumentException()
             }
         }

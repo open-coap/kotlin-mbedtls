@@ -20,6 +20,7 @@ import io.netty.channel.ChannelHandler.Sharable
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.socket.DatagramPacket
+import java.nio.charset.Charset
 
 @Sharable
 class EchoHandler : ChannelInboundHandlerAdapter() {
@@ -28,11 +29,15 @@ class EchoHandler : ChannelInboundHandlerAdapter() {
         val dgram = msg as DatagramPacket
 
         val sessionContext = DatagramPacketWithContext.contextFrom(msg)
-        val authContext = (sessionContext.authenticationContext["AUTH"] ?: "").toByteArray()
+        val authContext = (sessionContext.authenticationContext["AUTH"] ?: "")
 
-        val reply = echoPrefix + authContext + dgram.content().toByteArray()
+        val reply = ctx.alloc().buffer(dgram.content().readableBytes() + 20)
+        reply.writeBytes(echoPrefix)
+        reply.writeCharSequence(authContext, Charset.defaultCharset())
+        reply.writeBytes(dgram.content())
+
         dgram.release()
 
-        ctx.writeAndFlush(DatagramPacket(reply.toByteBuf(), dgram.sender()))
+        ctx.writeAndFlush(DatagramPacket(reply, dgram.sender()))
     }
 }
