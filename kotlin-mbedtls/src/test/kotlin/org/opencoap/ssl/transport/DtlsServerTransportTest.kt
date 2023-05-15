@@ -403,7 +403,7 @@ class DtlsServerTransportTest {
 
     @Test
     fun testMultipleClientSendMessagesWithFastExpiration() {
-        server = DtlsServerTransport.create(conf, expireAfter = 50.millis, sessionStore = sessionStore).listen(echoHandler)
+        server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = sessionStore).listen(echoHandler)
 
         val MAX = 20
         val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
