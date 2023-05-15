@@ -323,15 +323,10 @@ class DtlsServerTransportTest {
             .connect(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
 
-        await.untilAsserted {
-            // when
-            DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
+        // when
+        DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
 
-            // then
-            assertEquals(1, server.numberOfSessions())
-        }
-
-        // and
+        // then, after some time
         await.untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }

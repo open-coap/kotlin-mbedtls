@@ -39,8 +39,8 @@ fun String.decodeHex(): ByteArray {
         .toByteArray()
 }
 
-fun <T> CompletableFuture<T>.await(): T {
-    return this.get(5, TimeUnit.SECONDS)
+fun <T> CompletableFuture<T>.await(timeout: Duration = 5.seconds): T {
+    return this.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
 }
 
 fun String.toMemory(): Memory {

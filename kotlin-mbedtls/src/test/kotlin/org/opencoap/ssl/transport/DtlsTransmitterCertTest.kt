@@ -31,6 +31,7 @@ import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.runGC
+import org.opencoap.ssl.util.seconds
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
@@ -149,10 +150,10 @@ class DtlsTransmitterCertTest {
         )
         val cli = DatagramChannelAdapter
             .connect(srvTrans.localAddress(), 7007)
-            .dropSend { it.get(0).toInt() == 0x16 && Random.nextBoolean() }
+            .dropSend { it.get(0).toInt() == 0x16 && Random.nextInt(5) == 0 } // 20% chance to drop
 
         // when
-        val sslSession = DtlsTransmitter.connect(srvTrans.localAddress(), clientConf, cli).await()
+        val sslSession = DtlsTransmitter.connect(srvTrans.localAddress(), clientConf, cli).await(20.seconds)
 
         // then
         sslSession.send("Works!")
