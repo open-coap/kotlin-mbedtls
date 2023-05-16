@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufUtil
 import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelFuture
 import io.netty.util.ReferenceCounted
+import org.opencoap.ssl.transport.Transport
 import java.nio.ByteBuffer
 import java.util.concurrent.CompletableFuture
 
@@ -45,6 +46,7 @@ fun ByteArray.toByteBuf(): ByteBuf = Unpooled.wrappedBuffer(this)
 
 fun ByteBuf.toByteArray(): ByteArray {
     return ByteBufUtil.getBytes(this, readerIndex(), readableBytes(), false)
+        .also { this.release() }
 }
 
 fun ByteBuf.writeThroughNioBuffer(f: (ByteBuffer) -> Unit) {
@@ -63,3 +65,7 @@ inline fun <T : ReferenceCounted> T.useAndRelease(f: (T) -> Unit) {
         this.release()
     }
 }
+
+fun Transport<ByteBuf>.mapToByteArray(): Transport<ByteArray> = this.map(ByteBuf::toByteArray, Unpooled::wrappedBuffer)
+
+fun Transport<ByteBuf>.mapToString(): Transport<String> = this.mapToByteArray().map(::String, String::encodeToByteArray)

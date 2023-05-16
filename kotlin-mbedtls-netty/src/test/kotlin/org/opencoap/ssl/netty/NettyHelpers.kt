@@ -18,7 +18,6 @@ package org.opencoap.ssl.netty
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.ByteBuf
-import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
 import io.netty.channel.ChannelInboundHandler
 import io.netty.channel.ChannelInitializer
@@ -28,7 +27,6 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.nio.NioDatagramChannel
 import io.netty.util.concurrent.DefaultThreadFactory
-import org.opencoap.ssl.transport.Transport
 import java.nio.charset.Charset
 
 object NettyHelpers {
@@ -61,12 +59,4 @@ fun Channel.channelRead(msg: Any) {
     val ctx = this.pipeline().firstContext()
     val inboundHandler = this.pipeline().first() as ChannelInboundHandler
     inboundHandler.channelRead(ctx, msg)
-}
-
-fun Transport<ByteBuf>.mapToString(): Transport<String> {
-    return this.map({ buf ->
-        buf.toString(Charset.defaultCharset()).also { buf.release() }
-    }) {
-        Unpooled.wrappedBuffer(it.toByteArray())
-    }
 }
