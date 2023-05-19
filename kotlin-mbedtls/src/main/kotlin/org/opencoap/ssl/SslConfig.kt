@@ -197,8 +197,14 @@ class SslConfig(
     private object LogCallback : Callback {
         private val logger = LoggerFactory.getLogger(MbedtlsApi::class.java)
         fun callback(ctx: Pointer?, debugLevel: Int, fileName: String, lineNumber: Int, message: String?) {
-            // seems like a bug in log levels:
-            if (debugLevel == 1 && message?.startsWith("got supported group") == true) return
+            if (debugLevel == 1) {
+                // seems like a bug in log levels:
+                if (message?.startsWith("got supported group") == true) return
+
+                // logs when close notify is received
+                if (message?.startsWith("mbedtls_ssl_handle_message_type() returned -30848 (-0x7880)") == true) return
+                if (message?.startsWith("mbedtls_ssl_read_record() returned -30848 (-0x7880)") == true) return
+            }
 
             when (debugLevel) {
                 1 -> logger.warn("[mbedtls {}:{}] {} ", fileName.substringAfterLast('/'), lineNumber, message?.trim())
