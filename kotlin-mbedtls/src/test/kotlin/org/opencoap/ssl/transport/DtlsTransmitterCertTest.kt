@@ -149,7 +149,7 @@ class DtlsTransmitterCertTest {
             retransmitMin = Duration.ofMillis(10),
         )
         val cli = DatagramChannelAdapter
-            .connect(srvTrans.localAddress(), 7007)
+            .connectBlocking(srvTrans.localAddress(), 7007)
             .dropSend { it.get(0).toInt() == 0x16 && Random.nextInt(5) == 0 } // 20% chance to drop
 
         // when
@@ -178,7 +178,7 @@ class DtlsTransmitterCertTest {
             retransmitMax = Duration.ofMillis(100)
         )
         val cli = DatagramChannelAdapter
-            .connect(srvTrans.localAddress(), 7008)
+            .connectBlocking(srvTrans.localAddress(), 7008)
             .dropSend { true }
 
         // when

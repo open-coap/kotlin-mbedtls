@@ -40,12 +40,23 @@ class DatagramChannelAdapter(
         }
 
         fun connect(dest: InetSocketAddress, listenPort: Int = 0): Transport<ByteBuffer> {
+            val channel: DatagramChannel = newDatagramChannel(listenPort, dest)
+
+            return DatagramChannelAdapter(channel).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
+        }
+
+        private fun newDatagramChannel(listenPort: Int, dest: InetSocketAddress): DatagramChannel {
             val channel: DatagramChannel = DatagramChannel.open()
             if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
             channel.connect(dest)
+            return channel
+        }
 
-            // makes blocking receiving
-            return DatagramChannelAdapter(channel, executor = Runnable::run).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
+        fun connectBlocking(dest: InetSocketAddress, listenPort: Int = 0): Transport<ByteBuffer> {
+            return DatagramChannelAdapter(
+                channel = newDatagramChannel(listenPort, dest),
+                executor = Runnable::run // makes blocking receiving
+            ).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
         }
     }
 

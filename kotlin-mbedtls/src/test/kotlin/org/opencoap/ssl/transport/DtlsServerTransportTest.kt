@@ -134,7 +134,7 @@ class DtlsServerTransportTest {
 
         val clients = (1..MAX)
             .map {
-                val ch = DatagramChannelAdapter.connect(localAddress(server.localPort()), 0)
+                val ch = DatagramChannelAdapter.connectBlocking(localAddress(server.localPort()), 0)
                 DtlsTransmitter.connect(localAddress(server.localPort()), clientCertConf, ch, executors[it % executors.size])
             }.map {
                 it.get(30, TimeUnit.SECONDS)
@@ -295,7 +295,7 @@ class DtlsServerTransportTest {
     fun `should successfully handshake with retransmission`() {
         server = DtlsServerTransport.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cli = DatagramChannelAdapter
-            .connect(localAddress(server.localPort()))
+            .connectBlocking(localAddress(server.localPort()))
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
 
         // when
@@ -320,7 +320,7 @@ class DtlsServerTransportTest {
     fun `should remove handshake session when handshake timeout`() {
         server = DtlsServerTransport.create(timeoutConf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val cli = DatagramChannelAdapter
-            .connect(server.localAddress())
+            .connectBlocking(server.localAddress())
             .dropReceive { it > 0 } // drop everything after client hello with verify
 
         // when

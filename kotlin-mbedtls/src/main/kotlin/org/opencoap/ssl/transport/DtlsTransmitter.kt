@@ -104,7 +104,7 @@ class DtlsTransmitter private constructor(
         @JvmStatic
         @JvmOverloads
         fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
-            return connect(dest, conf, DatagramChannelAdapter.connect(dest, bindPort))
+            return connect(dest, conf, DatagramChannelAdapter.connectBlocking(dest, bindPort))
         }
 
         @JvmStatic
