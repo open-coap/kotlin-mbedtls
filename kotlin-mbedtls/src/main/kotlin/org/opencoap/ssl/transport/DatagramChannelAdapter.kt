@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,13 @@ import java.nio.channels.Selector
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 class DatagramChannelAdapter(
     private val channel: DatagramChannel,
-    private val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384)
+    private val buffer: ByteBuffer = ByteBuffer.allocateDirect(16384),
+    private val executor: Executor = Executors.newSingleThreadExecutor { Thread(it, "udp-io (:${channel.localPort()})") }
 ) : Transport<ByteBufferPacket> {
 
     companion object {
@@ -42,13 +44,12 @@ class DatagramChannelAdapter(
             if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
             channel.connect(dest)
 
-            return DatagramChannelAdapter(channel).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
+            // makes blocking receiving
+            return DatagramChannelAdapter(channel, executor = Runnable::run).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
         }
     }
 
     private val selector: Selector = Selector.open()
-    private val port get() = (channel.localAddress as InetSocketAddress).port
-    private val executor = Executors.newSingleThreadExecutor { Thread(it, "udp-io (:$port)") }
 
     init {
         channel.configureBlocking(false)
@@ -81,8 +82,10 @@ class DatagramChannelAdapter(
     override fun close() {
         channel.close()
         selector.close()
-        executor.shutdown()
+        // executor.shutdown()
     }
 
     override fun localPort() = (channel.localAddress as InetSocketAddress).port
 }
+
+private fun DatagramChannel.localPort(): Int = (localAddress as InetSocketAddress).port
