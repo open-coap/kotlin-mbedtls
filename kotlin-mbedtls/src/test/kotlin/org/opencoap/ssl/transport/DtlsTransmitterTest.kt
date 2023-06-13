@@ -121,7 +121,7 @@ class DtlsTransmitterTest {
 
     @Test
     fun `should reload session`() {
-         val clientConf = SslConfig.client(PskAuth("dupa", byteArrayOf(0x01, 0x02)), cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"), cidSupplier = { byteArrayOf(0x01) })
+        val clientConf = SslConfig.client(PskAuth("dupa", byteArrayOf(0x01, 0x02)), cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"), cidSupplier = { byteArrayOf(0x01) })
         srvTrans = DatagramChannelAdapter.connect(localAddress(6004), 2_5684)
 
         // when
