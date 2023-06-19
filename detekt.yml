@@ -24,5 +24,8 @@ style:
   UnusedPrivateMember:
     active: true
     allowedNames: '(_|ignored|ctx)'
+  UnusedParameter:
+    active: true
+    allowedNames: '(_|ignored|ctx)'
   ForbiddenComment:
     active: false

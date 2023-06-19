@@ -19,10 +19,10 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
-    id("org.jlleitschuh.gradle.ktlint") version "11.3.1"
+    id("org.jlleitschuh.gradle.ktlint") version "11.4.0"
     id("com.adarshr.test-logger") version "3.2.0"
-    id("io.gitlab.arturbosch.detekt") version "1.22.0"
-    id("me.champeau.jmh") version "0.7.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.0"
+    id("me.champeau.jmh") version "0.7.1"
 }
 
 dependencies {
@@ -30,17 +30,17 @@ dependencies {
 
     api(platform("org.jetbrains.kotlin:kotlin-bom"))
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    api("io.netty:netty-handler:4.1.92.Final")
+    api("io.netty:netty-handler:4.1.93.Final")
 
     // TESTS
     testImplementation(testFixtures(project(":kotlin-mbedtls")))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.3")
     testImplementation("ch.qos.logback:logback-classic:1.3.0")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
-    testImplementation("io.netty:netty-all:4.1.92.Final")
-    testImplementation("io.mockk:mockk:1.13.4")
+    testImplementation("io.netty:netty-all:4.1.93.Final")
+    testImplementation("io.mockk:mockk:1.13.5")
     testImplementation("org.assertj:assertj-core:3.24.2")
 }
 
