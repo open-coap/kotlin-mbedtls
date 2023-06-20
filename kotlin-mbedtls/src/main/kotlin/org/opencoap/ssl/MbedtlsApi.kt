@@ -23,19 +23,31 @@ import com.sun.jna.Function
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
+import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
+import kotlin.io.path.Path
 
 /*
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    private val LIB_MBEDCRYPTO = NativeLibrary.getInstance("mbedcrypto-3.4.0")
-    private val LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509-3.4.0")
-    private val LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls-3.4.0")
+    var LIB_MBEDCRYPTO: NativeLibrary
+    var LIB_MBEDX509: NativeLibrary
+    var LIB_MBEDTLS: NativeLibrary
 
     init {
+        if(Platform.isWindows()) {
+            System.setProperty("jna.library.path", Path("../mbedtls-lib/bin/win32-x86-64").toAbsolutePath().normalize().toString())
+            LIB_MBEDCRYPTO = NativeLibrary.getInstance("libmbedcrypto")
+            LIB_MBEDTLS = NativeLibrary.getInstance("libmbedtls")
+            LIB_MBEDX509 = NativeLibrary.getInstance("libmbedx509")
+        } else {
+            LIB_MBEDCRYPTO = NativeLibrary.getInstance("mbedcrypto-3.4.0")
+            LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509-3.4.0")
+            LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls-3.4.0")
+        }
         Native.register(LIB_MBEDTLS)
         Native.register(Crypto::class.java, LIB_MBEDCRYPTO)
         Native.register(X509::class.java, LIB_MBEDX509)
