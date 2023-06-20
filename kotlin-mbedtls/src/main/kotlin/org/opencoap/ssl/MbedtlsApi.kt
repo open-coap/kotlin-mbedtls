@@ -38,7 +38,7 @@ internal object MbedtlsApi {
     var LIB_MBEDTLS: NativeLibrary
 
     init {
-        if(Platform.isWindows()) {
+        if (Platform.isWindows()) {
             System.setProperty("jna.library.path", Path("../mbedtls-lib/bin/win32-x86-64").toAbsolutePath().normalize().toString())
             LIB_MBEDCRYPTO = NativeLibrary.getInstance("libmbedcrypto")
             LIB_MBEDTLS = NativeLibrary.getInstance("libmbedtls")
