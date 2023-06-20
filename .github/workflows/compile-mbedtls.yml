@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Compile
-        run: DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
+        run: LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:

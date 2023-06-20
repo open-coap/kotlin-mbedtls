@@ -31,14 +31,13 @@ import java.nio.ByteBuffer
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    private val LIB_MBEDCRYPTO = NativeLibrary.getInstance("mbedcrypto-3.4.0")
-    private val LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509-3.4.0")
     private val LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls-3.4.0")
 
     init {
         Native.register(LIB_MBEDTLS)
-        Native.register(Crypto::class.java, LIB_MBEDCRYPTO)
-        Native.register(X509::class.java, LIB_MBEDX509)
+        Native.register(Crypto::class.java, LIB_MBEDTLS)
+        Native.register(X509::class.java, LIB_MBEDTLS)
+
         configureLogThreshold()
     }
 
@@ -130,13 +129,13 @@ internal object MbedtlsApi {
         // mbedtls/entropy.h
         external fun mbedtls_entropy_free(entropy: Pointer)
         external fun mbedtls_entropy_init(entropy: Pointer)
-        internal val mbedtls_entropy_func = LIB_MBEDCRYPTO.getFunction("mbedtls_entropy_func")
+        internal val mbedtls_entropy_func = LIB_MBEDTLS.getFunction("mbedtls_entropy_func")
 
         // mbedtls/ctr_drbg.h
         external fun mbedtls_ctr_drbg_free(ctrDrbg: Pointer)
         external fun mbedtls_ctr_drbg_init(ctrDrbg: Pointer)
         external fun mbedtls_ctr_drbg_seed(mbedtlsCtrDrbgContext: Pointer, fEntropy: Pointer, pEntropyCtx: Pointer, custom: Pointer?, len: Int): Int
-        internal val mbedtls_ctr_drbg_random = LIB_MBEDCRYPTO.getFunction("mbedtls_ctr_drbg_random")
+        internal val mbedtls_ctr_drbg_random = LIB_MBEDTLS.getFunction("mbedtls_ctr_drbg_random")
 
         // mbedtls/error.h
         external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)

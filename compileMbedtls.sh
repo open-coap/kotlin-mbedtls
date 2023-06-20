@@ -3,6 +3,7 @@ MBEDTLS_VERSION=3.4.0
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
+CC="${CC:-gcc}"
 
 # download
 mkdir -p mbedtls-lib/build
@@ -23,13 +24,10 @@ ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h
 export SHARED=true
 (cd ${BUILD_DIR} && make lib)
 
-# copy binaries
+# create single shared library
 LIB_DIR="mbedtls-lib/bin/$OSARCH"
 rm ${LIB_DIR}/*
-cp ${BUILD_DIR}/library/libmbedtls.${DLEXT}     ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT}
-cp ${BUILD_DIR}/library/libmbedcrypto.${DLEXT}  ${LIB_DIR}/libmbedcrypto-${MBEDTLS_VERSION}.${DLEXT}
-cp ${BUILD_DIR}/library/libmbedx509.${DLEXT}    ${LIB_DIR}/libmbedx509-${MBEDTLS_VERSION}.${DLEXT}
-
+$CC -shared ${BUILD_DIR}/library/*.o -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c -I${BUILD_DIR}/include -I${BUILD_DIR}/crypto/include -o mbedtls-lib/build/mbedtls_sizeof_generator
