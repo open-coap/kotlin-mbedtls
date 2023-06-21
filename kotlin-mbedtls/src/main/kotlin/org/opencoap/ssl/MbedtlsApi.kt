@@ -44,7 +44,7 @@ internal object MbedtlsApi {
 
     // mbedtls/ssl.h
     external fun mbedtls_ssl_conf_authmode(mbedtlsSslConfig: Pointer, authmode: Int)
-    external fun mbedtls_ssl_conf_ciphersuites(sslConfig: Pointer, cipherSuiteIds: Memory): Int
+    external fun mbedtls_ssl_conf_ciphersuites(sslConfig: Pointer, cipherSuiteIds: Memory)
     external fun mbedtls_ssl_conf_dbg(mbedtlsSslConfig: Pointer, callback: Callback, pDbg: Pointer?)
     external fun mbedtls_ssl_conf_dtls_cookies(mbedtlsSslConfig: Pointer, fCookieWrite: Function?, fCookieCheck: Function?, pCookie: Pointer?)
     external fun mbedtls_ssl_conf_handshake_timeout(sslConfig: Pointer, min: Int, max: Int)
