@@ -151,7 +151,7 @@ class SslConfig(
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
                 cipherSuiteIds = mapCipherSuites(cipherSuites)
-                mbedtls_ssl_conf_ciphersuites(sslConfig, cipherSuiteIds).verify()
+                mbedtls_ssl_conf_ciphersuites(sslConfig, cipherSuiteIds)
             }
 
             if (cidSupplier != EmptyCidSupplier) {
