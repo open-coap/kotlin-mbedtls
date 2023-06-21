@@ -31,7 +31,7 @@ import java.nio.ByteBuffer
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    private val LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls-3.4.0")
+    private val LIB_MBEDTLS = NativeLibrary.getInstance("libmbedtls-3.4.0")
 
     init {
         Native.register(LIB_MBEDTLS)
