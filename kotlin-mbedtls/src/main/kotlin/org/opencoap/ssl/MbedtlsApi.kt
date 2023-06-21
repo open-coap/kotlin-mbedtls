@@ -23,6 +23,7 @@ import com.sun.jna.Function
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
+import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
@@ -31,7 +32,8 @@ import java.nio.ByteBuffer
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    private val LIB_MBEDTLS = NativeLibrary.getInstance("libmbedtls-3.4.0")
+    private val libraryName = if (Platform.isWindows()) "libmbedtls-3.4.0" else "mbedtls-3.4.0"
+    private val LIB_MBEDTLS = NativeLibrary.getInstance(libraryName)
 
     init {
         Native.register(LIB_MBEDTLS)
