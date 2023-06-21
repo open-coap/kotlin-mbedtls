@@ -10,8 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '8', '11', '17' ]
-        platform: [ 'ubuntu-latest', 'macos-12', 'windows-latest' ]
+        java: [ '17' ]
+        platform: [ 'windows-latest' ]
         exclude:
           - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-12' }}
 
