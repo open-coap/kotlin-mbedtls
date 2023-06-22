@@ -46,10 +46,8 @@ jobs:
       image: dockcross/windows-static-x64
     steps:
       - uses: actions/checkout@v3
-      - name: Windows flag
-        run: export WINDOWS=1
       - name: Compile
-        run: LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh
+        run: WINDOWS=1 LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
         with:

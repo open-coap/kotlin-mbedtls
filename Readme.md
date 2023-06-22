@@ -12,6 +12,7 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 - Precompiled mbedtls binaries for
   - linux (x64)
   - macos (intel and arm)
+  - windows (x64)
 - DTLS 1.2 client and server modes
 - DTLS 1.2 CID support (RFC 9146)
   - Storing and restoring sessions
@@ -81,6 +82,7 @@ Precompiled:
 
 - Linux (x86-64)
 - Apple Mac (intel and arm)
+- Windows (x86-64)
 
 ## Development
 
@@ -105,6 +107,10 @@ Linux (x86_64):
 Mac (intel and arm):
 
 `LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh`
+
+Windows
+
+- `docker run -it -v$(pwd):/work --rm dockcross/windows-static-x64 sh -c "WINDOWS=1 LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh"`
 
 Cross compiling for linux (x86_64):
 
