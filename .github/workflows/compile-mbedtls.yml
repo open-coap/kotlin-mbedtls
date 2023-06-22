@@ -37,3 +37,20 @@ jobs:
           name: darwin
           path: mbedtls-lib/bin/darwin/*
           if-no-files-found: error
+
+  compile-windows:
+    name: "compile: windows"
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    container:
+      image: dockcross/windows-static-x64
+    steps:
+      - uses: actions/checkout@v3
+      - name: Compile
+        run: WINDOWS=1 LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: win32-x86-64
+          path: mbedtls-lib/bin/win32-x86-64/*
+          if-no-files-found: error
