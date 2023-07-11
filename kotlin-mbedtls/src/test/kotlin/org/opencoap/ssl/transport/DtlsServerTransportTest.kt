@@ -114,9 +114,9 @@ class DtlsServerTransportTest {
 
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(clientAddress, any(), false)
         }
 
@@ -166,9 +166,9 @@ class DtlsServerTransportTest {
         assertFalse(srvReceive.isDone)
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
@@ -194,7 +194,7 @@ class DtlsServerTransportTest {
 
         verifyOrder {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
         }
     }
@@ -236,11 +236,11 @@ class DtlsServerTransportTest {
         cliChannel.close()
 
         verify(atMost = 100) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
         }
     }
 
@@ -307,12 +307,12 @@ class DtlsServerTransportTest {
 
         // No handshake failures other than HelloVerifyRequired
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
         }
 
         // One successful handshake must happen
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
         }
     }
 
@@ -334,7 +334,7 @@ class DtlsServerTransportTest {
         cli.close()
 
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
         }
     }
 
@@ -388,9 +388,9 @@ class DtlsServerTransportTest {
 
         verifyOrder() {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), false)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), true)
