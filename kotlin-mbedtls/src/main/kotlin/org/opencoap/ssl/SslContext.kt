@@ -92,6 +92,7 @@ class SslHandshakeContext internal constructor(
             }
 
             else -> throw SslException.from(ret).also {
+                finishTimestamp = System.currentTimeMillis()
                 logger.debug("[{}] DTLS failed handshake: {}", peerAdr, it.message)
             }
         }

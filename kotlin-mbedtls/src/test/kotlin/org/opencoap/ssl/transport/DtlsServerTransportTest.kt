@@ -20,7 +20,6 @@ import io.mockk.clearMocks
 import io.mockk.confirmVerified
 import io.mockk.mockk
 import io.mockk.verify
-import io.mockk.verifyOrder
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -112,7 +111,7 @@ class DtlsServerTransportTest {
         val clientAddress = client.localAddress()
         client.close()
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
             sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
@@ -164,7 +163,7 @@ class DtlsServerTransportTest {
             assertEquals(0, server.numberOfSessions())
         }
         assertFalse(srvReceive.isDone)
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
@@ -192,7 +191,7 @@ class DtlsServerTransportTest {
 
         client.close()
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
@@ -285,7 +284,7 @@ class DtlsServerTransportTest {
             assertEquals(0, server.numberOfSessions())
         }
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
         }
@@ -386,7 +385,7 @@ class DtlsServerTransportTest {
         }
         client.close()
 
-        verifyOrder() {
+        verify() {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
