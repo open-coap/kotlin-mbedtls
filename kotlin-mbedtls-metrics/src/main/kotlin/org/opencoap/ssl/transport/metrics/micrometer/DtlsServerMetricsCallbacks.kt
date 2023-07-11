@@ -54,10 +54,10 @@ class DtlsServerMetricsCallbacks(
         handshakesInitiated.increment()
     }
 
-    override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when {
+    override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when {
         throwable is HelloVerifyRequired -> {} // Skip HelloVerifyRequired handshake states
         reason == DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
-            handshakesSucceeded.record(System.currentTimeMillis() - hanshakeStartTimestamp, TimeUnit.MILLISECONDS)
+            handshakesSucceeded.record(hanshakeFinishTimestamp - hanshakeStartTimestamp, TimeUnit.MILLISECONDS)
         reason == DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
         reason == DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->

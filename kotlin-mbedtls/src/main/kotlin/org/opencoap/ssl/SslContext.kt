@@ -68,6 +68,7 @@ class SslHandshakeContext internal constructor(
 ) : SslContext {
     private val logger = LoggerFactory.getLogger(javaClass)
     val startTimestamp: Long = System.currentTimeMillis()
+    var finishTimestamp: Long = 0
     private var stepTimeout: Duration = Duration.ZERO
 
     fun step(send: (ByteBuffer) -> Unit): SslContext = step0(null, send)
@@ -86,7 +87,8 @@ class SslHandshakeContext internal constructor(
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
             MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
             0 -> SslSession(conf, sslContext, cid).also {
-                logger.info("[{}] DTLS connected in {}ms {}", peerAdr, System.currentTimeMillis() - startTimestamp, it)
+                finishTimestamp = System.currentTimeMillis()
+                logger.info("[{}] DTLS connected in {}ms {}", peerAdr, finishTimestamp - startTimestamp, it)
             }
 
             else -> throw SslException.from(ret).also {
