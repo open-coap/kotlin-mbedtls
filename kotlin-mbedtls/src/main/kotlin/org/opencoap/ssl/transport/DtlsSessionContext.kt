@@ -20,10 +20,34 @@ typealias AuthenticationContext = Map<String, String>
 
 data class DtlsSessionContext @JvmOverloads constructor(
     val authenticationContext: AuthenticationContext = emptyMap(),
-    val peerCertificateSubject: String? = null
+    val peerCertificateSubject: String? = null,
+    val cid: ByteArray? = null
 ) {
     companion object {
         @JvmField
         val EMPTY = DtlsSessionContext()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as DtlsSessionContext
+
+        if (authenticationContext != other.authenticationContext) return false
+        if (peerCertificateSubject != other.peerCertificateSubject) return false
+        if (cid != null) {
+            if (other.cid == null) return false
+            if (!cid.contentEquals(other.cid)) return false
+        } else if (other.cid != null) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = authenticationContext.hashCode()
+        result = 31 * result + (peerCertificateSubject?.hashCode() ?: 0)
+        result = 31 * result + (cid?.contentHashCode() ?: 0)
+        return result
     }
 }
