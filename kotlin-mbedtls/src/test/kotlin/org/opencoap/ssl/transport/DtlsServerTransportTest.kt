@@ -456,8 +456,8 @@ class DtlsServerTransportTest {
         client.send("msg2")
 
         // then
-        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
-        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
+        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
+        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
 
         client.close()
     }
