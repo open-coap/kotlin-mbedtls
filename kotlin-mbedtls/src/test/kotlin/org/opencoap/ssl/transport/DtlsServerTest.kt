@@ -230,8 +230,8 @@ class DtlsServerTest {
     fun `should find session cid`() {
         // given
         val clientSession = clientHandshake()
-        val cid2 = dtlsServer.getCidStateFromAddress(localAddress(2_5684))
-        assert(cid2!!.isNotEmpty())
+        val cid = dtlsServer.getSessionCid(localAddress(2_5684))
+        assert(cid!!.isNotEmpty())
         clientSession.close()
     }
 
@@ -239,8 +239,8 @@ class DtlsServerTest {
     fun `shouldn't find session cid`() {
         // given
         val clientSession = clientHandshake()
-        val cid2 = dtlsServer.getCidStateFromAddress(localAddress(1234))
-        assertEquals(null, cid2)
+        val cid = dtlsServer.getSessionCid(localAddress(1234))
+        assertEquals(null, cid)
         clientSession.close()
     }
 

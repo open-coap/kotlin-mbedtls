@@ -50,7 +50,7 @@ class DtlsServer(
     private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
-    fun getCidStateFromAddress(inet: InetSocketAddress): ByteArray? {
+    fun getSessionCid(inet: InetSocketAddress): ByteArray? {
         val dtlsState = sessions[inet] as? DtlsSession
         return dtlsState?.sessionContext?.cid
     }
@@ -220,7 +220,7 @@ class DtlsServer(
             get() = DtlsSessionContext(
                 peerCertificateSubject = ctx.peerCertificateSubject,
                 authenticationContext = authenticationContext,
-                cid = ctx.ownCid ?: ctx.peerCid
+                cid = if (ctx.ownCid?.isEmpty() != true) ctx.ownCid else ctx.peerCid
             )
 
         init {

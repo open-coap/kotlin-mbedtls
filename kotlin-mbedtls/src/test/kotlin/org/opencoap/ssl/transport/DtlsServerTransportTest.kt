@@ -439,6 +439,18 @@ class DtlsServerTransportTest {
     }
 
     @Test
+    fun `should return cid`() {
+        server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+
+        // when
+        client.send("hello")
+
+        val cid = server.getSessionCid(server.localAddress())
+        assert(cid != null)
+    }
+
+    @Test
     fun `should set and use session context`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
