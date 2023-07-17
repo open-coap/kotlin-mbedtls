@@ -443,10 +443,7 @@ class DtlsServerTransportTest {
     fun `should return cid`() {
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
-
-        // when
-        client.send("hello")
-
+        client.send("Authenticate:dev-007")
         val cid = server.getSessionCid(localAddress(server.localPort()))
         assertNotNull(cid)
     }
