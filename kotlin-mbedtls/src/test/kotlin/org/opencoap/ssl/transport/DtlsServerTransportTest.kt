@@ -447,7 +447,7 @@ class DtlsServerTransportTest {
         // when
         client.send("hello")
 
-        val cid = server.getSessionCid(client.localAddress())
+        val cid = server.getSessionCid(localAddress(server.localPort()))
         assertNotNull(cid)
     }
 
