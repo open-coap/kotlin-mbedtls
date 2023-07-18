@@ -444,7 +444,7 @@ class DtlsServerTransportTest {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("hello!")
-        val cid = server.getSessionCid(localAddress(1234))
+        val cid = server.getSessionCid(localAddress(1234)).await()
         assertNull(cid)
     }
 

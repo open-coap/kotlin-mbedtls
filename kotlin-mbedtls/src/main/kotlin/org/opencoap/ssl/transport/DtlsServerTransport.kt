@@ -115,5 +115,5 @@ class DtlsServerTransport private constructor(
             dtlsServer.putSessionAuthenticationContext(adr, key, value)
         }
 
-    fun getSessionCid(adr: InetSocketAddress) = dtlsServer.getSessionCid(adr)
+    fun getSessionCid(adr: InetSocketAddress) = executor.supply { dtlsServer.getSessionCid(adr) }
 }
