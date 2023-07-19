@@ -25,6 +25,7 @@ import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.CertificateAuth
@@ -439,6 +440,15 @@ class DtlsServerTransportTest {
     }
 
     @Test
+    fun `should not return cid`() {
+        server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("hello!")
+        val cid = server.getSessionCid(localAddress(1234)).await()
+        assertNull(cid)
+    }
+
+    @Test
     fun `should set and use session context`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
@@ -456,8 +466,8 @@ class DtlsServerTransportTest {
         client.send("msg2")
 
         // then
-        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
-        assertEquals(DtlsSessionContext(mapOf("auth" to "id:dev-007")), server.receive(1.seconds).await().sessionContext)
+        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
+        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
 
         client.close()
     }

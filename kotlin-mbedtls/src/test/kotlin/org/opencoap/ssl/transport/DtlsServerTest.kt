@@ -216,7 +216,6 @@ class DtlsServerTest {
         // given
         val clientSession = clientHandshake()
         assertEquals(1, dtlsServer.numberOfSessions)
-
         // and nothing is sent to server
 
         // when, inactivity
@@ -224,6 +223,24 @@ class DtlsServerTest {
             assertEquals(0, dtlsServer.numberOfSessions)
         }
 
+        clientSession.close()
+    }
+
+    @Test
+    fun `should find session cid`() {
+        // given
+        val clientSession = clientHandshake()
+        val cid = dtlsServer.getSessionCid(localAddress(2_5684))
+        assert(cid!!.isNotEmpty())
+        clientSession.close()
+    }
+
+    @Test
+    fun `shouldn't find session cid`() {
+        // given
+        val clientSession = clientHandshake()
+        val cid = dtlsServer.getSessionCid(localAddress(1234))
+        assertEquals(null, cid)
         clientSession.close()
     }
 
