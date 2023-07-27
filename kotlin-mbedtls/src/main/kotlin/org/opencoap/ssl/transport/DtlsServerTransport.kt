@@ -88,6 +88,11 @@ class DtlsServerTransport private constructor(
                     }
                 }
             }
+
+            is DtlsServer.ReceiveResult.CidSessionPreemption -> {
+                val copyBuf = buf.copy()
+                receive0(adr, copyBuf, timeout)
+            }
         }
     }
 

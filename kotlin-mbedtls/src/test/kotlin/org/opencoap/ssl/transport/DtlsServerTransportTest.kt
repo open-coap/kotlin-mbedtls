@@ -25,6 +25,7 @@ import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -470,6 +471,55 @@ class DtlsServerTransportTest {
         assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
 
         client.close()
+    }
+
+    @Test
+    fun `should reuse the session interrupted by another client from the same port`() {
+        server = DtlsServerTransport.create(conf, sessionStore = sessionStore, expireAfter = 5.seconds).listen(echoHandler)
+
+        // Client1
+        val (cid1, session1) = DtlsTransmitter.connect(server, clientConfig, bindPort = 2_5684).await().use {
+            it.send("hello:client1")
+            assertEquals("hello:client1:resp", it.receiveString())
+
+            Pair(
+                server.getSessionCid(localAddress(2_5684)).await()!!,
+                it.saveSession()
+            )
+        }
+
+        // Client2
+        val (cid2, session2) = DtlsTransmitter.connect(server, clientConfig, bindPort = 2_5684).await().use {
+            it.send("hello:client2")
+            assertEquals("hello:client2:resp", it.receiveString())
+
+            Pair(
+                server.getSessionCid(localAddress(2_5684)).await()!!,
+                it.saveSession()
+            )
+        }
+
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+
+        assertEquals(2, sessionStore.size())
+
+        // Client1 again
+        DtlsTransmitter.create(server.localAddress(), clientConfig.loadSession(cid1, session1, server.localAddress()), 2_5684).use {
+            it.send("hello:client1")
+            assertEquals("hello:client1:resp", it.receiveString())
+        }
+
+        // Client2 again
+        DtlsTransmitter.create(server.localAddress(), clientConfig.loadSession(cid2, session2, server.localAddress()), 2_5684).use {
+            it.send("hello:client2")
+            assertEquals("hello:client2:resp", it.receiveString())
+        }
+
+        await.untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
     }
 
     private fun <T> Transport<T>.dropReceive(drop: (Int) -> Boolean): Transport<T> {

@@ -20,7 +20,7 @@ import java.net.InetSocketAddress
 
 interface DtlsSessionLifecycleCallbacks {
     enum class Reason {
-        SUCCEEDED, FAILED, CLOSED, EXPIRED
+        SUCCEEDED, FAILED, CLOSED, EXPIRED, PREEMPTED
     }
     fun handshakeStarted(adr: InetSocketAddress) = Unit
     fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
