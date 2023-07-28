@@ -61,13 +61,12 @@ class DtlsServer(
 
         return when {
             dtlsState is DtlsHandshake -> dtlsState.step(buf)
-            dtlsState is DtlsSession -> {
-                if (dtlsState.sessionContext.cid?.contentEquals(cid) != true) {
+            dtlsState is DtlsSession ->
+                if (dtlsState.sessionContext.cid != null && !dtlsState.sessionContext.cid.contentEquals(cid)) {
                     dtlsState.preemptSession()
                 } else {
                     dtlsState.decrypt(buf)
                 }
-            }
 
             // no session, but dtls packet contains CID
             cid != null -> ReceiveResult.CidSessionMissing(cid!!)
@@ -134,7 +133,7 @@ class DtlsServer(
         object DecryptFailed : ReceiveResult
         class Decrypted(val packet: Packet<ByteBuffer>) : ReceiveResult
         class CidSessionMissing(val cid: ByteArray) : ReceiveResult
-        object CidSessionPreemption : ReceiveResult
+        object CidSessionPreempted : ReceiveResult
     }
 
     private abstract inner class DtlsState(val peerAddress: InetSocketAddress) {
@@ -307,7 +306,7 @@ class DtlsServer(
             sessions.remove(peerAddress, this)
             storeAndClose()
 
-            return ReceiveResult.CidSessionPreemption
+            return ReceiveResult.CidSessionPreempted
         }
     }
 }
