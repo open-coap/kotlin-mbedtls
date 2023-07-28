@@ -70,6 +70,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
                 is DtlsServer.ReceiveResult.Decrypted -> ctx.fireChannelRead(DatagramPacketWithContext.from(result.packet))
 
                 is DtlsServer.ReceiveResult.CidSessionMissing -> loadSession(result, msg.retain(), ctx)
+                is DtlsServer.ReceiveResult.CidSessionPreempted -> channelRead(ctx, msg)
             }
         }
     }
