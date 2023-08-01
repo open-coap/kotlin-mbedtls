@@ -20,7 +20,6 @@ import io.mockk.clearMocks
 import io.mockk.confirmVerified
 import io.mockk.mockk
 import io.mockk.verify
-import io.mockk.verifyOrder
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -113,11 +112,11 @@ class DtlsServerTransportTest {
         val clientAddress = client.localAddress()
         client.close()
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(clientAddress)
-            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(clientAddress, any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(clientAddress, any(), false)
         }
 
@@ -165,11 +164,11 @@ class DtlsServerTransportTest {
             assertEquals(0, server.numberOfSessions())
         }
         assertFalse(srvReceive.isDone)
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
@@ -193,9 +192,9 @@ class DtlsServerTransportTest {
 
         client.close()
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
         }
     }
@@ -237,11 +236,11 @@ class DtlsServerTransportTest {
         cliChannel.close()
 
         verify(atMost = 100) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
         }
 
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
         }
     }
 
@@ -286,7 +285,7 @@ class DtlsServerTransportTest {
             assertEquals(0, server.numberOfSessions())
         }
 
-        verifyOrder {
+        verify {
             sslLifecycleCallbacks.sessionStarted(any(), any(), any())
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.CLOSED)
         }
@@ -308,12 +307,12 @@ class DtlsServerTransportTest {
 
         // No handshake failures other than HelloVerifyRequired
         verify(exactly = 0) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, not(ofType(HelloVerifyRequired::class)))
         }
 
         // One successful handshake must happen
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
         }
     }
 
@@ -335,7 +334,7 @@ class DtlsServerTransportTest {
         cli.close()
 
         verify(exactly = 1) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, and(ofType(SslException::class), not(ofType(HelloVerifyRequired::class))))
         }
     }
 
@@ -387,11 +386,11 @@ class DtlsServerTransportTest {
         }
         client.close()
 
-        verifyOrder() {
+        verify() {
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
+            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), false)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), true)

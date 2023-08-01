@@ -23,7 +23,7 @@ interface DtlsSessionLifecycleCallbacks {
         SUCCEEDED, FAILED, CLOSED, EXPIRED
     }
     fun handshakeStarted(adr: InetSocketAddress) = Unit
-    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
+    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
     fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) = Unit
     fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
 }
