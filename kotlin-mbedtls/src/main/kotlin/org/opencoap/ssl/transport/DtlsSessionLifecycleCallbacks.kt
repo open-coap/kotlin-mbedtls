@@ -17,13 +17,37 @@
 package org.opencoap.ssl.transport
 
 import java.net.InetSocketAddress
+import java.util.concurrent.Executor
 
 interface DtlsSessionLifecycleCallbacks {
     enum class Reason {
         SUCCEEDED, FAILED, CLOSED, EXPIRED
     }
+
     fun handshakeStarted(adr: InetSocketAddress) = Unit
-    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
+    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: Reason, throwable: Throwable? = null) =
+        Unit
+
     fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) = Unit
     fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
+}
+
+class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private val callbacks: DtlsSessionLifecycleCallbacks) :
+    DtlsSessionLifecycleCallbacks {
+
+    override fun handshakeStarted(adr: InetSocketAddress) {
+        executor.supply { callbacks.handshakeStarted(adr) }
+    }
+
+    override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) {
+        executor.supply { callbacks.handshakeFinished(adr, hanshakeStartTimestamp, hanshakeFinishTimestamp, reason, throwable) }
+    }
+
+    override fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) {
+        executor.supply { callbacks.sessionStarted(adr, cipherSuite, reloaded) }
+    }
+
+    override fun sessionFinished(adr: InetSocketAddress, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) {
+        executor.supply { callbacks.sessionFinished(adr, reason, throwable) }
+    }
 }

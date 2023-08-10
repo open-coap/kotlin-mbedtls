@@ -202,11 +202,11 @@ class DtlsServer(
         override fun close() = ctx.close()
 
         private fun reportHandshakeStarted() {
-            executor.supply { lifecycleCallbacks.handshakeStarted(peerAddress) }
+            lifecycleCallbacks.handshakeStarted(peerAddress)
         }
 
         private fun reportHandshakeFinished(reason: DtlsSessionLifecycleCallbacks.Reason, err: Throwable? = null) {
-            executor.supply { lifecycleCallbacks.handshakeFinished(peerAddress, ctx.startTimestamp, ctx.finishTimestamp, reason, err) }
+            lifecycleCallbacks.handshakeFinished(peerAddress, ctx.startTimestamp, ctx.finishTimestamp, reason, err)
         }
     }
 
@@ -287,11 +287,11 @@ class DtlsServer(
         }
 
         private fun reportSessionStarted() {
-            executor.supply { lifecycleCallbacks.sessionStarted(peerAddress, ctx.cipherSuite, ctx.reloaded) }
+            lifecycleCallbacks.sessionStarted(peerAddress, ctx.cipherSuite, ctx.reloaded)
         }
 
         private fun reportSessionFinished(reason: DtlsSessionLifecycleCallbacks.Reason, err: Throwable? = null) {
-            executor.supply { lifecycleCallbacks.sessionFinished(peerAddress, reason, err) }
+            lifecycleCallbacks.sessionFinished(peerAddress, reason, err)
         }
     }
 }
