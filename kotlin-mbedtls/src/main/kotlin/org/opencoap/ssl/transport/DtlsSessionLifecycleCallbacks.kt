@@ -51,3 +51,6 @@ class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private
         executor.supply { callbacks.sessionFinished(adr, reason, throwable) }
     }
 }
+
+fun DtlsSessionLifecycleCallbacks.toAsync(executor: Executor): DtlsSessionLifecycleCallbacks =
+    AsyncDtlsSessionLifecycleCallbacks(executor, this)

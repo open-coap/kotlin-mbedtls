@@ -30,7 +30,7 @@ class AsyncDtlsSessionLifecycleCallbacksTest {
     @Test
     fun `should invoke callbacks`() {
         val callbackMock = mockk<DtlsSessionLifecycleCallbacks>()
-        val asyncCallbacks = AsyncDtlsSessionLifecycleCallbacks(Executors.newSingleThreadExecutor(), callbackMock)
+        val asyncCallbacks = callbackMock.toAsync(Executors.newSingleThreadExecutor())
 
         // when
         asyncCallbacks.handshakeStarted(localAddress(5683))
@@ -51,7 +51,7 @@ class AsyncDtlsSessionLifecycleCallbacksTest {
     @Test
     fun `should not invoke callbacks with non operational executor`() {
         val callbackMock = mockk<DtlsSessionLifecycleCallbacks>()
-        val asyncCallbacks = AsyncDtlsSessionLifecycleCallbacks({}, callbackMock)
+        val asyncCallbacks = callbackMock.toAsync {}
 
         // when
         asyncCallbacks.handshakeStarted(localAddress(5683))
