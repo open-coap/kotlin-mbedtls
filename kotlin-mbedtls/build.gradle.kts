@@ -4,9 +4,9 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 plugins {
     id("java-test-fixtures")
     id("org.jetbrains.kotlin.jvm")
-    id("org.jlleitschuh.gradle.ktlint") version "11.4.0"
+    id("org.jlleitschuh.gradle.ktlint") version "11.5.1"
     id("com.adarshr.test-logger") version "3.2.0"
-    id("io.gitlab.arturbosch.detekt") version "1.23.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.1"
     id("me.champeau.jmh") version "0.7.1"
 }
 
@@ -22,8 +22,8 @@ dependencies {
     // TESTS
     testFixturesApi("org.bouncycastle:bcpkix-jdk15on:1.70")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("ch.qos.logback:logback-classic:1.3.0")
     testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
