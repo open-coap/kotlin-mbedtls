@@ -50,6 +50,7 @@ import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
 import java.nio.channels.ClosedChannelException
 import java.nio.charset.Charset
+import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -141,7 +142,7 @@ class NettyTest {
         val client = NettyTransportAdapter.connect(clientConfig2, srvAddress).mapToString()
 
         // then
-        assertThatThrownBy { client.send("hi").await() }.hasCauseInstanceOf(ClosedChannelException::class.java)
+        assertThatThrownBy { client.send("hi").await() }.isInstanceOf(ExecutionException::class.java).hasCauseInstanceOf(ClosedChannelException::class.java)
         assertThatThrownBy { client.send("hi").await() }.hasCauseInstanceOf(ClosedChannelException::class.java)
 
         client.close()

@@ -95,13 +95,17 @@ class DtlsClientHandshakeChannelHandler(
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         sslHandshakeContext.close()
+        releaseOutboundMessages()
+
+        super.close(ctx, promise)
+    }
+
+    private fun releaseOutboundMessages() {
         outboundMessages.forEach { (plain, promise) ->
             plain.release()
             promise.setFailure(ClosedChannelException())
         }
         outboundMessages.clear()
-
-        super.close(ctx, promise)
     }
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {
@@ -110,5 +114,7 @@ class DtlsClientHandshakeChannelHandler(
             return
         }
         outboundMessages.add(Pair(msg, promise))
+
+        if (!ctx.channel().isOpen) releaseOutboundMessages()
     }
 }
