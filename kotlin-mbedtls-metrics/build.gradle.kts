@@ -1,6 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.jlleitschuh.gradle.ktlint.KtlintExtension
-
 dependencies {
     api(project(":kotlin-mbedtls"))
 
@@ -17,25 +14,6 @@ dependencies {
     testImplementation("ch.qos.logback:logback-classic:1.3.0")
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "1.8"
-}
-
 tasks.test {
     useJUnitPlatform()
-}
-
-detekt {
-    source = files("src/main/kotlin")
-    config = files("../detekt.yml")
-    buildUponDefaultConfig = true
-}
-
-configure<KtlintExtension> {
-    disabledRules.set(setOf("trailing-comma-on-call-site", "trailing-comma-on-declaration-site"))
 }

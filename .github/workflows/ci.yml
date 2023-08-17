@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '8', '11', '17' ]
+        java: [ '8', '17', '21' ]
         platform: [ 'ubuntu-latest', 'macos-12', 'windows-latest' ]
         exclude:
           - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-12' }}
@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           java-version: ${{ matrix.java }}
-          distribution: 'adopt'
+          distribution: 'corretto'
 
       - name: Enable using libraries from temporary location in mac
         if: ${{ matrix.platform == 'macos-12' }}

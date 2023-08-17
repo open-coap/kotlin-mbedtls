@@ -1,4 +1,8 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.9.10"
@@ -38,7 +42,23 @@ allprojects {
     version = kewtVersioning.version
     group = "io.github.open-coap"
 
+    java {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlin {
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_1_8)
+    }
+
     tasks {
+        withType<Detekt>().configureEach {
+            jvmTarget = "1.8"
+        }
+        withType<DetektCreateBaselineTask>().configureEach {
+            jvmTarget = "1.8"
+        }
+
         withType<DependencyUpdatesTask> {
             rejectVersionIf {
                 val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { candidate.version.toUpperCase().contains(it) }
@@ -59,6 +79,16 @@ allprojects {
             archiveClassifier.set("javadoc")
             from(javadoc)
         }
+    }
+
+    configure<KtlintExtension> {
+        disabledRules.set(setOf("trailing-comma-on-call-site", "trailing-comma-on-declaration-site"))
+    }
+
+    detekt {
+        source.setFrom("$projectDir/src/main/kotlin")
+        config.setFrom("$rootDir/detekt.yml")
+        buildUponDefaultConfig = true
     }
 
     publishing {

@@ -1,6 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.jlleitschuh.gradle.ktlint.KtlintExtension
-
 plugins {
     id("java-test-fixtures")
     id("me.champeau.jmh") version "0.7.1"
@@ -26,25 +23,6 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.5")
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions.jvmTarget = "1.8"
-}
-
 tasks.test {
     useJUnitPlatform()
-}
-
-detekt {
-    source = files("src/main/kotlin")
-    config = files("../detekt.yml")
-    buildUponDefaultConfig = true
-}
-
-configure<KtlintExtension> {
-    disabledRules.set(setOf("trailing-comma-on-call-site", "trailing-comma-on-declaration-site"))
 }
