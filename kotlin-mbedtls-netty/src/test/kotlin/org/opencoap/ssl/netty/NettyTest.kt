@@ -35,6 +35,7 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.SslException
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.HashMapSessionStore
@@ -180,13 +181,20 @@ class NettyTest {
         assertEquals("ECHO:hi", client.receive(5.seconds).await())
 
         // when
-        srvChannel.writeAndFlush(SessionAuthenticationContext(client.localAddress(), "AUTH", "007:")).get()
+        srvChannel.writeAndFlush(SessionAuthenticationContext(client.localAddress(), mapOf("AUTH" to "007:"))).get()
 
         // then
         assertTrue(client.send("hi").await())
         assertEquals("ECHO:007:hi", client.receive(5.seconds).await())
 
         client.close()
+    }
+
+    @Test
+    fun `should fail to forward authentication context for non existing client`() {
+        assertThatThrownBy {
+            srvChannel.writeAndFlush(SessionAuthenticationContext(localAddress(1), mapOf("AUTH" to "007:"))).get()
+        }.hasRootCause(SslException("Session does not exists"))
     }
 
     @Test
