@@ -18,4 +18,4 @@ package org.opencoap.ssl.netty
 
 import java.net.InetSocketAddress
 
-data class SessionAuthenticationContext(val adr: InetSocketAddress, val key: String, val value: String?)
+data class SessionAuthenticationContext(val adr: InetSocketAddress, val map: Map<String, String?>)
