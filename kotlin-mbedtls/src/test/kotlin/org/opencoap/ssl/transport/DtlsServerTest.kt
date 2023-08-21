@@ -37,7 +37,6 @@ import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.Clock
 import java.time.Instant
 import java.util.LinkedList
 import java.util.concurrent.CompletableFuture
