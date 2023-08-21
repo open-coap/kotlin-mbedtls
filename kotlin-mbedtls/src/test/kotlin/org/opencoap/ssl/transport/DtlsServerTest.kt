@@ -37,6 +37,8 @@ import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.time.Clock
+import java.time.Instant
 import java.util.LinkedList
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
@@ -79,12 +81,14 @@ class DtlsServerTest {
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.CidSessionMissing)
 
         // when
-        dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf()), localAddress(2_5684), "f935adc57425e1b214f8640d56e0c733".decodeHex())
+        dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf(), 123456789), localAddress(2_5684), "f935adc57425e1b214f8640d56e0c733".decodeHex())
 
         // then
-        assertEquals("hello", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
-        val dtlsPacket2 = dtlsServer.encrypt("hello2".toByteBuffer(), localAddress(2_5684))!!.order(ByteOrder.BIG_ENDIAN)
-        assertEquals("hello2", clientSession.decrypt(dtlsPacket2, noSend).decodeToString())
+        val dtlsPacketIn = (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet
+        assertEquals("hello", dtlsPacketIn.buffer.decodeToString())
+        assertEquals(123456789, dtlsPacketIn.sessionContext.sessionStartTimestamp)
+        val dtlsPacketOut = dtlsServer.encrypt("hello2".toByteBuffer(), localAddress(2_5684))!!.order(ByteOrder.BIG_ENDIAN)
+        assertEquals("hello2", clientSession.decrypt(dtlsPacketOut, noSend).decodeToString())
 
         clientSession.close()
     }
@@ -106,7 +110,9 @@ class DtlsServerTest {
 
         // then
         val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
-        assertEquals("terve", (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet.buffer.decodeToString())
+        val dtlsPacketIn = (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet
+        assertEquals("terve", dtlsPacketIn.buffer.decodeToString())
+        assertTrue(Instant.now().epochSecond >= dtlsPacketIn.sessionContext.sessionStartTimestamp!!)
 
         assertEquals(1, dtlsServer.numberOfSessions)
         assertTrue(serverOutboundQueue.isEmpty())
@@ -223,24 +229,6 @@ class DtlsServerTest {
             assertEquals(0, dtlsServer.numberOfSessions)
         }
 
-        clientSession.close()
-    }
-
-    @Test
-    fun `should find session cid`() {
-        // given
-        val clientSession = clientHandshake()
-        val cid = dtlsServer.getSessionCid(localAddress(2_5684))
-        assert(cid!!.isNotEmpty())
-        clientSession.close()
-    }
-
-    @Test
-    fun `shouldn't find session cid`() {
-        // given
-        val clientSession = clientHandshake()
-        val cid = dtlsServer.getSessionCid(localAddress(1234))
-        assertEquals(null, cid)
         clientSession.close()
     }
 

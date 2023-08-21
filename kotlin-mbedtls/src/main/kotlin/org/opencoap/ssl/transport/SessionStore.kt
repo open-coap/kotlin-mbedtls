@@ -29,7 +29,8 @@ interface SessionStore {
 
 data class SessionWithContext(
     val sessionBlob: ByteArray,
-    val authenticationContext: AuthenticationContext
+    val authenticationContext: AuthenticationContext,
+    val sessionStartTimestamp: Long
 )
 
 fun interface SessionWriter {

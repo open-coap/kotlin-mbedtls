@@ -190,7 +190,7 @@ class NettyTest {
 
     @Test
     fun `server should load session from store`() {
-        sessionStore.write("059876266f7c5734fd352c5a3b7b3be2".decodeHex(), SessionWithContext(StoredSessionPair.srvSession, mapOf()))
+        sessionStore.write("059876266f7c5734fd352c5a3b7b3be2".decodeHex(), SessionWithContext(StoredSessionPair.srvSession, mapOf(), 123456789))
         val storeSessionMock: SessionWriter = mockk(relaxed = true)
         val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress), srvAddress, storeSessionMock).mapToString()
 
