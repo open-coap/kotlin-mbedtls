@@ -211,7 +211,7 @@ class DtlsServer(
         private val ctx: SslSession,
         peerAddress: InetSocketAddress,
         var authenticationContext: AuthenticationContext = emptyMap(),
-        private val sessionStartTimestamp: Long = Instant.now().epochSecond
+        private val sessionStartTimestamp: Instant = Instant.now()
     ) : DtlsState(peerAddress) {
 
         val sessionContext: DtlsSessionContext

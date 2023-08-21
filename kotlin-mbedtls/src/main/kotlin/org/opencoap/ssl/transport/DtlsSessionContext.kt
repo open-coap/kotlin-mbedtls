@@ -16,13 +16,15 @@
 
 package org.opencoap.ssl.transport
 
+import java.time.Instant
+
 typealias AuthenticationContext = Map<String, String>
 
 data class DtlsSessionContext @JvmOverloads constructor(
     val authenticationContext: AuthenticationContext = emptyMap(),
     val peerCertificateSubject: String? = null,
     val cid: ByteArray? = null,
-    val sessionStartTimestamp: Long? = null
+    val sessionStartTimestamp: Instant? = null
 ) {
     companion object {
         @JvmField

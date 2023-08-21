@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.transport
 
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -30,7 +31,7 @@ interface SessionStore {
 data class SessionWithContext(
     val sessionBlob: ByteArray,
     val authenticationContext: AuthenticationContext,
-    val sessionStartTimestamp: Long
+    val sessionStartTimestamp: Instant
 )
 
 fun interface SessionWriter {
