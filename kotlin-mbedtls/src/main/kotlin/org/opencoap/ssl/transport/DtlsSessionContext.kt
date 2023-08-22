@@ -16,12 +16,15 @@
 
 package org.opencoap.ssl.transport
 
+import java.time.Instant
+
 typealias AuthenticationContext = Map<String, String>
 
 data class DtlsSessionContext @JvmOverloads constructor(
     val authenticationContext: AuthenticationContext = emptyMap(),
     val peerCertificateSubject: String? = null,
-    val cid: ByteArray? = null
+    val cid: ByteArray? = null,
+    val sessionStartTimestamp: Instant? = null
 ) {
     companion object {
         @JvmField
@@ -40,6 +43,7 @@ data class DtlsSessionContext @JvmOverloads constructor(
             if (other.cid == null) return false
             if (!cid.contentEquals(other.cid)) return false
         } else if (other.cid != null) return false
+        if (sessionStartTimestamp != other.sessionStartTimestamp) return false
 
         return true
     }
@@ -48,6 +52,7 @@ data class DtlsSessionContext @JvmOverloads constructor(
         var result = authenticationContext.hashCode()
         result = 31 * result + (peerCertificateSubject?.hashCode() ?: 0)
         result = 31 * result + (cid?.contentHashCode() ?: 0)
+        result = 31 * result + (sessionStartTimestamp?.hashCode() ?: 0)
         return result
     }
 }

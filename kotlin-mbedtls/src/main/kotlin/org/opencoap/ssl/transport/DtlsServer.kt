@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
 import java.util.concurrent.ScheduledExecutorService
@@ -50,10 +51,6 @@ class DtlsServer(
     private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
     private val cidSize = sslConfig.cidSupplier.next().size
     val numberOfSessions get() = sessions.size
-    fun getSessionCid(inet: InetSocketAddress): ByteArray? {
-        val dtlsState = sessions[inet] as? DtlsSession
-        return dtlsState?.sessionContext?.cid
-    }
 
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
@@ -109,7 +106,7 @@ class DtlsServer(
                 logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                 false
             } else {
-                sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext)
+                sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
                 true
             }
         } catch (ex: SslException) {
@@ -213,14 +210,16 @@ class DtlsServer(
     private inner class DtlsSession(
         private val ctx: SslSession,
         peerAddress: InetSocketAddress,
-        var authenticationContext: AuthenticationContext = emptyMap()
+        var authenticationContext: AuthenticationContext = emptyMap(),
+        private val sessionStartTimestamp: Instant = Instant.now()
     ) : DtlsState(peerAddress) {
 
         val sessionContext: DtlsSessionContext
             get() = DtlsSessionContext(
                 peerCertificateSubject = ctx.peerCertificateSubject,
                 authenticationContext = authenticationContext,
-                cid = if (ctx.ownCid?.isEmpty() != true) ctx.ownCid else ctx.peerCid
+                cid = if (ctx.ownCid?.isEmpty() != true) ctx.ownCid else ctx.peerCid,
+                sessionStartTimestamp = sessionStartTimestamp
             )
 
         init {
@@ -233,7 +232,8 @@ class DtlsServer(
                 try {
                     val session = SessionWithContext(
                         sessionBlob = ctx.saveAndClose(),
-                        authenticationContext = authenticationContext
+                        authenticationContext = authenticationContext,
+                        sessionStartTimestamp = sessionStartTimestamp
                     )
                     storeSession(ctx.ownCid, session)
                 } catch (ex: SslException) {
