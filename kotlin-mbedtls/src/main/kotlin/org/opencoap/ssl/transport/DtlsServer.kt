@@ -237,7 +237,7 @@ class DtlsServer(
                     )
                     storeSession(ctx.ownCid, session)
                 } catch (ex: SslException) {
-                    logger.warn("[{}] DTLS failed to store session: {}, CID:{}", peerAddress, ex.message, ctx.ownCid.toHex())
+                    logger.warn("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
                 }
             } else {
                 close()
@@ -257,10 +257,10 @@ class DtlsServer(
                     ReceiveResult.Handled
                 }
             } catch (ex: CloseNotifyException) {
-                logger.info("[{}] DTLS received close notify", peerAddress)
+                logger.info("[{}] [CID:{}] DTLS received close notify", peerAddress, ownCidHex)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
             } catch (ex: SslException) {
-                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                logger.warn("[{}] [CID:{}] DTLS failed: {}", peerAddress, ownCidHex, ex.message)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
             }
 
@@ -273,7 +273,7 @@ class DtlsServer(
                 return ctx.encrypt(plainPacket)
             } catch (ex: SslException) {
                 closeAndRemove()
-                logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+                logger.warn("[{}] [CID:{}] DTLS failed: {}", peerAddress, ownCidHex, ex.message)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 throw ex
             }
@@ -282,9 +282,11 @@ class DtlsServer(
         fun timeout() {
             sessions.remove(peerAddress, this)
             storeAndClose()
-            logger.info("[{}] DTLS connection expired", peerAddress)
+            logger.info("[{}] [CID:{}] DTLS connection expired", peerAddress, ownCidHex)
             lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
+
+        private val ownCidHex: String get() = ctx.ownCid?.toHex() ?: "na"
 
         private fun reportSessionStarted() {
             lifecycleCallbacks.sessionStarted(peerAddress, ctx.cipherSuite, ctx.reloaded)
