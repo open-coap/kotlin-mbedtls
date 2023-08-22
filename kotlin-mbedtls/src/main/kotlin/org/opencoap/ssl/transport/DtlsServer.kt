@@ -236,8 +236,8 @@ class DtlsServer(
                         sessionStartTimestamp = sessionStartTimestamp
                     )
                     storeSession(ctx.ownCid, session)
-                } catch (ex: SslException) {
-                    logger.warn("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
+                } catch (ex: Exception) {
+                    logger.error("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
                 }
             } else {
                 close()
