@@ -46,16 +46,6 @@ jobs:
         with:
           name: win32-x86-64
           path: mbedtls-lib/bin/darwin/win32-x86-64/
-      - name: Generate PR description
-        run: |
-          PR_DESCRIPTION=$(cat build/dependencyUpdates/report.txt | grep -A 1000 'have later milestone versions')
-          echo "PR_DESCRIPTION<<EOF" >> $GITHUB_ENV
-          cat build/dependencyUpdates/report.txt | grep -A 1000 'have later milestone versions' >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat build/dependencyUpdates/report.txt | grep -A 1000 'have later milestone versions' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
