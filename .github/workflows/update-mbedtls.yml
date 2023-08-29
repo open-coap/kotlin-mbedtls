@@ -34,6 +34,9 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v3
+      - name: Cleanup old mbedtls binaries
+        run: |
+          rm -rf mbedtls-lib/bin
       - uses: actions/download-artifact@v3
         with:
           name: linux-x86-64
@@ -45,7 +48,7 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: win32-x86-64
-          path: mbedtls-lib/bin/darwin/win32-x86-64/
+          path: mbedtls-lib/bin/win32-x86-64/
       - name: Bump default compile version
         env:
           NEW_MBEDTLS_VERSION: ${{ needs.get-latest-mbedtls-version.outputs.mbedtlsVersion }}
