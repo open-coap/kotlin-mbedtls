@@ -4,9 +4,6 @@ on:
   schedule: # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     - cron: '0 1 * * 1' # run every monday at 01:00
   workflow_dispatch: # allow manual triggering if needed
-  push:
-    branches:
-      - mbedtls-3.4.1
 
 jobs:
   get-latest-mbedtls-version:
