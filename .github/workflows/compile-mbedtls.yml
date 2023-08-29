@@ -6,6 +6,12 @@ on:
       - 'compileMbedtls.sh'
       - '.github/workflows/compile-mbedtls.yml'
       - '**/src/**/*.c'
+  workflow_call:
+    inputs:
+      mbedtlsVersion:
+        type: string
+        required: false
+
 jobs:
   compile-linux:
     name: "compile: linux-x86-64"
@@ -14,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Compile
+        env:
+          MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
@@ -30,6 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Compile
+        env:
+          MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
@@ -47,6 +57,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Compile
+        env:
+          MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: WINDOWS=1 LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v3
