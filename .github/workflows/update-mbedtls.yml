@@ -4,6 +4,9 @@ on:
   schedule: # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     - cron: '0 1 * * 1' # run every monday at 01:00
   workflow_dispatch: # allow manual triggering if needed
+  push:
+    branches:
+      - mbedtls-3.4.1
 
 jobs:
   get-latest-mbedtls-version:
@@ -34,15 +37,15 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: linux-x86-64
-          path:
+          path: mbedtls-lib/bin/linux-x86-64/
       - uses: actions/download-artifact@v3
         with:
           name: darwin
-          path:
+          path: mbedtls-lib/bin/darwin/
       - uses: actions/download-artifact@v3
         with:
           name: win32-x86-64
-          path:
+          path: mbedtls-lib/bin/darwin/win32-x86-64/
       - name: Generate PR description
         run: |
           PR_DESCRIPTION=$(cat build/dependencyUpdates/report.txt | grep -A 1000 'have later milestone versions')
