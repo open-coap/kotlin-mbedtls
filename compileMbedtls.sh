@@ -1,5 +1,5 @@
 #!/bin/bash
-MBEDTLS_VERSION=3.4.0
+MBEDTLS_VERSION=${MBEDTLS_VERSION:-3.4.1}
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
