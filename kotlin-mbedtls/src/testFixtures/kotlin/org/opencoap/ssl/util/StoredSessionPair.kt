@@ -16,9 +16,33 @@
 
 package org.opencoap.ssl.util
 
-object StoredSessionPair {
-    // copied from DtlsTransmitterCertTest.`should successfully handshake with server only cert`
+import org.opencoap.ssl.CertificateAuth
+import org.opencoap.ssl.RandomCidSupplier
+import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.transport.DatagramChannelAdapter
+import org.opencoap.ssl.transport.DtlsTransmitter
+import java.time.Duration
 
-    val cliSession = "030400003700000f000001ba03000000006488627ac02b20cf96755ee6fe4407c862449adffe8ae8ae8a1c293dd9ad6ec64b778867f5baa65f6201fed39c1baf55ab697b24699167509b65a1acc8620817f4e496ebbd5b9bfa86ceb2c29a37719b26084a696476880000000000014f3082014b3081f3a00302010202060188b4c097a5300a06082a8648ce3d040302302e3110300e06035504030c07726f6f742d6361310d300b060355040a0c0441636d65310b3009060355040613024649301e170d3233303631333132333530305a170d3233303631333133333530305a302d310f300d06035504030c06736572766572310d300b060355040a0c0441636d65310b30090603550406130246493059301306072a8648ce3d020106082a8648ce3d030107034200041c932546750a8df812452284992b916a9dc984f3159e8142b5ae1de35143075fab9430b38220245481c2120549b5577bce8dc9481a8af925b2f19933d3319cb7300a06082a8648ce3d040302034700304402205d182473ee6ff273987e48bb40f7eb5004e5bdd5e091b4e7a5cf0721ed2353ab022006f3f0fbeafc1e9a763d1861111d177490917ec63c489018d3d35d5d1709b3c400000000000000006488627a6b40297fd7ed7776a982c3fdee5a158dd1a7395eabaa6e83092f623f6488627af0f86c9c70a45f6b7b37aa9c23340df34936a99fc9eefdee0967eab20010059876266f7c5734fd352c5a3b7b3be20000000000000000000000000000000000000001000001000000000002000000".decodeHex()
-    val srvSession = "030400003700000f0000006b03000000006488627ac02b20cf96755ee6fe4407c862449adffe8ae8ae8a1c293dd9ad6ec64b778867f5baa65f6201fed39c1baf55ab697b24699167509b65a1acc8620817f4e496ebbd5b9bfa86ceb2c29a37719b26084a696476880000008000000000000000000000006488627a6b40297fd7ed7776a982c3fdee5a158dd1a7395eabaa6e83092f623f6488627af0f86c9c70a45f6b7b37aa9c23340df34936a99fc9eefdee0967eab210059876266f7c5734fd352c5a3b7b3be2000000000000000000000000010000000000000003000001000000000001000000".decodeHex()
+object StoredSessionPair {
+    val cliSession: ByteArray
+    val srvSession: ByteArray
+    val cid: ByteArray
+
+    init {
+        // copied from DtlsTransmitterCertTest.`should successfully handshake with server only cert`
+
+        val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+        val srvTrans = DatagramChannelAdapter.connect(localAddress(7099), 0)
+        val server = DtlsTransmitter.connect(localAddress(7099), serverConf, srvTrans)
+
+        val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+        val client = DtlsTransmitter.connect(srvTrans, clientConf, 7099).await()
+
+        client.send("dupa")
+        server.await().receive(Duration.ofSeconds(5)).get()
+
+        cliSession = client.saveSession()
+        srvSession = server.await().saveSession()
+        cid = server.await().ownCid!!
+    }
 }

@@ -27,12 +27,18 @@ import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
+import java.util.Properties
 
 /*
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-    private val libraryName = if (Platform.isWindows()) "libmbedtls-3.4.0" else "mbedtls-3.4.0"
+    private val libraryName = javaClass.classLoader.getResourceAsStream("mbedtls.properties").use { resource ->
+        Properties().apply { load(resource) }.let { props ->
+            val mbedtlsVersion = props.getProperty("mbedtlsVersion")
+            if (Platform.isWindows()) "libmbedtls-$mbedtlsVersion" else "mbedtls-$mbedtlsVersion"
+        }
+    }
     private val LIB_MBEDTLS = NativeLibrary.getInstance(libraryName)
 
     init {
