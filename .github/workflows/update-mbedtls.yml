@@ -46,6 +46,11 @@ jobs:
         with:
           name: win32-x86-64
           path: mbedtls-lib/bin/darwin/win32-x86-64/
+      - name: Bump default compile version
+        env:
+          NEW_MBEDTLS_VERSION: ${{ needs.get-latest-mbedtls-version.outputs.mbedtlsVersion }}
+        run: |
+          sed -i 's/^\(DEFAULT_MBEDTLS_VERSION=\).\+$/\1'${NEW_MBEDTLS_VERSION}'/' compileMbedtls.sh
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
