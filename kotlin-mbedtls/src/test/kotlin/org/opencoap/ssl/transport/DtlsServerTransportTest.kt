@@ -139,7 +139,7 @@ class DtlsServerTransportTest {
                 it.get(30, TimeUnit.SECONDS)
             }.map { client ->
                 val i = Random.nextInt()
-                client.send("dupa$i")
+                client.send("dupa$i").await()
                 assertEquals("dupa$i:resp", client.receiveString())
 
                 client

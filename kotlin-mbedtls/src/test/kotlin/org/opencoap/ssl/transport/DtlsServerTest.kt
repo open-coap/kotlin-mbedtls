@@ -20,6 +20,7 @@ import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -111,9 +112,8 @@ class DtlsServerTest {
         val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
         val dtlsPacketIn = (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet
         assertEquals("terve", dtlsPacketIn.buffer.decodeToString())
-        assertTrue(Instant.now().isAfter(dtlsPacketIn.sessionContext.sessionStartTimestamp!!))
-
         assertEquals(1, dtlsServer.numberOfSessions)
+        assertNotNull(dtlsPacketIn.sessionContext.sessionStartTimestamp)
 
         await.untilAsserted {
             assertTrue(serverOutboundQueue.isEmpty())

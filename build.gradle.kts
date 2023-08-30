@@ -1,7 +1,7 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.0"
+    id("org.jetbrains.kotlin.jvm") version "1.9.10"
     id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
     id("se.patrikerdes.use-latest-versions") version "0.2.18"
     id("com.github.ben-manes.versions") version "0.47.0"
@@ -13,10 +13,6 @@ plugins {
     id("com.adarshr.test-logger") version "3.2.0"
     id("io.gitlab.arturbosch.detekt") version "1.23.1"
     id("me.champeau.jmh") version "0.7.1"
-}
-
-apply {
-    plugin("io.github.gradle-nexus.publish-plugin")
 }
 
 allprojects {
