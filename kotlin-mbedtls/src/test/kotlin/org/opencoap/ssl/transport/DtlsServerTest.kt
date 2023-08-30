@@ -111,7 +111,7 @@ class DtlsServerTest {
         val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
         val dtlsPacketIn = (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet
         assertEquals("terve", dtlsPacketIn.buffer.decodeToString())
-//        assertTrue(Instant.now().isAfter(dtlsPacketIn.sessionContext.sessionStartTimestamp!!))
+        assertTrue(Instant.now().isAfter(dtlsPacketIn.sessionContext.sessionStartTimestamp!!))
 
         assertEquals(1, dtlsServer.numberOfSessions)
 

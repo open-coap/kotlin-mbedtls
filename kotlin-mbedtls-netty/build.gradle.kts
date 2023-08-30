@@ -18,11 +18,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-    id("org.jlleitschuh.gradle.ktlint") version "11.5.1"
-    id("com.adarshr.test-logger") version "3.2.0"
-    id("io.gitlab.arturbosch.detekt") version "1.23.1"
-    id("me.champeau.jmh") version "0.7.1"
+    id("me.champeau.jmh")
 }
 
 dependencies {

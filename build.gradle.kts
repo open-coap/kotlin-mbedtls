@@ -9,6 +9,10 @@ plugins {
     id("maven-publish")
     id("org.gradle.signing")
     id("io.github.gradle-nexus.publish-plugin") version "1.3.0"
+    id("org.jlleitschuh.gradle.ktlint") version "11.5.1"
+    id("com.adarshr.test-logger") version "3.2.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.1"
+    id("me.champeau.jmh") version "0.7.1"
 }
 
 apply {
@@ -23,6 +27,10 @@ allprojects {
         plugin("java-library")
         plugin("maven-publish")
         plugin("org.gradle.signing")
+        plugin("org.jetbrains.kotlin.jvm")
+        plugin("org.jlleitschuh.gradle.ktlint")
+        plugin("com.adarshr.test-logger")
+        plugin("io.gitlab.arturbosch.detekt")
     }
 
     repositories {
@@ -100,7 +108,6 @@ allprojects {
             sign(publishing.publications["OSSRH"])
         }
     }
-
 }
 
 nexusPublishing {
