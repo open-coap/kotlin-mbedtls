@@ -12,7 +12,6 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") version "11.5.1"
     id("com.adarshr.test-logger") version "3.2.0"
     id("io.gitlab.arturbosch.detekt") version "1.23.1"
-    id("me.champeau.jmh") version "0.7.1"
 }
 
 allprojects {

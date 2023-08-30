@@ -18,7 +18,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
-    id("me.champeau.jmh")
+    id("me.champeau.jmh") version "0.7.1"
 }
 
 dependencies {

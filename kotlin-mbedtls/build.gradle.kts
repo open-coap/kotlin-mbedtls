@@ -3,7 +3,7 @@ import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
     id("java-test-fixtures")
-    id("me.champeau.jmh")
+    id("me.champeau.jmh") version "0.7.1"
 }
 
 dependencies {
