@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         java: [ '8', '11', '17' ]
-        platform: [ 'windows-latest', 'ubuntu-latest', 'macos-12' ]
+        platform: [ 'ubuntu-latest', 'macos-12', 'windows-latest' ]
         exclude:
           - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-12' }}
 
@@ -33,4 +33,4 @@ jobs:
         uses: gradle/gradle-build-action@v2
         with:
           arguments: build -i
-          # cache-read-only: false
+          cache-read-only: false
