@@ -56,7 +56,7 @@ class DtlsServerTransportTest {
     private val psk = PskAuth("dupa", byteArrayOf(1))
     private val conf: SslConfig = SslConfig.server(psk, cidSupplier = RandomCidSupplier(6))
     private val certConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16))
-    private val timeoutConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(10), retransmitMax = Duration.ofMillis(100))
+    private val timeoutConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), retransmitMin = Duration.ofMillis(20), retransmitMax = Duration.ofMillis(200))
 
     private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
@@ -139,7 +139,7 @@ class DtlsServerTransportTest {
                 it.get(30, TimeUnit.SECONDS)
             }.map { client ->
                 val i = Random.nextInt()
-                client.send("dupa$i")
+                client.send("dupa$i").await()
                 assertEquals("dupa$i:resp", client.receiveString())
 
                 client
@@ -298,7 +298,11 @@ class DtlsServerTransportTest {
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
 
         // when
-        val sslSession = DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli).await()
+        val sslSession = DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
+            .get(30, TimeUnit.SECONDS)
+            .also { it.send("something").await() }
+
+        Thread.sleep(500)
 
         // then
         sslSession.close()
@@ -402,20 +406,23 @@ class DtlsServerTransportTest {
 
     @Test
     fun testMultipleClientSendMessagesWithFastExpiration() {
-        server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = sessionStore).listen(echoHandler)
+        server = DtlsServerTransport.create(conf, expireAfter = 200.millis, sessionStore = sessionStore).listen(echoHandler)
 
         val MAX = 20
         val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
 
         // establish dtls connections
         val clients = (1..MAX)
-            .map {
+            .map { clientIndex ->
                 val ch = DatagramChannelAdapter.connect(server.localAddress(), 0)
-                DtlsTransmitter.connect(server.localAddress(), clientConfig, ch, executors[it % executors.size])
+                DtlsTransmitter.connect(server.localAddress(), clientConfig, ch, executors[clientIndex % executors.size])
                     .get(30, TimeUnit.SECONDS)
-                    .also { it.send("hello") }
+                    .also { it.send("hello").await() }
             }
-        clients.forEach { assertEquals("hello:resp", it.receiveString()) }
+
+        clients.forEach {
+            assertEquals("hello:resp", it.receiveString())
+        }
 
         // send messages from different clients at the same time
         val REPEAT = 10

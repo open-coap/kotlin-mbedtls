@@ -45,7 +45,6 @@ import org.opencoap.ssl.transport.Transport
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
-import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
@@ -199,7 +198,7 @@ class NettyTest {
 
     @Test
     fun `server should load session from store`() {
-        sessionStore.write("059876266f7c5734fd352c5a3b7b3be2".decodeHex(), SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+        sessionStore.write(StoredSessionPair.cid, SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
         val storeSessionMock: SessionWriter = mockk(relaxed = true)
         val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress), srvAddress, storeSessionMock).mapToString()
 

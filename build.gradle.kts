@@ -1,7 +1,7 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.0"
+    id("org.jetbrains.kotlin.jvm") version "1.9.10"
     id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
     id("se.patrikerdes.use-latest-versions") version "0.2.18"
     id("com.github.ben-manes.versions") version "0.47.0"
@@ -9,10 +9,9 @@ plugins {
     id("maven-publish")
     id("org.gradle.signing")
     id("io.github.gradle-nexus.publish-plugin") version "1.3.0"
-}
-
-apply {
-    plugin("io.github.gradle-nexus.publish-plugin")
+    id("org.jlleitschuh.gradle.ktlint") version "11.5.1"
+    id("com.adarshr.test-logger") version "3.2.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.1"
 }
 
 allprojects {
@@ -23,6 +22,10 @@ allprojects {
         plugin("java-library")
         plugin("maven-publish")
         plugin("org.gradle.signing")
+        plugin("org.jetbrains.kotlin.jvm")
+        plugin("org.jlleitschuh.gradle.ktlint")
+        plugin("com.adarshr.test-logger")
+        plugin("io.gitlab.arturbosch.detekt")
     }
 
     repositories {
@@ -100,7 +103,6 @@ allprojects {
             sign(publishing.publications["OSSRH"])
         }
     }
-
 }
 
 nexusPublishing {

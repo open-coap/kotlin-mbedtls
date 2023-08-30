@@ -38,6 +38,8 @@ class AsyncDtlsSessionLifecycleCallbacksTest {
         asyncCallbacks.sessionStarted(localAddress(5683), "A", false)
         asyncCallbacks.sessionFinished(localAddress(5683), Reason.CLOSED)
 
+        Thread.sleep(500)
+
         // then
         verify {
             callbackMock.handshakeStarted(any())
@@ -59,9 +61,12 @@ class AsyncDtlsSessionLifecycleCallbacksTest {
         asyncCallbacks.sessionStarted(localAddress(5683), "A", false)
         asyncCallbacks.sessionFinished(localAddress(5683), Reason.CLOSED)
 
+        Thread.sleep(500)
+
         // then
         verify {
             callbackMock wasNot Called
         }
+        confirmVerified(callbackMock)
     }
 }
