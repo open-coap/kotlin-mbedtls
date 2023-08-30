@@ -298,7 +298,11 @@ class DtlsServerTransportTest {
             .dropReceive { it == 1 } // drop ServerHello, the only message that server will retry
 
         // when
-        val sslSession = DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli).await()
+        val sslSession = DtlsTransmitter.connect(server.localAddress(), timeoutClientConf, cli)
+            .get(30, TimeUnit.SECONDS)
+            .also { it.send("something").await() }
+
+        Thread.sleep(500)
 
         // then
         sslSession.close()
