@@ -31,9 +31,6 @@ internal object ReceiveCallback : Callback {
         this.buffer.set(buf)
         try {
             return readFun.invoke()
-        } catch (e: Exception) {
-            logger.error(e.message, e)
-            throw e
         } finally {
             this.buffer.remove()
             this.timeout.remove()

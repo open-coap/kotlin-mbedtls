@@ -157,44 +157,4 @@ class DtlsServerMetricsCallbacksTest {
         print(meterRegistry.metersAsString)
         assertEquals(1, meterRegistry.find("dtls.server.sessions.failed").tag("reason") { it.isNotEmpty() }.counter()?.count()?.toInt())
     }
-
-    @Test
-    fun `should report DTLS server metrics for messages drops`() {
-        server = DtlsServerTransport.create(conf, lifecycleCallbacks = metricsCallbacks, expireAfter = Duration.ofSeconds(1), sessionStore = sessionStore).listen(echoHandler)
-        val serverDest = server.localAddress()
-
-        // Message drop before handshake
-        // when
-        DatagramChannel.open()
-            .connect(localAddress(server.localPort())).write(ByteBuffer.wrap(Random.nextBytes(50)))
-
-        // then
-        await.untilAsserted {
-            assertEquals(0, server.numberOfSessions())
-        }
-
-        assertEquals(1, meterRegistry.find("dtls.server.messages.dropped").counter()?.count()?.toInt())
-
-        // Message drop when a session can't be found in the session store
-        val transport = DatagramChannelAdapter.connect(serverDest, 0)
-        var client = DtlsTransmitter.connect(serverDest, clientConfig, transport).await()
-        client.send("foo").await()
-        val session = client.saveSession()
-
-        await.untilAsserted {
-            assertEquals(0, server.numberOfSessions())
-        }
-
-        // when
-        sessionStore.clear()
-        client = DtlsTransmitter.create(serverDest, clientConfig.loadSession(byteArrayOf(), session, serverDest))
-        client.send("foo").await()
-
-        await.untilAsserted {
-            assertEquals(0, server.numberOfSessions())
-        }
-
-        // then
-        assertEquals(2, meterRegistry.find("dtls.server.messages.dropped").counter()?.count()?.toInt())
-    }
 }

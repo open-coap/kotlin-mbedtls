@@ -49,7 +49,6 @@ class DtlsServerMetricsCallbacks(
     private val sessionsFailedBuilder = Counter.builder("$metricsPrefix.sessions.failed")
     private val sessionsExpired = registry.counter("$metricsPrefix.sessions.expired")
     private val sessionsReloaded = registry.counter("$metricsPrefix.sessions.reloaded")
-    private val messagesDropped = registry.counter("$metricsPrefix.messages.dropped")
 
     override fun handshakeStarted(adr: InetSocketAddress) {
         handshakesInitiated.increment()
@@ -80,10 +79,6 @@ class DtlsServerMetricsCallbacks(
         DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             sessionsExpired.increment()
         else -> {}
-    }
-
-    override fun messageDropped(adr: InetSocketAddress) {
-        messagesDropped.increment()
     }
 }
 

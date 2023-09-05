@@ -30,8 +30,6 @@ interface DtlsSessionLifecycleCallbacks {
 
     fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) = Unit
     fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
-
-    fun messageDropped(adr: InetSocketAddress) = Unit
 }
 
 class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private val callbacks: DtlsSessionLifecycleCallbacks) :
@@ -51,10 +49,6 @@ class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private
 
     override fun sessionFinished(adr: InetSocketAddress, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) {
         executor.supply { callbacks.sessionFinished(adr, reason, throwable) }
-    }
-
-    override fun messageDropped(adr: InetSocketAddress) {
-        executor.supply { callbacks.messageDropped(adr) }
     }
 }
 
