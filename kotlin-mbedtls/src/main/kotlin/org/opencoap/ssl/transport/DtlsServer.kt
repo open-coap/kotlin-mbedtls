@@ -104,6 +104,7 @@ class DtlsServer(
         return try {
             if (sessBuf == null) {
                 logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
+                reportMessageDrop(adr)
                 false
             } else {
                 sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
@@ -111,8 +112,13 @@ class DtlsServer(
             }
         } catch (ex: SslException) {
             logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
+            reportMessageDrop(adr)
             false
         }
+    }
+
+    private fun reportMessageDrop(adr: InetSocketAddress) {
+        lifecycleCallbacks.messageDropped(adr)
     }
 
     private fun DtlsState.closeAndRemove() {
@@ -173,17 +179,19 @@ class DtlsServer(
                         reportHandshakeFinished(DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
                     }
                 }
+            } catch (ex: HelloVerifyRequired) {
+                closeAndRemove()
+                reportHandshakeFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
             } catch (ex: Exception) {
                 when (ex) {
-                    is HelloVerifyRequired -> {}
                     is SslException ->
                         logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
-
                     else ->
                         logger.error(ex.toString(), ex)
                 }
                 closeAndRemove()
                 reportHandshakeFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
+                reportMessageDrop(peerAddress)
             }
             return ReceiveResult.Handled
         }
@@ -262,6 +270,7 @@ class DtlsServer(
             } catch (ex: SslException) {
                 logger.warn("[{}] [CID:{}] DTLS failed: {}", peerAddress, ownCidHex, ex.message)
                 reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
+                reportMessageDrop(peerAddress)
             }
 
             closeAndRemove()
