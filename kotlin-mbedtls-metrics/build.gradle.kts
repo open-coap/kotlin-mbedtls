@@ -4,7 +4,7 @@ dependencies {
     api(platform("org.jetbrains.kotlin:kotlin-bom"))
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    implementation("io.micrometer:micrometer-core:1.11.2")
+    implementation("io.micrometer:micrometer-core:1.11.4")
 
     // TESTS
     testImplementation(testFixtures(project(":kotlin-mbedtls")))

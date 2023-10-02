@@ -9,7 +9,7 @@ dependencies {
     api(platform("org.jetbrains.kotlin:kotlin-bom"))
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    api("org.slf4j:slf4j-api:2.0.7")
+    api("org.slf4j:slf4j-api:2.0.9")
     api("net.java.dev.jna:jna:5.13.0")
 
     // TESTS
@@ -20,7 +20,7 @@ dependencies {
     testImplementation("org.awaitility:awaitility-kotlin:4.2.0")
     testImplementation("ch.qos.logback:logback-classic:1.3.0")
     testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    testImplementation("io.mockk:mockk:1.13.5")
+    testImplementation("io.mockk:mockk:1.13.7")
 }
 
 tasks.test {
