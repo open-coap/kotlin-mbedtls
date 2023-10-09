@@ -16,7 +16,7 @@ jobs:
       - id: step1
         run: |
           echo -n "latestMbedtlsVersion=" >>  "$GITHUB_OUTPUT"
-          curl -s https://api.github.com/repos/Mbed-TLS/mbedtls/releases/latest | jq -r '.tag_name' | grep -o '[^v]\+' >>  "$GITHUB_OUTPUT"
+          curl -s https://api.github.com/repos/Mbed-TLS/mbedtls/releases/latest | jq -r '.tag_name' | grep -o '[0-9.]\+$' >>  "$GITHUB_OUTPUT"
 
           echo -n "currentMbedtlsVersion=" >>  "$GITHUB_OUTPUT"
           cat kotlin-mbedtls/src/main/resources/mbedtls.properties | grep -o '^mbedtlsVersion=.*' | cut -d= -f2 >>  "$GITHUB_OUTPUT"

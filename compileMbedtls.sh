@@ -1,10 +1,13 @@
 #!/bin/bash
+set -euo pipefail
+
 DEFAULT_MBEDTLS_VERSION=3.4.1
 MBEDTLS_VERSION=${MBEDTLS_VERSION:-$DEFAULT_MBEDTLS_VERSION}
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
 CC="${CC:-gcc}"
+LDFLAGS="${LDFLAGS:-}"
 
 # download
 mkdir -p mbedtls-lib/build
