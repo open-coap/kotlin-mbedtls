@@ -24,7 +24,7 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-x86-64
           path: mbedtls-lib/bin/linux-x86-64/*
@@ -42,7 +42,7 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: darwin
           path: mbedtls-lib/bin/darwin/*
@@ -61,7 +61,7 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: WINDOWS=1 LDFLAGS='-lbcrypt -lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: win32-x86-64
           path: mbedtls-lib/bin/win32-x86-64/*
