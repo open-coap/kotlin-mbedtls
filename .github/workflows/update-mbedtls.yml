@@ -40,15 +40,15 @@ jobs:
       - name: Cleanup old mbedtls binaries
         run: |
           rm -rf mbedtls-lib/bin
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: linux-x86-64
           path: mbedtls-lib/bin/linux-x86-64/
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: darwin
           path: mbedtls-lib/bin/darwin/
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: win32-x86-64
           path: mbedtls-lib/bin/win32-x86-64/
