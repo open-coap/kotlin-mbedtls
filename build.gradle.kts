@@ -2,20 +2,19 @@ import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 import io.gitlab.arturbosch.detekt.Detekt
 import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.10"
+    id("org.jetbrains.kotlin.jvm") version "1.9.22"
     id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
     id("se.patrikerdes.use-latest-versions") version "0.2.18"
-    id("com.github.ben-manes.versions") version "0.48.0"
+    id("com.github.ben-manes.versions") version "0.51.0"
     id("java-library")
     id("maven-publish")
     id("org.gradle.signing")
     id("io.github.gradle-nexus.publish-plugin") version "1.3.0"
-    id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
-    id("com.adarshr.test-logger") version "3.2.0"
-    id("io.gitlab.arturbosch.detekt") version "1.23.1"
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
+    id("com.adarshr.test-logger") version "4.0.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.4"
 }
 
 allprojects {
@@ -61,7 +60,7 @@ allprojects {
 
         withType<DependencyUpdatesTask> {
             rejectVersionIf {
-                val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { candidate.version.toUpperCase().contains(it) }
+                val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { candidate.version.uppercase().contains(it) }
                 val regex = "^[0-9,.v-]+(-r)?$".toRegex()
                 val isNonStable = !(stableKeyword || regex.matches(candidate.version))
 
@@ -79,10 +78,6 @@ allprojects {
             archiveClassifier.set("javadoc")
             from(javadoc)
         }
-    }
-
-    configure<KtlintExtension> {
-        disabledRules.set(setOf("trailing-comma-on-call-site", "trailing-comma-on-declaration-site"))
     }
 
     detekt {

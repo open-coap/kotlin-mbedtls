@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -170,7 +170,8 @@ class DtlsServerTest {
 
         // Drop and trigger resend
         println("DROP " + serverOutboundQueue.size)
-        serverOutboundQueue.remove(); cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
+        serverOutboundQueue.remove()
+        cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
 
         cliHandshake.step(serverOutboundQueue.remove(), send)
         val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
@@ -194,7 +195,8 @@ class DtlsServerTest {
 
         // Drop and trigger resend
         println("DROP " + serverOutboundQueue.size)
-        serverOutboundQueue.remove(); cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
+        serverOutboundQueue.remove()
+        cliHandshake.step(Packet.EMPTY_BYTEBUFFER, send)
 
         val clientSession = cliHandshake.step(serverOutboundQueue.remove(), send) as SslSession
 
