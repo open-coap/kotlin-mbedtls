@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -128,10 +128,10 @@ class DtlsServerTransportTest {
         val clientCertConf = SslConfig.client(trusted(Certs.root.asX509()), retransmitMin = 60.seconds, retransmitMax = 60.seconds)
         server = DtlsServerTransport.create(certConf).listen(echoHandler)
 
-        val MAX = 20
+        val max = 20
         val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
 
-        val clients = (1..MAX)
+        val clients = (1..max)
             .map {
                 val ch = DatagramChannelAdapter.connect(localAddress(server.localPort()), 0)
                 DtlsTransmitter.connect(localAddress(server.localPort()), clientCertConf, ch, executors[it % executors.size])
@@ -144,7 +144,7 @@ class DtlsServerTransportTest {
 
                 client
             }
-        assertEquals(MAX, server.numberOfSessions())
+        assertEquals(max, server.numberOfSessions())
         clients.forEach(DtlsTransmitter::close)
     }
 
@@ -389,7 +389,7 @@ class DtlsServerTransportTest {
         }
         client.close()
 
-        verify() {
+        verify {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
             sslLifecycleCallbacks.handshakeStarted(any())
@@ -408,11 +408,11 @@ class DtlsServerTransportTest {
     fun testMultipleClientSendMessagesWithFastExpiration() {
         server = DtlsServerTransport.create(conf, expireAfter = 200.millis, sessionStore = sessionStore).listen(echoHandler)
 
-        val MAX = 20
+        val max = 20
         val executors = Array(4) { DtlsTransmitter.newSingleExecutor() }
 
         // establish dtls connections
-        val clients = (1..MAX)
+        val clients = (1..max)
             .map { clientIndex ->
                 val ch = DatagramChannelAdapter.connect(server.localAddress(), 0)
                 DtlsTransmitter.connect(server.localAddress(), clientConfig, ch, executors[clientIndex % executors.size])
@@ -425,14 +425,14 @@ class DtlsServerTransportTest {
         }
 
         // send messages from different clients at the same time
-        val REPEAT = 10
+        val repeat = 10
         val tsStart = System.currentTimeMillis()
-        repeat(REPEAT) {
+        repeat(repeat) {
             clients.forEach { it.send("dupa$it") }
             clients.forEach { assertEquals("dupa$it:resp", it.receiveString()) }
         }
         val totalTs = System.currentTimeMillis() - tsStart
-        println("Send %d messages in %d ms (%d/s)".format(MAX * REPEAT, totalTs, (1000 * MAX * REPEAT) / totalTs))
+        println("Send %d messages in %d ms (%d/s)".format(max * repeat, totalTs, (1000 * max * repeat) / totalTs))
 
         clients.forEach(DtlsTransmitter::close)
     }

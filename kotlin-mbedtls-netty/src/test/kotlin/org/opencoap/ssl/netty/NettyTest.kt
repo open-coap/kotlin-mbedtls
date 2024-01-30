@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,10 +153,10 @@ class NettyTest {
 
     @Test
     fun testMultipleConnections() {
-        val MAX = 20
+        val max = 20
         val eventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
 
-        val clients = (1..MAX)
+        val clients = (1..max)
             .map {
                 NettyTransportAdapter.connect(clientConf, srvAddress, eventLoopGroup).mapToString()
             }
@@ -167,7 +167,7 @@ class NettyTest {
             assertEquals("ECHO:dupa$i", client.receive(5.seconds).await())
         }
 
-        assertEquals(MAX, dtlsServer.numberOfSessions)
+        assertEquals(max, dtlsServer.numberOfSessions)
         clients.forEach(Transport<String>::close)
     }
 

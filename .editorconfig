@@ -1,0 +1,15 @@
+root = true
+
+[*.{kt,kts}]
+ktlint_code_style = intellij_idea
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_discouraged-comment-location = disabled
+
+[{MbedtlsApi.kt,MbedtlsSizeOf.kt}]
+ktlint_standard_property-naming = disabled
+ktlint_standard_function-naming = disabled
+
+[*Benchmark.{kt,kts}]
+ktlint_standard_function-naming = disabled
+ktlint_standard_property-naming = disabled

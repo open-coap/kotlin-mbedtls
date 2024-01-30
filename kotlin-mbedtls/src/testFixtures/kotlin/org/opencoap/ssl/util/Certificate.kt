@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,12 +85,12 @@ data class Certificate(
             }
 
             val builder = JcaX509v3CertificateBuilder(
-                /* issuer = */ issuerName,
-                /* serial = */ BigInteger.valueOf(System.currentTimeMillis()),
-                /* notBefore = */ Date.from(Instant.now()),
-                /* notAfter = */ Date.from(Instant.now().plus(Duration.ofHours(1))),
-                /* subject = */ subject,
-                /* publicKey = */ certKeyPair.public
+                issuerName,
+                BigInteger.valueOf(System.currentTimeMillis()),
+                Date.from(Instant.now()),
+                Date.from(Instant.now().plus(Duration.ofHours(1))),
+                subject,
+                certKeyPair.public
             )
 
             if (isCA) {
