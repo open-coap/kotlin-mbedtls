@@ -56,6 +56,8 @@ jobs:
       image: dockcross/windows-static-x64
     steps:
       - uses: actions/checkout@v4
+      - name: Fix for externally managed libraries
+        run: sudo rm /usr/lib/python3.11/EXTERNALLY-MANAGED
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
