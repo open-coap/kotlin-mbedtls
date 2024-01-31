@@ -456,12 +456,17 @@ class DtlsServerTransportTest {
         client.close()
     }
 
+    private val logger = LoggerFactory.getLogger(DtlsServerTransportTest::class.java)
+
     @Test
     fun `should set and use session context`() {
         // given
+        logger.info("before server")
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
+        logger.info("after server")
         val serverReceived = server.receive(2.seconds)
         // and, client connected
+        logger.info("before connect")
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("hello!")
         assertEquals("hello!", serverReceived.await().buffer.decodeToString())

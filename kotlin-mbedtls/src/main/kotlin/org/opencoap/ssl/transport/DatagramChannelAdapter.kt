@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ class DatagramChannelAdapter(
 
     override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
         return executor.supply {
+            println("receiving")
             selector.select(timeout.toMillis())
             buffer.clear()
 
