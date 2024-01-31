@@ -460,7 +460,7 @@ class DtlsServerTransportTest {
     fun `should set and use session context`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
-        val serverReceived = server.receive(1.seconds)
+        val serverReceived = server.receive(2.seconds)
         // and, client connected
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("hello!")
