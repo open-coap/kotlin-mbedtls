@@ -17,7 +17,7 @@ jobs:
           java-version: '8'
           distribution: 'adopt'
       - name: Publish with Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@v3
         with:
           arguments: publishToSonatype closeAndReleaseSonatypeStagingRepository -i
         env:
