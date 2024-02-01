@@ -30,7 +30,7 @@ jobs:
         run: sudo spctl --master-disable
 
       - name: Build with Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@v3
         with:
           arguments: build -i
           cache-read-only: false
