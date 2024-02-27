@@ -38,7 +38,8 @@ class DtlsServer(
     private val expireAfter: Duration = Duration.ofSeconds(60),
     private val storeSession: (cid: ByteArray, session: SessionWithContext) -> Unit,
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
-    private val executor: ScheduledExecutorService
+    private val executor: ScheduledExecutorService,
+    private val cidRequired: Boolean = false
 ) {
     companion object {
         private val EMPTY_BUFFER = ByteBuffer.allocate(0)
@@ -49,7 +50,7 @@ class DtlsServer(
 
     // note: non thread save, must be used only from same thread
     private val sessions = mutableMapOf<InetSocketAddress, DtlsState>()
-    private val cidSize = sslConfig.cidSupplier.next().size
+    private val cidSize = sslConfig.cidSupplier?.next()?.size ?: 0
     val numberOfSessions get() = sessions.size
 
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
@@ -63,11 +64,17 @@ class DtlsServer(
             // no session, but dtls packet contains CID
             cid != null -> ReceiveResult.CidSessionMissing(cid!!)
 
-            // new handshake
-            else -> {
+            // start new handshake if datagram is valid
+            isValidHandshakeRequest(buf) -> {
                 val dtlsHandshake = DtlsHandshake(sslConfig.newContext(adr), adr)
                 sessions[adr] = dtlsHandshake
                 dtlsHandshake.step(buf)
+            }
+
+            // drop silently
+            else -> {
+                logger.warn("[{}] Invalid DTLS session handshake.", adr)
+                ReceiveResult.Handled
             }
         }
     }
@@ -186,6 +193,7 @@ class DtlsServer(
                 when (ex) {
                     is SslException ->
                         logger.warn("[{}] DTLS failed: {}", peerAddress, ex.message)
+
                     else ->
                         logger.error(ex.toString(), ex)
                 }
@@ -305,4 +313,61 @@ class DtlsServer(
             lifecycleCallbacks.sessionFinished(peerAddress, reason, err)
         }
     }
+
+    private fun isValidHandshakeRequest(buf: ByteBuffer): Boolean {
+        // Check if the header is correct
+        val header = buf.getLong(0)
+        if (header != 0x0000000000FDFE16L) {
+            return false
+        }
+
+        // Check if it is a ClientHello handshake
+        val handshakeType = buf.get(13).toInt()
+        if (handshakeType != 1) {
+            return false
+        }
+
+        // Check if CID is supported by the client in case if CID support is mandatory
+        if (cidRequired && !supportsCid(buf)) {
+            return false
+        }
+
+        return true
+    }
+
+    private fun supportsCid(buf: ByteBuffer): Boolean {
+        val workingBuffer = buf.slice()
+
+        // Go to the start of extensions
+        workingBuffer
+            // Skip DTLSHeader(13) + HandshakeHeader(12) + CookieLengthOffset(35)
+            .seek(60)
+            // Skip variable-length Cookie
+            .readByteAndSeek()
+            // Skip variable-length CipherSuites
+            .readShortAndSeek()
+            // Skip variable-length CompressionMethods
+            .readByteAndSeek()
+            // Limit buffer to the extensions length
+            .getShort().also {
+                workingBuffer.limit(workingBuffer.position() + it.toInt())
+            }
+
+        // Search for CID extension
+        while (workingBuffer.remaining() >= 4) {
+            val type = workingBuffer.getShort()
+            if (type == 0x36.toShort()) {
+                return true
+            }
+
+            // Skip to the next extension
+            workingBuffer.readShortAndSeek()
+        }
+
+        return false
+    }
 }
+
+private fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset)
+private fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().let { this.seek(it.toInt()) }
+private fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().let { this.seek(it.toInt()) }
