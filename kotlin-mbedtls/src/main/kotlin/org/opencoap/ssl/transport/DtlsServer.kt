@@ -376,6 +376,6 @@ class DtlsServer(
     }
 }
 
-private fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset)
+private fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
 private fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().let { this.seek(it.toInt()) }
 private fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().let { this.seek(it.toInt()) }
