@@ -26,6 +26,7 @@ import org.opencoap.ssl.SslSession
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
@@ -55,6 +56,7 @@ class DtlsServer(
 
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
+        val isValidHandshake by lazy { isValidHandshakeRequest(buf) }
         val dtlsState = sessions[adr]
 
         return when {
@@ -65,7 +67,7 @@ class DtlsServer(
             cid != null -> ReceiveResult.CidSessionMissing(cid!!)
 
             // start new handshake if datagram is valid
-            isValidHandshakeRequest(buf) -> {
+            isValidHandshake -> {
                 val dtlsHandshake = DtlsHandshake(sslConfig.newContext(adr), adr)
                 sessions[adr] = dtlsHandshake
                 dtlsHandshake.step(buf)
@@ -74,6 +76,7 @@ class DtlsServer(
             // drop silently
             else -> {
                 logger.warn("[{}] Invalid DTLS session handshake.", adr)
+                reportMessageDrop(adr)
                 ReceiveResult.Handled
             }
         }
@@ -315,20 +318,25 @@ class DtlsServer(
     }
 
     private fun isValidHandshakeRequest(buf: ByteBuffer): Boolean {
+        val workingBuf = buf.slice().order(ByteOrder.BIG_ENDIAN)
+
         // Check if the header is correct
-        val header = buf.getLong(0)
-        if (header != 0x0000000000FDFE16L) {
+        val header = workingBuf.getLong(0)
+        if (header != 0x16FEFD0000000000L) {
+            logger.debug("Bad DTLS header")
             return false
         }
 
         // Check if it is a ClientHello handshake
-        val handshakeType = buf.get(13).toInt()
+        val handshakeType = workingBuf.get(13).toInt()
         if (handshakeType != 1) {
+            logger.debug("Bad handshake type")
             return false
         }
 
         // Check if CID is supported by the client in case if CID support is mandatory
-        if (cidRequired && !supportsCid(buf)) {
+        if (cidRequired && !supportsCid(workingBuf)) {
+            logger.debug("No CID support")
             return false
         }
 
@@ -336,7 +344,7 @@ class DtlsServer(
     }
 
     private fun supportsCid(buf: ByteBuffer): Boolean {
-        val workingBuffer = buf.slice()
+        val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
 
         // Go to the start of extensions
         workingBuffer

@@ -234,10 +234,6 @@ class DtlsServerTransportTest {
         assertEquals(0, cliChannel.read("aaa".toByteBuffer()))
         cliChannel.close()
 
-        verify(atMost = 100) {
-            sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(SslException::class))
-        }
-
         verify(exactly = 0) {
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
         }
