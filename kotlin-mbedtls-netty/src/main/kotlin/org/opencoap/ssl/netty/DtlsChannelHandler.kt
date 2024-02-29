@@ -36,7 +36,8 @@ class DtlsChannelHandler @JvmOverloads constructor(
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
     private val sessionStore: SessionStore = NoOpsSessionStore,
-    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {}
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
+    private val cidRequired: Boolean = false
 ) : ChannelDuplexHandler() {
     private lateinit var ctx: ChannelHandlerContext
     lateinit var dtlsServer: DtlsServer
@@ -52,7 +53,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
-        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, sessionStore::write, lifecycleCallbacks, ctx.executor())
+        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, sessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {

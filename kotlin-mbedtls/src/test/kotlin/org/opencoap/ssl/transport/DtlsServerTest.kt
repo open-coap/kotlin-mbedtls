@@ -47,6 +47,7 @@ import java.util.concurrent.CompletableFuture.completedFuture
 class DtlsServerTest {
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, RandomCidSupplier(16))
     val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val clientConfNoCid = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), cidSupplier = null)
 
     private val sessionStore = HashMapSessionStore()
     private lateinit var dtlsServer: DtlsServer
@@ -120,6 +121,42 @@ class DtlsServerTest {
         }
 
         clientSession.close()
+    }
+
+    @Test
+    fun `should handshake when CID is required`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
+
+        // when
+        val clientSession = clientHandshake()
+
+        // then
+        val dtlsPacket = clientSession.encrypt("terve".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        val dtlsPacketIn = (dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) as ReceiveResult.Decrypted).packet
+        assertEquals("terve", dtlsPacketIn.buffer.decodeToString())
+        assertEquals(1, dtlsServer.numberOfSessions)
+        assertNotNull(dtlsPacketIn.sessionContext.sessionStartTimestamp)
+
+        await.untilAsserted {
+            assertTrue(serverOutboundQueue.isEmpty())
+        }
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should fail handshake when CID is required and client doesn't provide it`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
+        val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
+        val cliHandshake = clientConfNoCid.newContext(localAddress(5684))
+
+        // when
+        cliHandshake.step(send)
+
+        // then
+        await.untilAsserted {
+            assertTrue(serverOutboundQueue.isEmpty())
+        }
     }
 
     @Test

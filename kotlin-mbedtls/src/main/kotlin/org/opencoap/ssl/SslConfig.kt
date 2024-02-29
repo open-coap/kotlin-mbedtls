@@ -63,7 +63,7 @@ import java.time.Duration.ofSeconds
 
 class SslConfig(
     private val conf: Memory,
-    val cidSupplier: CidSupplier,
+    val cidSupplier: CidSupplier?,
     private val mtu: Int,
     private val close: Closeable
 ) : Closeable by close {
@@ -75,8 +75,10 @@ class SslConfig(
         mbedtls_ssl_setup(sslContext, conf).verify()
         mbedtls_ssl_set_timer_cb(sslContext, Pointer.NULL, NoOpsSetDelayCallback, NoOpsGetDelayCallback)
 
-        val cid = cidSupplier.next()
-        mbedtls_ssl_set_cid(sslContext, 1, cid, cid.size).verify()
+        val cid = cidSupplier?.next()
+        if (cid != null) {
+            mbedtls_ssl_set_cid(sslContext, 1, cid, cid.size).verify()
+        }
         mbedtls_ssl_set_mtu(sslContext, mtu)
 
         val clientId = peerAddress.toString()
@@ -103,13 +105,13 @@ class SslConfig(
 
         @JvmStatic
         @JvmOverloads
-        fun client(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+        fun client(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier? = EmptyCidSupplier, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
             return create(false, auth, cipherSuites, cidSupplier, reqAuthentication, 0, retransmitMin, retransmitMax)
         }
 
         @JvmStatic
         @JvmOverloads
-        fun server(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
+        fun server(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier? = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig {
             return create(true, auth, cipherSuites, cidSupplier, reqAuthentication, mtu, retransmitMin, retransmitMax)
         }
 
@@ -117,11 +119,11 @@ class SslConfig(
             isServer: Boolean,
             authConfig: AuthConfig,
             cipherSuites: List<String>,
-            cidSupplier: CidSupplier,
+            cidSupplier: CidSupplier?,
             requiredAuthMode: Boolean = true,
             mtu: Int,
             retransmitMin: Duration,
-            retransmitMax: Duration,
+            retransmitMax: Duration
         ): SslConfig {
             val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
             val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi.Crypto::mbedtls_entropy_init)
@@ -154,7 +156,7 @@ class SslConfig(
                 mbedtls_ssl_conf_ciphersuites(sslConfig, cipherSuiteIds)
             }
 
-            if (cidSupplier != EmptyCidSupplier) {
+            if (cidSupplier != null && cidSupplier != EmptyCidSupplier) {
                 mbedtls_ssl_conf_cid(sslConfig, cidSupplier.next().size, 0)
             }
 
