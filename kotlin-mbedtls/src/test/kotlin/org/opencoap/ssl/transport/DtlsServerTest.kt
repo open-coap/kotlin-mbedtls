@@ -275,6 +275,26 @@ class DtlsServerTest {
         clientSession.close()
     }
 
+    @Test
+    fun `should properly seek through the buffer`() {
+        var buf = ByteBuffer.wrap("FFFF01FF0001FF".decodeHex())
+        buf.position(1)
+        buf.seek(1)
+        buf.seek(-2)
+        buf.seek(2)
+        assertEquals(2, buf.position())
+        buf.readByteAndSeek()
+        assertEquals(4, buf.position())
+        buf.readShortAndSeek()
+        assertEquals(7, buf.position())
+
+        buf = ByteBuffer.wrap("FF".decodeHex() + ByteArray(255) + "FFFF".decodeHex() + ByteArray(65535))
+        buf.readByteAndSeek()
+        assertEquals(256, buf.position())
+        buf.readShortAndSeek()
+        assertEquals(65793, buf.position())
+    }
+
     private fun clientHandshake(): SslSession {
         val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
         val cliHandshake = clientConf.newContext(localAddress(5684))
