@@ -320,9 +320,13 @@ class DtlsServer(
     private fun isValidHandshakeRequest(buf: ByteBuffer): Boolean {
         val workingBuf = buf.slice().order(ByteOrder.BIG_ENDIAN)
 
-        // Check if the header is correct
-        val header = workingBuf.getLong(0)
-        if (header != 0x16FEFD0000000000L) {
+        // Check if the header is correct:
+        // - Content Type is Handshake(0x16),
+        // - Major version is 1 (0xFE),
+        // - Minor version is any,
+        // - Epoch is 0
+        val header = (workingBuf.getLong(0) or 0x0000FF0000000000) ushr 24
+        if (header != 0x16FEFF0000L) {
             logger.debug("Bad DTLS header")
             return false
         }
@@ -348,18 +352,18 @@ class DtlsServer(
 
         // Go to the start of extensions
         workingBuffer
-            // Skip DTLSHeader(13) + HandshakeHeader(12) + CookieLengthOffset(35)
-            .seek(60)
+            // Skip DTLSHeader(13) + HandshakeHeader(12) + SessionIDLengthOffset(34)
+            .seek(59)
+            // Skip variable-length Session ID
+            .readByteAndSeek()
             // Skip variable-length Cookie
             .readByteAndSeek()
             // Skip variable-length CipherSuites
             .readShortAndSeek()
             // Skip variable-length CompressionMethods
             .readByteAndSeek()
-            // Limit buffer to the extensions length
-            .getShort().also {
-                workingBuffer.limit(workingBuffer.position() + it.toInt())
-            }
+            // Limit buffer to the length of the Extensions block
+            .readShortAndLimit()
 
         // Search for CID extension
         while (workingBuffer.remaining() >= 4) {
@@ -376,6 +380,7 @@ class DtlsServer(
     }
 }
 
-private fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
-private fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().let { this.seek(it.toInt()) }
-private fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().let { this.seek(it.toInt()) }
+fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
+fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().toUShort().let { this.seek(it.toInt()) }
+fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().toUByte().let { this.seek(it.toInt()) }
+fun ByteBuffer.readShortAndLimit(): ByteBuffer = this.getShort().toUShort().let { this.limit(this.position() + it.toInt()) } as ByteBuffer
