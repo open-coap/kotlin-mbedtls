@@ -108,11 +108,10 @@ class DtlsServerTest {
     }
 
     @Test
-    fun `should silently drop when session not found in store`() {
+    fun `should silently drop when CID is invalid`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
         dtlsServer = DtlsServer(::outboundTransport, serverConfInvalidCid, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
 
-        //
         val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
 
