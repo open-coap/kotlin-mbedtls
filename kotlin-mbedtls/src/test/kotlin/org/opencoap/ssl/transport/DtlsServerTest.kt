@@ -109,13 +109,10 @@ class DtlsServerTest {
 
     @Test
     fun `should silently drop when CID is invalid`() {
-        val clientSession = clientHandshake()
         dtlsServer = DtlsServer(::outboundTransport, serverConfInvalidCid, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
-
-        val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        val dtlsPacket = "19fefd0001000000000002 bad0bad0bad0bad0bad0bad0bad0bad0 00280001000000000002c113fbaee67f6ce621628812750f3d0f3cb5f0d43bb358f1b502a91404098252".replace(" ", "").decodeHex().asByteBuffer()
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
 
-        clientSession.close()
     }
 
     @Test
