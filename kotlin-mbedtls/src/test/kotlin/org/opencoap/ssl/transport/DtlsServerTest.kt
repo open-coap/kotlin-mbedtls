@@ -106,6 +106,7 @@ class DtlsServerTest {
 
         clientSession.close()
     }
+
     @Test
     fun `should silently drop when session not found in store`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
