@@ -56,7 +56,6 @@ class DtlsServer(
 
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
         val cid by lazy { SslContext.peekCID(cidSize, buf) }
-
         val isValidHandshake by lazy { isValidHandshakeRequest(buf) }
         val dtlsState = sessions[adr]
 
@@ -66,7 +65,7 @@ class DtlsServer(
 
             // no session, but dtls packet contains CID
             cid != null -> {
-                if (sslConfig.cidSupplier != null && !sslConfig.cidSupplier.isValidCid(cid!!)) {
+                if (sslConfig.cidSupplier?.isValidCid(cid!!) == false) {
                     logger.warn("[{}] Invalid CID {}", adr, cid)
                     reportMessageDrop(adr)
                     ReceiveResult.Handled
