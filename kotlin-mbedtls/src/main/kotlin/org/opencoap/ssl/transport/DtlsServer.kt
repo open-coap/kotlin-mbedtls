@@ -64,7 +64,15 @@ class DtlsServer(
             dtlsState is DtlsSession -> dtlsState.decrypt(buf)
 
             // no session, but dtls packet contains CID
-            cid != null -> ReceiveResult.CidSessionMissing(cid!!)
+            cid != null -> {
+                if (sslConfig.cidSupplier?.isValidCid(cid!!) == false) {
+                    logger.warn("[{}] [CID:{}] Invalid CID", adr, cid!!.toHex())
+                    reportMessageDrop(adr)
+                    ReceiveResult.Handled
+                } else {
+                    ReceiveResult.CidSessionMissing(cid!!)
+                }
+            }
 
             // start new handshake if datagram is valid
             isValidHandshake -> {

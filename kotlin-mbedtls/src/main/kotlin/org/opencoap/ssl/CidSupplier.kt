@@ -20,6 +20,7 @@ import kotlin.random.Random
 
 fun interface CidSupplier {
     fun next(): ByteArray
+    fun isValidCid(cid: ByteArray): Boolean = true
 }
 
 object EmptyCidSupplier : CidSupplier {

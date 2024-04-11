@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.opencoap.ssl.CertificateAuth
+import org.opencoap.ssl.CidSupplier
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslSession
@@ -42,12 +43,14 @@ import java.time.Instant
 import java.util.LinkedList
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DtlsServerTest {
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, RandomCidSupplier(16))
     val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     val clientConfNoCid = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), cidSupplier = null)
+    val serverConfInvalidCid = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, InvalidCidSupplier(16))
 
     private val sessionStore = HashMapSessionStore()
     private lateinit var dtlsServer: DtlsServer
@@ -102,6 +105,13 @@ class DtlsServerTest {
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.CidSessionMissing)
 
         clientSession.close()
+    }
+
+    @Test
+    fun `should silently drop when CID is invalid`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConfInvalidCid, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
+        val dtlsPacket = "19fefd0001000000000002 bad0bad0bad0bad0bad0bad0bad0bad0 00280001000000000002c113fbaee67f6ce621628812750f3d0f3cb5f0d43bb358f1b502a91404098252".replace(" ", "").decodeHex().asByteBuffer()
+        assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
     }
 
     @Test
@@ -310,5 +320,9 @@ class DtlsServerTest {
     private fun DtlsServer.handleAndDecrypt(dtlsPacket: ByteBuffer): String {
         val receiveResult = this.handleReceived(localAddress(2_5684), dtlsPacket)
         return (receiveResult as ReceiveResult.Decrypted).packet.buffer.decodeToString()
+    }
+    private class InvalidCidSupplier(private val size: Int) : CidSupplier {
+        override fun next(): ByteArray = Random.nextBytes(size)
+        override fun isValidCid(cid: ByteArray): Boolean = false
     }
 }
