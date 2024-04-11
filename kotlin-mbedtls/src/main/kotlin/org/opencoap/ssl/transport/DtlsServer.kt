@@ -66,7 +66,7 @@ class DtlsServer(
             // no session, but dtls packet contains CID
             cid != null -> {
                 if (sslConfig.cidSupplier?.isValidCid(cid!!) == false) {
-                    logger.warn("[{}] Invalid CID {}", adr, cid!!.toHex())
+                    logger.warn("[{}] [CID:{}] Invalid CID", adr, cid!!.toHex())
                     reportMessageDrop(adr)
                     ReceiveResult.Handled
                 } else {
