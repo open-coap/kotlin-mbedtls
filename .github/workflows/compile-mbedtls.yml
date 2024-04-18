@@ -29,6 +29,12 @@ jobs:
           name: linux-x86-64
           path: mbedtls-lib/bin/linux-x86-64/*
           if-no-files-found: error
+      - name: Archive mbledtlsSizeOf.kt
+        uses: actions/upload-artifact@v4
+        with:
+          name: MbedtlsSizeOf.kt
+          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
+          if-no-files-found: error
 
   compile-macos:
     name: "compile: macos"
