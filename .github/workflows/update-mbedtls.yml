@@ -55,7 +55,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: MbedtlsSizeOf.kt
-          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
+          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/
       - name: Bump default compile version
         env:
           NEW_MBEDTLS_VERSION: ${{ needs.get-mbedtls-version.outputs.latestMbedtlsVersion }}
