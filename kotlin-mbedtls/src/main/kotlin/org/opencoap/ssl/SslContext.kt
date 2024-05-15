@@ -164,6 +164,27 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
+    data class VerificationResult(val isValid: Boolean, val message: String)
+
+    fun verifyRecord(encBuffer: ByteBuffer): VerificationResult {
+        val buffer = clone(encBuffer)
+        val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, buffer, buffer.remaining())
+        return if (result == 0) {
+            VerificationResult(true, "Success")
+        } else {
+            VerificationResult(false, "Record verification failed: ${SslException.from(result)}")
+        }
+    }
+
+    private fun clone(original: ByteBuffer): ByteBuffer {
+        val clone = ByteBuffer.allocate(original.capacity())
+        original.rewind()
+        clone.put(original)
+        original.rewind()
+        clone.flip()
+        return clone
+    }
+
     fun decrypt(encBuffer: ByteBuffer, send: (ByteBuffer) -> Unit): ByteBuffer {
         val buf = ByteBuffer.allocate(encBuffer.remaining())
         decrypt(encBuffer, buf, send)

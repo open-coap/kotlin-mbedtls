@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.transport.asByteBuffer
+import org.opencoap.ssl.transport.copy
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.transport.toHex
@@ -121,6 +122,17 @@ class SslContextTest {
         buf.limit(7)
         val encryptedDtls2 = clientSession.encrypt(buf)
         assertEquals("perse", serverSession.decrypt(encryptedDtls2, noSend).decodeToString())
+    }
+
+    @Test
+    fun `should verify session is valid authentic and decrypt`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer()).copy()
+
+        assertTrue(serverSession.verifyRecord(encryptedDtls).isValid)
+        assertEquals("auto", serverSession.decrypt(encryptedDtls, noSend).decodeToString())
     }
 
     @Test

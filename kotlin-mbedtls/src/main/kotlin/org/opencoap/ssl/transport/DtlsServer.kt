@@ -276,6 +276,11 @@ class DtlsServer(
         fun decrypt(encPacket: ByteBuffer): ReceiveResult {
             scheduledTask.cancel(false)
             try {
+                val (isValid, message) = ctx.verifyRecord(encPacket)
+                if (!isValid) {
+                    logger.warn(message)
+                    return ReceiveResult.Handled
+                }
                 val plainBuf = ctx.decrypt(encPacket, ::send)
                 scheduledTask = executor.schedule(::timeout, expireAfter)
                 return if (plainBuf.isNotEmpty()) {
