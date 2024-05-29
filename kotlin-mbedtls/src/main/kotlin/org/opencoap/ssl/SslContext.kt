@@ -172,7 +172,7 @@ class SslSession internal constructor(
 
     fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
         val memory = encBuffer.cloneToMemory()
-        memory.use { _ ->
+        try {
             val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
             println(SslException.from(result))
             return if (result == 0) {
@@ -180,6 +180,8 @@ class SslSession internal constructor(
             } else {
                 VerificationResult.Invalid(SslException.from(result).localizedMessage)
             }
+        } finally {
+            memory.close()
         }
     }
 
