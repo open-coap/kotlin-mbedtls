@@ -27,6 +27,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
 import org.opencoap.ssl.MbedtlsApi.verify
+import org.opencoap.ssl.transport.cloneToMemory
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -164,25 +165,22 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    data class VerificationResult(val isValid: Boolean, val message: String)
-
-    fun verifyRecord(encBuffer: ByteBuffer): VerificationResult {
-        val buffer = clone(encBuffer)
-        val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, buffer, buffer.remaining())
-        return if (result == 0) {
-            VerificationResult(true, "Success")
-        } else {
-            VerificationResult(false, "Record verification failed: ${SslException.from(result)}")
-        }
+    sealed interface VerificationResult {
+        data class Valid(val message: String) : VerificationResult
+        data class Invalid(val message: String) : VerificationResult
     }
 
-    private fun clone(original: ByteBuffer): ByteBuffer {
-        val clone = ByteBuffer.allocate(original.capacity())
-        original.rewind()
-        clone.put(original)
-        original.rewind()
-        clone.flip()
-        return clone
+    fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
+        val memory = encBuffer.cloneToMemory()
+        memory.use { _ ->
+            val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
+            println(SslException.from(result))
+            return if (result == 0) {
+                VerificationResult.Valid("Success")
+            } else {
+                VerificationResult.Invalid(SslException.from(result).localizedMessage)
+            }
+        }
     }
 
     fun decrypt(encBuffer: ByteBuffer, send: (ByteBuffer) -> Unit): ByteBuffer {
