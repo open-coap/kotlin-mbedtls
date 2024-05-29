@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.transport.asByteBuffer
-import org.opencoap.ssl.transport.copy
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.transport.toHex
@@ -125,14 +124,26 @@ class SslContextTest {
     }
 
     @Test
-    fun `should verify session is valid authentic and decrypt`() {
+    fun `should check record is valid authentic and decrypt`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
         val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
 
-        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer()).copy()
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
 
-        assertTrue(serverSession.verifyRecord(encryptedDtls).isValid)
+        val verificationResult = serverSession.checkRecord(encryptedDtls)
+        assertTrue(verificationResult is SslSession.VerificationResult.Valid)
         assertEquals("auto", serverSession.decrypt(encryptedDtls, noSend).decodeToString())
+    }
+
+    @Test
+    fun `should check record is invalid when record is unexpected and replayed`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
+
+        serverSession.decrypt(encryptedDtls, noSend)
+        val result = serverSession.checkRecord(encryptedDtls.rewind())
+        assertTrue(result is SslSession.VerificationResult.Invalid)
     }
 
     @Test
