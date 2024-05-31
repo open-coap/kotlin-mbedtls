@@ -24,16 +24,15 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: 'corretto'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Enable using libraries from temporary location in mac
         if: ${{ matrix.platform == 'macos-12' }}
         run: sudo spctl --master-disable
 
       - name: Build with Gradle
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: build -i
-          cache-read-only: false
+        run: ./gradlew build -i
 
   publish:
     needs: build
@@ -46,10 +45,11 @@ jobs:
         with:
           java-version: '8'
           distribution: 'adopt'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Publish with Gradle
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: publishToSonatype closeAndReleaseSonatypeStagingRepository -i
+        run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository -i
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ORG_GRADLE_PROJECT_signingKeyId: ${{ secrets.SIGNING_KEY_ID }}
