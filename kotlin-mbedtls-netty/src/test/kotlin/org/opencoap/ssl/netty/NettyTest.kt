@@ -23,6 +23,7 @@ import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
 import io.netty.util.concurrent.DefaultThreadFactory
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -222,6 +223,31 @@ class NettyTest {
 
         // then
         assertEquals(0, dtlsServer.numberOfSessions)
+        client.close()
+    }
+
+    @Test
+    fun `server should store session if hinted to do so`() {
+        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
+
+        // when normal packet is sent
+        assertTrue(client.send("hi").await())
+        assertEquals("ECHO:hi", client.receive(5.seconds).await())
+
+        // then session should not be stored
+        assertEquals(1, dtlsServer.numberOfSessions)
+        assertEquals(0, sessionStore.size())
+
+        // when a packet with session expiration hint is sent
+        assertTrue(client.send("hi:sleep").await())
+        assertEquals("ECHO:hi:sleep", client.receive(5.seconds).await())
+
+        // then session must be stored
+        await.atMost(5.seconds).untilAsserted {
+            assertEquals(0, dtlsServer.numberOfSessions)
+            assertEquals(1, sessionStore.size())
+        }
+
         client.close()
     }
 }

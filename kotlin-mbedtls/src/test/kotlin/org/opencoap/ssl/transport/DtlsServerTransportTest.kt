@@ -476,6 +476,29 @@ class DtlsServerTransportTest {
         client.close()
     }
 
+    @Test
+    fun `server should store session if hinted to do so`() {
+        // given
+        server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
+        val serverReceived = server.receive(1.seconds)
+        val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
+
+        client.send("dupa")
+        server.send(Packet("dupa".toByteBuffer(), serverReceived.await().peerAddress))
+        assertEquals("dupa", client.receive(1.seconds).await())
+
+        client.send("sleep")
+        server.send(Packet("sleep".toByteBuffer(), serverReceived.await().peerAddress, sessionContext = DtlsSessionContext(sessionExpirationHint = true)))
+        assertEquals("sleep", client.receive(1.seconds).await())
+
+        await.atMost(5.seconds).untilAsserted {
+            assertEquals(1, sessionStore.size())
+            assertEquals(0, server.numberOfSessions())
+        }
+
+        client.close()
+    }
+
     private fun <T> Transport<T>.dropReceive(drop: (Int) -> Boolean): Transport<T> {
         val underlying = this
         var i = 0
