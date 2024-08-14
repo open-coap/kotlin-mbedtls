@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ internal class CompletableQueue<T> {
 
     @Synchronized
     fun add(obj: T) {
-        if (!queue.isEmpty() && !queue.first.isDone) {
+        if (!queue.isEmpty() && !queue.first().isDone) {
             queue.removeFirst().complete(obj)
         } else {
             queue.addLast(CompletableFuture.completedFuture(obj))
@@ -33,7 +33,7 @@ internal class CompletableQueue<T> {
 
     @Synchronized
     fun poll(): CompletableFuture<T> {
-        if (!queue.isEmpty() && queue.first.isDone) {
+        if (!queue.isEmpty() && queue.first().isDone) {
             return queue.removeFirst()
         }
         val promise = CompletableFuture<T>()
