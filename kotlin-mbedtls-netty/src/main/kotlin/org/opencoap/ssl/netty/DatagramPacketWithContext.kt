@@ -25,7 +25,7 @@ import java.net.InetSocketAddress
 class DatagramPacketWithContext(
     data: ByteBuf,
     recipient: InetSocketAddress?,
-    sender: InetSocketAddress,
+    sender: InetSocketAddress?,
     val sessionContext: DtlsSessionContext
 ) : DatagramPacket(data, recipient, sender) {
 

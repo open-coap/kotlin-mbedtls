@@ -97,7 +97,13 @@ class DtlsServerTransport private constructor(
 
         when (encPacket) {
             null -> completedFuture(false)
-            else -> transport.send(encPacket)
+            else -> {
+                transport.send(encPacket).whenComplete { isSuccess, err ->
+                    if (packet.sessionContext.sessionExpirationHint && err == null && isSuccess) {
+                        dtlsServer.closeSession(packet.peerAddress)
+                    }
+                }
+            }
         }
     }.thenCompose(Function.identity())
 

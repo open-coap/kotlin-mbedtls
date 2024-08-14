@@ -90,6 +90,14 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {
         when (msg) {
+            is DatagramPacketWithContext -> {
+                write(msg, promise, ctx)
+                promise.toCompletableFuture().whenComplete { isSuccess, err ->
+                    if (msg.sessionContext.sessionExpirationHint &&err == null && isSuccess) {
+                        dtlsServer.closeSession(msg.recipient())
+                    }
+                }
+            }
             is DatagramPacket -> write(msg, promise, ctx)
             is SessionAuthenticationContext -> {
                 msg.map.forEach { (key, value) ->

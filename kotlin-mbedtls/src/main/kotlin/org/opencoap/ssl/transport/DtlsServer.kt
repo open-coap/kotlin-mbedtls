@@ -118,6 +118,10 @@ class DtlsServer(
         }
     }
 
+    fun closeSession(addr: InetSocketAddress) {
+        sessions.remove(addr)?.storeAndClose()
+    }
+
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray): Boolean {
         return try {
             if (sessBuf == null) {

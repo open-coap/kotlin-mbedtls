@@ -24,7 +24,8 @@ data class DtlsSessionContext @JvmOverloads constructor(
     val authenticationContext: AuthenticationContext = emptyMap(),
     val peerCertificateSubject: String? = null,
     val cid: ByteArray? = null,
-    val sessionStartTimestamp: Instant? = null
+    val sessionStartTimestamp: Instant? = null,
+    val sessionExpirationHint: Boolean = false
 ) {
     companion object {
         @JvmField
@@ -44,6 +45,7 @@ data class DtlsSessionContext @JvmOverloads constructor(
             if (!cid.contentEquals(other.cid)) return false
         } else if (other.cid != null) return false
         if (sessionStartTimestamp != other.sessionStartTimestamp) return false
+        if (sessionExpirationHint != other.sessionExpirationHint) return false
 
         return true
     }
@@ -53,6 +55,7 @@ data class DtlsSessionContext @JvmOverloads constructor(
         result = 31 * result + (peerCertificateSubject?.hashCode() ?: 0)
         result = 31 * result + (cid?.contentHashCode() ?: 0)
         result = 31 * result + (sessionStartTimestamp?.hashCode() ?: 0)
+        result = 31 * result + (sessionExpirationHint.hashCode())
         return result
     }
 }
