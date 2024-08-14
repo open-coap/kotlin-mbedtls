@@ -56,7 +56,6 @@ import java.nio.channels.ClosedChannelException
 import java.nio.charset.Charset
 import java.time.Instant
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -236,24 +235,27 @@ class NettyTest {
             0,
             DtlsChannelHandler(serverConf, sessionStore = sessionStore),
             {
-                addLast("echo", object : ChannelInboundHandlerAdapter() {
-                    override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-                        val dgram = msg as DatagramPacket
-                        val dgramContent = dgram.content().toByteArray()
-                        val dgramSender = dgram.sender()
-                        val reply = ctx.alloc().buffer(dgram.content().readableBytes()).writeBytes(dgramContent)
-                        val goToSleep = dgramContent.toString(Charset.defaultCharset()).endsWith(":sleep")
+                addLast(
+                    "echo",
+                    object : ChannelInboundHandlerAdapter() {
+                        override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
+                            val dgram = msg as DatagramPacket
+                            val dgramContent = dgram.content().toByteArray()
+                            val dgramSender = dgram.sender()
+                            val reply = ctx.alloc().buffer(dgram.content().readableBytes()).writeBytes(dgramContent)
+                            val goToSleep = dgramContent.toString(Charset.defaultCharset()).endsWith(":sleep")
 
-                        ctx.writeAndFlush(
-                            DatagramPacketWithContext(
-                                reply,
-                                dgramSender,
-                                null,
-                                DtlsSessionContext(sessionExpirationHint = goToSleep)
+                            ctx.writeAndFlush(
+                                DatagramPacketWithContext(
+                                    reply,
+                                    dgramSender,
+                                    null,
+                                    DtlsSessionContext(sessionExpirationHint = goToSleep)
+                                )
                             )
-                        )
+                        }
                     }
-                })
+                )
             }
         ).bind().sync().channel() as DatagramChannel
 
@@ -279,5 +281,4 @@ class NettyTest {
 
         client.close()
     }
-
 }

@@ -93,7 +93,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
             is DatagramPacketWithContext -> {
                 write(msg, promise, ctx)
                 promise.toCompletableFuture().whenComplete { isSuccess, err ->
-                    if (msg.sessionContext.sessionExpirationHint &&err == null && isSuccess) {
+                    if (msg.sessionContext.sessionExpirationHint && err == null && isSuccess) {
                         dtlsServer.closeSession(msg.recipient())
                     }
                 }
