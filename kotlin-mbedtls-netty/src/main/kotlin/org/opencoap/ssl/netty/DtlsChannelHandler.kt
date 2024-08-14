@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,9 +92,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
         when (msg) {
             is DatagramPacketWithContext -> {
                 write(msg, promise, ctx)
-                promise.toCompletableFuture().whenComplete { isSuccess, err ->
-                    if (msg.sessionContext.sessionExpirationHint && err == null && isSuccess) {
-                        dtlsServer.closeSession(msg.recipient())
+                if (msg.sessionContext.sessionExpirationHint) {
+                    promise.toCompletableFuture().whenComplete { isSuccess, err ->
+                        if (err == null && isSuccess) {
+                            dtlsServer.closeSession(msg.recipient())
+                        }
                     }
                 }
             }

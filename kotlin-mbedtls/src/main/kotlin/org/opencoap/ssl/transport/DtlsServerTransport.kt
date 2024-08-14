@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,15 +95,17 @@ class DtlsServerTransport private constructor(
     override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> = executor.supply {
         val encPacket = dtlsServer.encrypt(packet.buffer, packet.peerAddress)?.let(packet::map)
 
-        when (encPacket) {
-            null -> completedFuture(false)
-            else -> {
-                transport.send(encPacket).whenComplete { isSuccess, err ->
-                    if (packet.sessionContext.sessionExpirationHint && err == null && isSuccess) {
+        when {
+            encPacket == null -> completedFuture(false)
+            packet.sessionContext.sessionExpirationHint -> {
+                transport.send(encPacket).thenApply { isSuccess ->
+                    if (isSuccess) {
                         dtlsServer.closeSession(packet.peerAddress)
                     }
+                    isSuccess
                 }
             }
+            else -> transport.send(encPacket)
         }
     }.thenCompose(Function.identity())
 

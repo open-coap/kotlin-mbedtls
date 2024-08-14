@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,14 +30,21 @@ class EchoHandler : ChannelInboundHandlerAdapter() {
 
         val sessionContext = DatagramPacketWithContext.contextFrom(msg)
         val authContext = (sessionContext.authenticationContext["AUTH"] ?: "")
+        val dgramContent = dgram.content().toByteArray()
+        val goToSleep = dgramContent.toString(Charset.defaultCharset()).endsWith(":sleep")
 
-        val reply = ctx.alloc().buffer(dgram.content().readableBytes() + 20)
+        val reply = ctx.alloc().buffer(dgramContent.size + 20)
         reply.writeBytes(echoPrefix)
         reply.writeCharSequence(authContext, Charset.defaultCharset())
-        reply.writeBytes(dgram.content())
+        reply.writeBytes(dgramContent)
 
-        dgram.release()
-
-        ctx.writeAndFlush(DatagramPacket(reply, dgram.sender()))
+        ctx.writeAndFlush(
+            DatagramPacketWithContext(
+                reply,
+                dgram.sender(),
+                null,
+                sessionContext.copy(sessionExpirationHint = goToSleep)
+            )
+        )
     }
 }

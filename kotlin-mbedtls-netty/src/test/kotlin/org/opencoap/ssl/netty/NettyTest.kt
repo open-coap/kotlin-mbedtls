@@ -18,8 +18,6 @@ package org.opencoap.ssl.netty
 
 import io.mockk.mockk
 import io.mockk.verify
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
@@ -41,7 +39,6 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
-import org.opencoap.ssl.transport.DtlsSessionContext
 import org.opencoap.ssl.transport.HashMapSessionStore
 import org.opencoap.ssl.transport.SessionWithContext
 import org.opencoap.ssl.transport.SessionWriter
@@ -231,51 +228,23 @@ class NettyTest {
 
     @Test
     fun `server should store session if hinted to do so`() {
-        val hintedSrvChannel = createBootstrap(
-            0,
-            DtlsChannelHandler(serverConf, sessionStore = sessionStore),
-            {
-                addLast(
-                    "echo",
-                    object : ChannelInboundHandlerAdapter() {
-                        override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-                            val dgram = msg as DatagramPacket
-                            val dgramContent = dgram.content().toByteArray()
-                            val dgramSender = dgram.sender()
-                            val reply = ctx.alloc().buffer(dgram.content().readableBytes()).writeBytes(dgramContent)
-                            val goToSleep = dgramContent.toString(Charset.defaultCharset()).endsWith(":sleep")
+        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
 
-                            ctx.writeAndFlush(
-                                DatagramPacketWithContext(
-                                    reply,
-                                    dgramSender,
-                                    null,
-                                    DtlsSessionContext(sessionExpirationHint = goToSleep)
-                                )
-                            )
-                        }
-                    }
-                )
-            }
-        ).bind().sync().channel() as DatagramChannel
-
-        val hintedDtlsServer = (hintedSrvChannel.pipeline().get("DTLS") as DtlsChannelHandler).dtlsServer
-        val hintedSrvAddr = localAddress(hintedSrvChannel.localAddress().port)
-
-        // connect and handshake
-        val client = NettyTransportAdapter.connect(clientConf, hintedSrvAddr).mapToString()
-
+        // when normal packet is sent
         assertTrue(client.send("hi").await())
-        assertEquals("hi", client.receive(5.seconds).await())
+        assertEquals("ECHO:hi", client.receive(5.seconds).await())
 
-        assertEquals(1, hintedDtlsServer.numberOfSessions)
+        // then session should not be stored
+        assertEquals(1, dtlsServer.numberOfSessions)
         assertEquals(0, sessionStore.size())
 
+        // when a packet with session expiration hint is sent
         assertTrue(client.send("hi:sleep").await())
-        assertEquals("hi:sleep", client.receive(5.seconds).await())
+        assertEquals("ECHO:hi:sleep", client.receive(5.seconds).await())
 
+        // then session must be stored
         await.atMost(5.seconds).untilAsserted {
-            assertEquals(0, hintedDtlsServer.numberOfSessions)
+            assertEquals(0, dtlsServer.numberOfSessions)
             assertEquals(1, sessionStore.size())
         }
 
