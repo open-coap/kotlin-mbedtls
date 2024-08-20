@@ -48,6 +48,7 @@ class DtlsServerMetricsCallbacks(
     private val sessionsClosed = registry.counter("$metricsPrefix.sessions.closed")
     private val sessionsFailedBuilder = Counter.builder("$metricsPrefix.sessions.failed")
     private val sessionsExpired = registry.counter("$metricsPrefix.sessions.expired")
+    private val sessionsStored = registry.counter("$metricsPrefix.sessions.stored")
     private val sessionsReloaded = registry.counter("$metricsPrefix.sessions.reloaded")
     private val messagesDropped = registry.counter("$metricsPrefix.messages.dropped")
 
@@ -79,6 +80,8 @@ class DtlsServerMetricsCallbacks(
             sessionsClosed.increment()
         DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             sessionsExpired.increment()
+        DtlsSessionLifecycleCallbacks.Reason.STORED ->
+            sessionsStored.increment()
         else -> {}
     }
 

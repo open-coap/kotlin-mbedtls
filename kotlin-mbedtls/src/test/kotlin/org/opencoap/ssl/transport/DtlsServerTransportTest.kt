@@ -353,6 +353,7 @@ class DtlsServerTransportTest {
         client.close()
 
         verify {
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
     }
@@ -391,8 +392,10 @@ class DtlsServerTransportTest {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), false)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), true)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
