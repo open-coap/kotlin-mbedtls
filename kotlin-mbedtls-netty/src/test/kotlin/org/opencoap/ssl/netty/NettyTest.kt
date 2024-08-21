@@ -36,7 +36,6 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.SslException
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.HashMapSessionStore
@@ -55,7 +54,6 @@ import java.time.Instant
 import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
-@Suppress("DEPRECATION")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyTest {
 
@@ -174,24 +172,6 @@ class NettyTest {
     }
 
     @Test
-    fun `should forward authentication context`() {
-        // connect and handshake
-        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
-
-        assertTrue(client.send("hi").await())
-        assertEquals("ECHO:hi", client.receive(5.seconds).await())
-
-        // when
-        srvChannel.writeAndFlush(SessionAuthenticationContext(client.localAddress(), mapOf("AUTH" to "007:"))).get()
-
-        // then
-        assertTrue(client.send("hi").await())
-        assertEquals("ECHO:007:hi", client.receive(5.seconds).await())
-
-        client.close()
-    }
-
-    @Test
     fun `should forward authentication context passed inside outbound datagram`() {
         // connect and handshake
         val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
@@ -208,13 +188,6 @@ class NettyTest {
         assertEquals("ECHO:007:hi", client.receive(5.seconds).await())
 
         client.close()
-    }
-
-    @Test
-    fun `should fail to forward authentication context for non existing client`() {
-        assertThatThrownBy {
-            srvChannel.writeAndFlush(SessionAuthenticationContext(localAddress(1), mapOf("AUTH" to "007:"))).get()
-        }.hasRootCause(SslException("Session does not exists"))
     }
 
     @Test

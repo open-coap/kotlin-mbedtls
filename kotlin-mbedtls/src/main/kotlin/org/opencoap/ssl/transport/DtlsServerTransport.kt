@@ -29,7 +29,6 @@ import java.util.function.Function
 /*
 Single threaded dtls server on top of DatagramChannel.
  */
-@Suppress("DEPRECATION")
 class DtlsServerTransport private constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
@@ -115,10 +114,4 @@ class DtlsServerTransport private constructor(
         }.get(30, TimeUnit.SECONDS)
         executor.shutdown()
     }
-
-    @Deprecated("Pass authentication context in the DtlSContext of the outbound datagram instead")
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): CompletableFuture<Boolean> =
-        executor.supply {
-            dtlsServer.putSessionAuthenticationContext(adr, key, value)
-        }
 }

@@ -94,10 +94,6 @@ class DtlsServer(
         return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
     }
 
-    @Deprecated("Pass authentication context in the DtlSContext of the outbound datagram instead")
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean =
-        updateSessionAuthenticationContext(adr, mapOf(key to value))
-
     private fun updateSessionAuthenticationContext(adr: InetSocketAddress, authCtxUpdate: Map<String, String?>): Boolean {
         if (authCtxUpdate.isEmpty()) return true
 
@@ -126,11 +122,20 @@ class DtlsServer(
         }
     }
 
-    fun closeSession(addr: InetSocketAddress) {
+    private fun closeSession(addr: InetSocketAddress) {
         sessions.remove(addr)?.apply {
             storeAndClose()
             logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex() ?: "na")
         }
+    }
+
+    fun handleOutboundDtlsSessionContext(adr: InetSocketAddress, ctx: DtlsSessionContext, writeFuture: CompletableFuture<Boolean>) {
+        if (ctx.sessionSuspensionHint) {
+            writeFuture.thenAccept {
+                closeSession(adr)
+            }
+        }
+        updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray): Boolean {
@@ -403,15 +408,6 @@ class DtlsServer(
         }
 
         return false
-    }
-
-    fun handleOutboundDtlsSessionContext(adr: InetSocketAddress, ctx: DtlsSessionContext, writeFuture: CompletableFuture<Boolean>) {
-        if (ctx.sessionSuspensionHint) {
-            writeFuture.thenAccept {
-                closeSession(adr)
-            }
-        }
-        updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 }
 

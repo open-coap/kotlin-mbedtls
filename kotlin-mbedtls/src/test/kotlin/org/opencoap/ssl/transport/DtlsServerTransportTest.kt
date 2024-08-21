@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 import kotlin.random.Random
 
-@Suppress("DEPRECATION")
 class DtlsServerTransportTest {
 
     private val psk = PskAuth("dupa", byteArrayOf(1))
@@ -71,14 +70,11 @@ class DtlsServerTransportTest {
         if (msg == "error") {
             throw Exception("error")
         } else if (msg.startsWith("Authenticate:")) {
-            server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
-            server.send(Packet("OK".toByteBuffer(), packet.peerAddress))
-        } else if (msg.startsWith("AuthenticateWithContext:")) {
             server.send(
                 Packet(
                     "OK".toByteBuffer(),
                     packet.peerAddress,
-                    DtlsSessionContext(authenticationContext = mapOf("auth" to msg.substring(23)))
+                    DtlsSessionContext(authenticationContext = mapOf("auth" to msg.substring(12)))
                 )
             )
         } else {
@@ -465,35 +461,11 @@ class DtlsServerTransportTest {
     }
 
     @Test
-    fun `should set and use session context`() {
-        // given
-        server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
-        val serverReceived = server.receive(1.seconds)
-        // and, client connected
-        val client = DtlsTransmitter.connect(server, clientConfig).await()
-        client.send("hello!")
-        assertEquals("hello!", serverReceived.await().buffer.decodeToString())
-
-        // when, session context is set
-        assertTrue(server.putSessionAuthenticationContext(serverReceived.await().peerAddress, "auth", "id:dev-007").await())
-
-        // and, client sends messages
-        client.send("msg1")
-        client.send("msg2")
-
-        // then
-        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
-        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
-
-        client.close()
-    }
-
-    @Test
     fun `should set and use session context passed inside outbound datagram`() {
         server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
         // client connected
         val client = DtlsTransmitter.connect(server, clientConfig).await()
-        client.send("AuthenticateWithContext:dev-007")
+        client.send("Authenticate:dev-007")
         assertEquals("OK", client.receiveString())
         client.send("hi")
         assertEquals("hi:resp:dev-007", client.receiveString())
