@@ -32,6 +32,9 @@ class EchoHandler : ChannelInboundHandlerAdapter() {
         val authContext = (sessionContext.authenticationContext["AUTH"] ?: "")
         val dgramContent = dgram.content().toByteArray()
         val goToSleep = dgramContent.toString(Charset.defaultCharset()).endsWith(":sleep")
+        val newAuthContext = dgramContent.toString(Charset.defaultCharset())
+            .takeIf { it.startsWith("auth:") }
+            ?.substringAfter(":")
 
         val reply = ctx.alloc().buffer(dgramContent.size + 20)
         reply.writeBytes(echoPrefix)
@@ -43,7 +46,10 @@ class EchoHandler : ChannelInboundHandlerAdapter() {
                 reply,
                 dgram.sender(),
                 null,
-                sessionContext.copy(sessionExpirationHint = goToSleep)
+                sessionContext.copy(
+                    authenticationContext = newAuthContext?.let { mapOf("AUTH" to it) } ?: emptyMap(),
+                    sessionSuspensionHint = goToSleep
+                )
             )
         )
     }

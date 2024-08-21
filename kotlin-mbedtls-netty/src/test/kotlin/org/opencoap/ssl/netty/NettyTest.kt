@@ -191,6 +191,25 @@ class NettyTest {
     }
 
     @Test
+    fun `should forward authentication context passed inside outbound datagram`() {
+        // connect and handshake
+        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
+
+        assertTrue(client.send("hi").await())
+        assertEquals("ECHO:hi", client.receive(5.seconds).await())
+
+        // when
+        assertTrue(client.send("auth:007:").await())
+        assertEquals("ECHO:auth:007:", client.receive(5.seconds).await())
+
+        // then
+        assertTrue(client.send("hi").await())
+        assertEquals("ECHO:007:hi", client.receive(5.seconds).await())
+
+        client.close()
+    }
+
+    @Test
     fun `should fail to forward authentication context for non existing client`() {
         assertThatThrownBy {
             srvChannel.writeAndFlush(SessionAuthenticationContext(localAddress(1), mapOf("AUTH" to "007:"))).get()

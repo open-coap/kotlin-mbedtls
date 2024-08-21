@@ -92,11 +92,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
         when (msg) {
             is DatagramPacketWithContext -> {
                 write(msg, promise, ctx)
-                if (msg.sessionContext.sessionExpirationHint) {
-                    promise.toCompletableFuture().thenAccept {
-                        dtlsServer.closeSession(msg.recipient())
-                    }
-                }
+                handleDtlsContext(msg, promise)
             }
             is DatagramPacket -> write(msg, promise, ctx)
             is SessionAuthenticationContext -> {
@@ -111,6 +107,22 @@ class DtlsChannelHandler @JvmOverloads constructor(
             }
 
             else -> ctx.write(msg, promise)
+        }
+    }
+
+    private fun handleDtlsContext(msg: DatagramPacketWithContext, promise: ChannelPromise) {
+        val sessCtx = msg.sessionContext
+        if (sessCtx.sessionSuspensionHint) {
+            promise.toCompletableFuture().thenAccept {
+                dtlsServer.closeSession(msg.recipient())
+            }
+        }
+        if (sessCtx.authenticationContext.isNotEmpty()) {
+            promise.toCompletableFuture().thenAccept {
+                sessCtx.authenticationContext.forEach { (key, value) ->
+                    dtlsServer.putSessionAuthenticationContext(msg.recipient(), key, value)
+                }
+            }
         }
     }
 

@@ -72,6 +72,14 @@ class DtlsServerTransportTest {
         } else if (msg.startsWith("Authenticate:")) {
             server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
             server.send(Packet("OK".toByteBuffer(), packet.peerAddress))
+        } else if (msg.startsWith("AuthenticateWithContext:")) {
+            server.send(
+                Packet(
+                    "OK".toByteBuffer(),
+                    packet.peerAddress,
+                    DtlsSessionContext(authenticationContext = mapOf("auth" to msg.substring(23)))
+                )
+            )
         } else {
             val ctx = (packet.sessionContext.authenticationContext["auth"] ?: "")
             server.send(packet.map { "$msg:resp$ctx".toByteBuffer() })
@@ -480,6 +488,19 @@ class DtlsServerTransportTest {
     }
 
     @Test
+    fun `should set and use session context passed inside outbound datagram`() {
+        server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        // client connected
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("AuthenticateWithContext:dev-007")
+        assertEquals("OK", client.receiveString())
+        client.send("hi")
+        assertEquals("hi:resp:dev-007", client.receiveString())
+
+        client.close()
+    }
+
+    @Test
     fun `server should store session if hinted to do so`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
@@ -491,7 +512,7 @@ class DtlsServerTransportTest {
         assertEquals("dupa", client.receive(1.seconds).await())
 
         client.send("sleep")
-        server.send(Packet("sleep".toByteBuffer(), serverReceived.await().peerAddress, sessionContext = DtlsSessionContext(sessionExpirationHint = true)))
+        server.send(Packet("sleep".toByteBuffer(), serverReceived.await().peerAddress, sessionContext = DtlsSessionContext(sessionSuspensionHint = true)))
         assertEquals("sleep", client.receive(1.seconds).await())
 
         await.atMost(5.seconds).untilAsserted {
