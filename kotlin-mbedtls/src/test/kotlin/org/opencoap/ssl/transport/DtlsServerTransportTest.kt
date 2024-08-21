@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 import kotlin.random.Random
 
+@Suppress("DEPRECATION")
 class DtlsServerTransportTest {
 
     private val psk = PskAuth("dupa", byteArrayOf(1))

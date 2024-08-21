@@ -94,18 +94,26 @@ class DtlsServer(
         return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
     }
 
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean {
-        return when (val s = sessions[adr]) {
-            is DtlsSession -> {
-                if (value != null) {
-                    s.authenticationContext += (key to value)
-                } else {
-                    s.authenticationContext -= key
+    @Deprecated("Pass authentication context in the DtlSContext of the outbound datagram instead")
+    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean =
+        updateSessionAuthenticationContext(adr, mapOf(key to value))
+
+    private fun updateSessionAuthenticationContext(adr: InetSocketAddress, authCtxUpdate: Map<String, String?>): Boolean {
+        if (authCtxUpdate.isEmpty()) return true
+
+        return when (val s = sessions[adr] as? DtlsSession) {
+            null -> false
+
+            else -> {
+                authCtxUpdate.forEach { (key, value) ->
+                    if (value != null) {
+                        s.authenticationContext += (key to value)
+                    } else {
+                        s.authenticationContext -= key
+                    }
                 }
                 true
             }
-
-            else -> false
         }
     }
 
@@ -395,6 +403,15 @@ class DtlsServer(
         }
 
         return false
+    }
+
+    fun handleOutboundDtlsSessionContext(adr: InetSocketAddress, ctx: DtlsSessionContext, writeFuture: CompletableFuture<Boolean>) {
+        if (ctx.sessionSuspensionHint) {
+            writeFuture.thenAccept {
+                closeSession(adr)
+            }
+        }
+        updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 }
 

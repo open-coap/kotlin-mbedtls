@@ -18,4 +18,5 @@ package org.opencoap.ssl.netty
 
 import java.net.InetSocketAddress
 
+@Deprecated("Pass authentication context in the DtlSContext of the outbound datagram instead")
 data class SessionAuthenticationContext(val adr: InetSocketAddress, val map: Map<String, String?>)

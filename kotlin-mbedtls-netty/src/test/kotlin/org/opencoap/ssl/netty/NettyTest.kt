@@ -55,6 +55,7 @@ import java.time.Instant
 import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
+@Suppress("DEPRECATION")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyTest {
 

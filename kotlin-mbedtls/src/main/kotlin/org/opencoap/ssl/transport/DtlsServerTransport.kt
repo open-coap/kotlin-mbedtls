@@ -29,6 +29,7 @@ import java.util.function.Function
 /*
 Single threaded dtls server on top of DatagramChannel.
  */
+@Suppress("DEPRECATION")
 class DtlsServerTransport private constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
@@ -97,21 +98,11 @@ class DtlsServerTransport private constructor(
 
         when {
             encPacket == null -> completedFuture(false)
-            else -> transport.send(encPacket)
-        }.thenApply { isSuccess ->
-            if (!isSuccess) return@thenApply false
-
-            val sessCtx = packet.sessionContext
-            if (sessCtx.sessionSuspensionHint) {
-                dtlsServer.closeSession(packet.peerAddress)
-            }
-            if (sessCtx.authenticationContext.isNotEmpty()) {
-                sessCtx.authenticationContext.forEach { (key, value) ->
-                    dtlsServer.putSessionAuthenticationContext(packet.peerAddress, key, value)
+            else -> {
+                transport.send(encPacket).also {
+                    dtlsServer.handleOutboundDtlsSessionContext(packet.peerAddress, packet.sessionContext, it)
                 }
             }
-
-            true
         }
     }.thenCompose(Function.identity())
 
@@ -125,6 +116,7 @@ class DtlsServerTransport private constructor(
         executor.shutdown()
     }
 
+    @Deprecated("Pass authentication context in the DtlSContext of the outbound datagram instead")
     fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): CompletableFuture<Boolean> =
         executor.supply {
             dtlsServer.putSessionAuthenticationContext(adr, key, value)
