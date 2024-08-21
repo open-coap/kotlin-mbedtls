@@ -119,7 +119,10 @@ class DtlsServer(
     }
 
     fun closeSession(addr: InetSocketAddress) {
-        sessions.remove(addr)?.storeAndClose()
+        sessions.remove(addr)?.apply {
+            storeAndClose()
+            logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex() ?: "na")
+        }
     }
 
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray): Boolean {
@@ -267,11 +270,14 @@ class DtlsServer(
                         sessionStartTimestamp = sessionStartTimestamp
                     )
                     storeSession(ctx.ownCid, session)
+                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.STORED)
                 } catch (ex: Exception) {
                     logger.error("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
+                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 }
             } else {
                 close()
+                reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
             }
         }
 
@@ -315,7 +321,7 @@ class DtlsServer(
             sessions.remove(peerAddress, this)
             storeAndClose()
             logger.info("[{}] [CID:{}] DTLS connection expired", peerAddress, ownCidHex)
-            lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         private val ownCidHex: String get() = ctx.ownCid?.toHex() ?: "na"
