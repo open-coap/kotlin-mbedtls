@@ -21,7 +21,6 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelPromise
 import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.SslException
 import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
@@ -92,23 +91,9 @@ class DtlsChannelHandler @JvmOverloads constructor(
         when (msg) {
             is DatagramPacketWithContext -> {
                 write(msg, promise, ctx)
-                if (msg.sessionContext.sessionExpirationHint) {
-                    promise.toCompletableFuture().thenAccept {
-                        dtlsServer.closeSession(msg.recipient())
-                    }
-                }
+                dtlsServer.handleOutboundDtlsSessionContext(msg.recipient(), msg.sessionContext, promise.toCompletableFuture())
             }
             is DatagramPacket -> write(msg, promise, ctx)
-            is SessionAuthenticationContext -> {
-                msg.map.forEach { (key, value) ->
-                    if (!dtlsServer.putSessionAuthenticationContext(msg.adr, key, value)) {
-                        promise.setFailure(SslException("Session does not exists"))
-                    }
-                }
-                if (!promise.isDone) {
-                    promise.setSuccess()
-                }
-            }
 
             else -> ctx.write(msg, promise)
         }

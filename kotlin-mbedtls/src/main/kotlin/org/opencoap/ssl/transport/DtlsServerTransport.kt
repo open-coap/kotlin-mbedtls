@@ -97,15 +97,11 @@ class DtlsServerTransport private constructor(
 
         when {
             encPacket == null -> completedFuture(false)
-            packet.sessionContext.sessionExpirationHint -> {
-                transport.send(encPacket).thenApply { isSuccess ->
-                    if (isSuccess) {
-                        dtlsServer.closeSession(packet.peerAddress)
-                    }
-                    isSuccess
+            else -> {
+                transport.send(encPacket).also {
+                    dtlsServer.handleOutboundDtlsSessionContext(packet.peerAddress, packet.sessionContext, it)
                 }
             }
-            else -> transport.send(encPacket)
         }
     }.thenCompose(Function.identity())
 
@@ -118,9 +114,4 @@ class DtlsServerTransport private constructor(
         }.get(30, TimeUnit.SECONDS)
         executor.shutdown()
     }
-
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): CompletableFuture<Boolean> =
-        executor.supply {
-            dtlsServer.putSessionAuthenticationContext(adr, key, value)
-        }
 }
