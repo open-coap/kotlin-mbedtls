@@ -333,7 +333,7 @@ class DtlsServer(
         fun timeout() {
             sessions.remove(peerAddress, this)
             storeAndClose()
-            logger.info("[{}] [CID:{}] DTLS connection expired", peerAddress, ownCidHex)
+            logger.info("[{}] [CID:{}] DTLS session stored after idle", peerAddress, ownCidHex)
             reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
