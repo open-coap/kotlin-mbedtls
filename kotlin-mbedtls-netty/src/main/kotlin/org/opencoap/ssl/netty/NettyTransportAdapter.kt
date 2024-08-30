@@ -82,9 +82,9 @@ class NettyTransportAdapter(
             return Bootstrap()
                 .group(group)
                 .channel(NioDatagramChannel::class.java)
-                .handler(DtlsClientHandshakeChannelHandler(sslConfig.newContext(destinationAddress), destinationAddress, sessionWriter))
+                .handler(DtlsClientHandshakeChannelHandler(sslConfig, sessionWriter))
                 .also(bootstrapConfig)
-                .bind(0)
+                .connect(destinationAddress)
                 .sync()
                 .channel()
                 .let { NettyTransportAdapter(it as DatagramChannel, destinationAddress) }
