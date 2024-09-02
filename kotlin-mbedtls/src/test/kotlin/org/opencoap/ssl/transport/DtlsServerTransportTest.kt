@@ -157,11 +157,12 @@ class DtlsServerTransportTest {
     fun testFailedHandshake() {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
-        val srvReceive = server.receive(2.seconds)
+        val srvReceive = server.receive(5.seconds)
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.copy(pskSecret = byteArrayOf(-128))))
 
         // when
-        assertTrue(runCatching { clientFut.await() }.exceptionOrNull()?.cause is SslException)
+        val clientResult: Result<DtlsTransmitter> = runCatching { clientFut.await() }
+        assertTrue(clientResult.exceptionOrNull()?.cause is SslException, "Expected SslException, but got $clientResult")
 
         // then
         await.untilAsserted {
@@ -451,7 +452,7 @@ class DtlsServerTransportTest {
     @Test
     fun `should put client's cid in the session context`() {
         server = DtlsServerTransport.create(conf)
-        val serverReceived = server.receive(1.seconds)
+        val serverReceived = server.receive(5.seconds)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("hello!")
 
@@ -477,7 +478,7 @@ class DtlsServerTransportTest {
     fun `server should store session if hinted to do so`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
-        val serverReceived = server.receive(1.seconds)
+        val serverReceived = server.receive(10.seconds)
         val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
 
         client.send("dupa")

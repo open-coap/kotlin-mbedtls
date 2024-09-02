@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.opencoap.ssl.transport
 
+import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
@@ -46,6 +47,7 @@ class DatagramChannelAdapter(
         }
     }
 
+    private val logger = LoggerFactory.getLogger(javaClass)
     private val selector: Selector = Selector.open()
     private val port get() = (channel.localAddress as InetSocketAddress).port
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "udp-io (:$port)") }
@@ -62,9 +64,11 @@ class DatagramChannelAdapter(
 
             val sourceAddress = channel.receive(buffer)
             if (sourceAddress == null) {
+                logger.trace("[DgramCh:{}] No data received", port)
                 Packet.EmptyByteBufferPacket
             } else {
                 buffer.flip()
+                logger.trace("[DgramCh:{}] Received {} bytes from {}", port, buffer.remaining(), sourceAddress)
                 Packet(buffer, sourceAddress as InetSocketAddress)
             }
         }
@@ -72,6 +76,7 @@ class DatagramChannelAdapter(
 
     override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> {
         return try {
+            logger.trace("[DgramCh:{}] Sent {} bytes to {}", port, packet.buffer.remaining(), packet.peerAddress)
             completedFuture(channel.send(packet.buffer, packet.peerAddress) > 0)
         } catch (ex: Exception) {
             CompletableFuture<Boolean>().also { it.completeExceptionally(ex) }
