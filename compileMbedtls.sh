@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# remove this comment line
 DEFAULT_MBEDTLS_VERSION=3.6.1
 MBEDTLS_VERSION=${MBEDTLS_VERSION:-$DEFAULT_MBEDTLS_VERSION}
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
