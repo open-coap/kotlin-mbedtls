@@ -25,7 +25,7 @@ jobs:
           java-version: ${{ matrix.java }}
           distribution: 'corretto'
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Enable using libraries from temporary location in mac
         if: ${{ matrix.platform == 'macos-12' }}
@@ -46,7 +46,7 @@ jobs:
           java-version: '8'
           distribution: 'adopt'
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Publish with Gradle
         run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository -i
