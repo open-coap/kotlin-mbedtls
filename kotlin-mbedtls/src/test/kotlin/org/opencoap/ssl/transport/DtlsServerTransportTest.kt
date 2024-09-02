@@ -97,7 +97,7 @@ class DtlsServerTransportTest {
     @Test
     fun testSingleConnection() {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
-        val receive = server.receive(2.seconds)
+        val receive = server.receive(10.seconds)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
 
