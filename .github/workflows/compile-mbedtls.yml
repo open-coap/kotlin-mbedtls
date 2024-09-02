@@ -46,7 +46,12 @@ jobs:
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
-        run: LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
+        run: |
+          # use virtual environment for Python packages
+          VENV_DIR=$(mktemp -d)
+          python3 -m venv ${VENV_DIR}
+          source ${VENV_DIR}/bin/activate
+          LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
