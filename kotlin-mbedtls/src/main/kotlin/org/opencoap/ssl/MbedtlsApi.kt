@@ -98,6 +98,7 @@ internal object MbedtlsApi {
     const val MBEDTLS_SSL_VERIFY_NONE = 0
     const val MBEDTLS_SSL_VERIFY_REQUIRED = 2
     const val MBEDTLS_ERR_SSL_UNEXPECTED_RECORD = -0x6700
+
     // ----- net_sockets.h -----
     val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
     val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
