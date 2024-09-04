@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelPromise
 import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.SslException
 import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
@@ -90,17 +89,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {
         when (msg) {
-            is DatagramPacket -> write(msg, promise, ctx)
-            is SessionAuthenticationContext -> {
-                msg.map.forEach { (key, value) ->
-                    if (!dtlsServer.putSessionAuthenticationContext(msg.adr, key, value)) {
-                        promise.setFailure(SslException("Session does not exists"))
-                    }
-                }
-                if (!promise.isDone) {
-                    promise.setSuccess()
-                }
+            is DatagramPacketWithContext -> {
+                write(msg, promise, ctx)
+                dtlsServer.handleOutboundDtlsSessionContext(msg.recipient(), msg.sessionContext, promise.toCompletableFuture())
             }
+            is DatagramPacket -> write(msg, promise, ctx)
 
             else -> ctx.write(msg, promise)
         }

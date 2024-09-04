@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ open class NettyBenchmark {
                 "direct" -> PooledByteBufAllocator(true)
                 "unpooled" -> UnpooledByteBufAllocator(false)
                 "heap" -> PooledByteBufAllocator(false)
-                "heap-8kb" -> PooledByteBufAllocator(false, 2, 2, 8192, 1)
+                "heap-8kb" -> PooledByteBufAllocator(false, 2, 2, 8192, 1, 256, 64, false)
                 // Note: max order is set to 2 so that allocated single byte[] is 8kB, with default one it is 4MB and slows down drastically performance
 
                 else -> throw IllegalArgumentException()

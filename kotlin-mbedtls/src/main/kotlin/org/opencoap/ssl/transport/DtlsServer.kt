@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,18 +94,22 @@ class DtlsServer(
         return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
     }
 
-    fun putSessionAuthenticationContext(adr: InetSocketAddress, key: String, value: String?): Boolean {
-        return when (val s = sessions[adr]) {
-            is DtlsSession -> {
-                if (value != null) {
-                    s.authenticationContext += (key to value)
-                } else {
-                    s.authenticationContext -= key
+    private fun updateSessionAuthenticationContext(adr: InetSocketAddress, authCtxUpdate: Map<String, String?>): Boolean {
+        if (authCtxUpdate.isEmpty()) return true
+
+        return when (val s = sessions[adr] as? DtlsSession) {
+            null -> false
+
+            else -> {
+                authCtxUpdate.forEach { (key, value) ->
+                    if (value != null) {
+                        s.authenticationContext += (key to value)
+                    } else {
+                        s.authenticationContext -= key
+                    }
                 }
                 true
             }
-
-            else -> false
         }
     }
 
@@ -118,6 +122,22 @@ class DtlsServer(
         }
     }
 
+     private fun closeSession(addr: InetSocketAddress) {
+        sessions.remove(addr)?.apply {
+            storeAndClose()
+            logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex() ?: "na")
+        }
+    }
+
+    fun handleOutboundDtlsSessionContext(adr: InetSocketAddress, ctx: DtlsSessionContext, writeFuture: CompletableFuture<Boolean>) {
+        if (ctx.sessionSuspensionHint) {
+            writeFuture.thenAccept {
+                closeSession(adr)
+            }
+        }
+        updateSessionAuthenticationContext(adr, ctx.authenticationContext)
+    }
+    
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, buf: ByteBuffer? = null): Boolean {
         if (sessBuf == null) {
             logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
@@ -272,11 +292,14 @@ class DtlsServer(
                         sessionStartTimestamp = sessionStartTimestamp
                     )
                     storeSession(ctx.ownCid, session)
+                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.STORED)
                 } catch (ex: Exception) {
                     logger.error("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
+                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
                 }
             } else {
                 close()
+                reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
             }
         }
 
@@ -319,8 +342,8 @@ class DtlsServer(
         fun timeout() {
             sessions.remove(peerAddress, this)
             storeAndClose()
-            logger.info("[{}] [CID:{}] DTLS connection expired", peerAddress, ownCidHex)
-            lifecycleCallbacks.sessionFinished(peerAddress, DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            logger.info("[{}] [CID:{}] DTLS session stored after idle", peerAddress, ownCidHex)
+            reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         private val ownCidHex: String get() = ctx.ownCid?.toHex() ?: "na"

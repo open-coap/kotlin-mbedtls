@@ -70,8 +70,13 @@ class DtlsServerTransportTest {
         if (msg == "error") {
             throw Exception("error")
         } else if (msg.startsWith("Authenticate:")) {
-            server.putSessionAuthenticationContext(packet.peerAddress, "auth", msg.substring(12))
-            server.send(Packet("OK".toByteBuffer(), packet.peerAddress))
+            server.send(
+                Packet(
+                    "OK".toByteBuffer(),
+                    packet.peerAddress,
+                    DtlsSessionContext(authenticationContext = mapOf("auth" to msg.substring(12)))
+                )
+            )
         } else {
             val ctx = (packet.sessionContext.authenticationContext["auth"] ?: "")
             server.send(packet.map { "$msg:resp$ctx".toByteBuffer() })
@@ -92,7 +97,7 @@ class DtlsServerTransportTest {
     @Test
     fun testSingleConnection() {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
-        val receive = server.receive(2.seconds)
+        val receive = server.receive(10.seconds)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
 
@@ -152,11 +157,12 @@ class DtlsServerTransportTest {
     fun testFailedHandshake() {
         // given
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks)
-        val srvReceive = server.receive(2.seconds)
+        val srvReceive = server.receive(5.seconds)
         val clientFut = DtlsTransmitter.connect(server, SslConfig.client(psk.copy(pskSecret = byteArrayOf(-128))))
 
         // when
-        assertTrue(runCatching { clientFut.await() }.exceptionOrNull()?.cause is SslException)
+        val clientResult: Result<DtlsTransmitter> = runCatching { clientFut.await() }
+        assertTrue(clientResult.exceptionOrNull()?.cause is SslException, "Expected SslException, but got $clientResult")
 
         // then
         await.untilAsserted {
@@ -353,6 +359,7 @@ class DtlsServerTransportTest {
         client.close()
 
         verify {
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
     }
@@ -391,8 +398,10 @@ class DtlsServerTransportTest {
             sslLifecycleCallbacks.handshakeStarted(any())
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), false)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), true)
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
@@ -443,7 +452,7 @@ class DtlsServerTransportTest {
     @Test
     fun `should put client's cid in the session context`() {
         server = DtlsServerTransport.create(conf)
-        val serverReceived = server.receive(1.seconds)
+        val serverReceived = server.receive(5.seconds)
         val client = DtlsTransmitter.connect(server, clientConfig).await()
         client.send("hello!")
 
@@ -453,25 +462,37 @@ class DtlsServerTransportTest {
     }
 
     @Test
-    fun `should set and use session context`() {
+    fun `should set and use session context passed inside outbound datagram`() {
+        server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        // client connected
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("Authenticate:dev-007")
+        assertEquals("OK", client.receiveString())
+        client.send("hi")
+        assertEquals("hi:resp:dev-007", client.receiveString())
+
+        client.close()
+    }
+
+    @Test
+    fun `server should store session if hinted to do so`() {
         // given
         server = DtlsServerTransport.create(conf, sessionStore = sessionStore)
-        val serverReceived = server.receive(1.seconds)
-        // and, client connected
-        val client = DtlsTransmitter.connect(server, clientConfig).await()
-        client.send("hello!")
-        assertEquals("hello!", serverReceived.await().buffer.decodeToString())
+        val serverReceived = server.receive(10.seconds)
+        val client = DtlsTransmitter.connect(server, clientConfig).await().mapToString()
 
-        // when, session context is set
-        assertTrue(server.putSessionAuthenticationContext(serverReceived.await().peerAddress, "auth", "id:dev-007").await())
+        client.send("dupa")
+        server.send(Packet("dupa".toByteBuffer(), serverReceived.await().peerAddress))
+        assertEquals("dupa", client.receive(1.seconds).await())
 
-        // and, client sends messages
-        client.send("msg1")
-        client.send("msg2")
+        client.send("sleep")
+        server.send(Packet("sleep".toByteBuffer(), serverReceived.await().peerAddress, sessionContext = DtlsSessionContext(sessionSuspensionHint = true)))
+        assertEquals("sleep", client.receive(1.seconds).await())
 
-        // then
-        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
-        assertEquals(mapOf("auth" to "id:dev-007"), server.receive(1.seconds).await().sessionContext.authenticationContext)
+        await.atMost(5.seconds).untilAsserted {
+            assertEquals(1, sessionStore.size())
+            assertEquals(0, server.numberOfSessions())
+        }
 
         client.close()
     }

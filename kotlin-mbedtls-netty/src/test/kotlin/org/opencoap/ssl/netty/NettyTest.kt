@@ -23,6 +23,7 @@ import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
 import io.netty.util.concurrent.DefaultThreadFactory
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -35,7 +36,6 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.SslException
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.HashMapSessionStore
@@ -172,7 +172,7 @@ class NettyTest {
     }
 
     @Test
-    fun `should forward authentication context`() {
+    fun `should forward authentication context passed inside outbound datagram`() {
         // connect and handshake
         val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
 
@@ -180,20 +180,14 @@ class NettyTest {
         assertEquals("ECHO:hi", client.receive(5.seconds).await())
 
         // when
-        srvChannel.writeAndFlush(SessionAuthenticationContext(client.localAddress(), mapOf("AUTH" to "007:"))).get()
+        assertTrue(client.send("auth:007:").await())
+        assertEquals("ECHO:auth:007:", client.receive(5.seconds).await())
 
         // then
         assertTrue(client.send("hi").await())
         assertEquals("ECHO:007:hi", client.receive(5.seconds).await())
 
         client.close()
-    }
-
-    @Test
-    fun `should fail to forward authentication context for non existing client`() {
-        assertThatThrownBy {
-            srvChannel.writeAndFlush(SessionAuthenticationContext(localAddress(1), mapOf("AUTH" to "007:"))).get()
-        }.hasRootCause(SslException("Session does not exists"))
     }
 
     @Test
@@ -222,6 +216,31 @@ class NettyTest {
 
         // then
         assertEquals(0, dtlsServer.numberOfSessions)
+        client.close()
+    }
+
+    @Test
+    fun `server should store session if hinted to do so`() {
+        val client = NettyTransportAdapter.connect(clientConf, srvAddress).mapToString()
+
+        // when normal packet is sent
+        assertTrue(client.send("hi").await())
+        assertEquals("ECHO:hi", client.receive(5.seconds).await())
+
+        // then session should not be stored
+        assertEquals(1, dtlsServer.numberOfSessions)
+        assertEquals(0, sessionStore.size())
+
+        // when a packet with session expiration hint is sent
+        assertTrue(client.send("hi:sleep").await())
+        assertEquals("ECHO:hi:sleep", client.receive(5.seconds).await())
+
+        // then session must be stored
+        await.atMost(5.seconds).untilAsserted {
+            assertEquals(0, dtlsServer.numberOfSessions)
+            assertEquals(1, sessionStore.size())
+        }
+
         client.close()
     }
 }

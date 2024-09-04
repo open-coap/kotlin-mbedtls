@@ -21,6 +21,7 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelPromise
 import io.netty.channel.socket.DatagramPacket
 import io.netty.util.concurrent.ScheduledFuture
+import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
@@ -33,14 +34,16 @@ import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
 
 class DtlsClientHandshakeChannelHandler(
-    private val sslHandshakeContext: SslHandshakeContext,
-    private val peerAddress: InetSocketAddress,
+    sslConfig: SslConfig,
     private val sessionWriter: SessionWriter
 ) : ChannelDuplexHandler() {
     private val logger = LoggerFactory.getLogger(javaClass)
     private lateinit var ctx: ChannelHandlerContext
     private val outboundMessages: MutableList<Pair<DatagramPacket, ChannelPromise>> = mutableListOf()
     private var scheduledRetransmission: ScheduledFuture<*>? = null
+
+    private val peerAddress: InetSocketAddress get() = ctx.channel().remoteAddress() as InetSocketAddress
+    private val sslHandshakeContext: SslHandshakeContext by lazy { sslConfig.newContext(peerAddress) }
 
     private fun write(packet: ByteBuffer) {
         val dtlsPacket = DatagramPacket(packet.toByteBuf(), peerAddress)

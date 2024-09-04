@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import java.net.InetSocketAddress
 class DatagramPacketWithContext(
     data: ByteBuf,
     recipient: InetSocketAddress?,
-    sender: InetSocketAddress,
+    sender: InetSocketAddress?,
     val sessionContext: DtlsSessionContext
 ) : DatagramPacket(data, recipient, sender) {
 

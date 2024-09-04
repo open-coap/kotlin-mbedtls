@@ -24,7 +24,8 @@ interface DtlsSessionLifecycleCallbacks {
         SUCCEEDED,
         FAILED,
         CLOSED,
-        EXPIRED
+        EXPIRED,
+        STORED
     }
 
     fun handshakeStarted(adr: InetSocketAddress) = Unit
