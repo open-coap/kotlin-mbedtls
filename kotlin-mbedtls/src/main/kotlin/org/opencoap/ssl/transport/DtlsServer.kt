@@ -122,10 +122,13 @@ class DtlsServer(
         }
     }
 
-     private fun closeSession(addr: InetSocketAddress) {
+    private fun closeSession(addr: InetSocketAddress) {
         sessions.remove(addr)?.apply {
             storeAndClose()
-            logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex() ?: "na")
+            logger.info(
+                "[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex()
+                    ?: "na"
+            )
         }
     }
 
@@ -137,7 +140,7 @@ class DtlsServer(
         }
         updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
-    
+
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, buf: ByteBuffer? = null): Boolean {
         if (sessBuf == null) {
             logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
