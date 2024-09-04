@@ -144,29 +144,29 @@ class DtlsServer(
     }
 
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, buf: ByteBuffer? = null): Boolean {
-        if (sessBuf == null) {
-            logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
-            reportMessageDrop(adr)
-            return false
-        }
-
-        val sslSession = try {
-            sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
-        } catch (ex: SslException) {
-            logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
-            reportMessageDrop(adr)
-            return false
-        }
-        buf?.let {
-            val verificationResult = sslSession.checkRecord(it)
-            if (verificationResult is SslSession.VerificationResult.Invalid) {
-                logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
+        return try {
+            if (sessBuf == null) {
+                logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                 reportMessageDrop(adr)
                 return false
             }
+
+            val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
+            buf?.let {
+                val verificationResult = sslSession.checkRecord(it)
+                if (verificationResult is SslSession.VerificationResult.Invalid) {
+                    logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
+                    reportMessageDrop(adr)
+                    return false
+                }
+            }
+            sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
+            true
+        } catch (ex: Exception) {
+            logger.error("[{}] [CID:{}] DTLS failed to load session: {}", adr, cid.toHex(), ex.message)
+            reportMessageDrop(adr)
+            false
         }
-        sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
-        return true
     }
 
     private fun reportMessageDrop(adr: InetSocketAddress) {

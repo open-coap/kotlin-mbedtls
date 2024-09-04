@@ -142,7 +142,7 @@ class SslContextTest {
         val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
 
         serverSession.decrypt(encryptedDtls, noSend)
-        val result = serverSession.checkRecord(encryptedDtls.rewind())
+        val result = serverSession.checkRecord(encryptedDtls.rewind() as ByteBuffer)
         assertTrue(result is SslSession.VerificationResult.Invalid)
     }
 
