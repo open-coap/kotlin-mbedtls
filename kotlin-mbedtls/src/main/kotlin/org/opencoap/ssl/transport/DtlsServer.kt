@@ -126,7 +126,9 @@ class DtlsServer(
         sessions.remove(addr)?.apply {
             storeAndClose()
             logger.info(
-                "[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex()
+                "[{}] [CID:{}] DTLS session was stored",
+                peerAddress,
+                (this as? DtlsSession)?.sessionContext?.cid?.toHex()
                     ?: "na"
             )
         }
