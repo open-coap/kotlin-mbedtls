@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
@@ -175,7 +176,7 @@ class SslSession internal constructor(
         try {
             val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
             println(SslException.from(result))
-            return if (result == 0) {
+            return if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
                 VerificationResult.Valid("Success")
             } else {
                 VerificationResult.Invalid(SslException.from(result).localizedMessage)
