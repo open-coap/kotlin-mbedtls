@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
@@ -27,6 +28,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
 import org.opencoap.ssl.MbedtlsApi.verify
+import org.opencoap.ssl.transport.cloneToMemory
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -162,6 +164,26 @@ class SslSession internal constructor(
             ReceiveCallback(encBuffer) { sslRead(plainBuffer) }
         }
         plainBuffer.limit(size + plainBuffer.position())
+    }
+
+    sealed interface VerificationResult {
+        data class Valid(val message: String) : VerificationResult
+        data class Invalid(val message: String) : VerificationResult
+    }
+
+    fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
+        val memory = encBuffer.cloneToMemory()
+        try {
+            val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
+            println(SslException.from(result))
+            return if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
+                VerificationResult.Valid("Success")
+            } else {
+                VerificationResult.Invalid(SslException.from(result).localizedMessage)
+            }
+        } finally {
+            memory.close()
+        }
     }
 
     fun decrypt(encBuffer: ByteBuffer, send: (ByteBuffer) -> Unit): ByteBuffer {

@@ -124,6 +124,29 @@ class SslContextTest {
     }
 
     @Test
+    fun `should check record is valid authentic and decrypt`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
+
+        val verificationResult = serverSession.checkRecord(encryptedDtls)
+        assertTrue(verificationResult is SslSession.VerificationResult.Valid)
+        assertEquals("auto", serverSession.decrypt(encryptedDtls, noSend).decodeToString())
+    }
+
+    @Test
+    fun `should check record is invalid when record is unexpected and replayed`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
+
+        serverSession.decrypt(encryptedDtls, noSend)
+        val result = serverSession.checkRecord(encryptedDtls.rewind() as ByteBuffer)
+        assertTrue(result is SslSession.VerificationResult.Invalid)
+    }
+
+    @Test
     fun `should exchange data with direct byte buffer`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
         val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
