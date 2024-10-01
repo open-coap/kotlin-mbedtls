@@ -63,7 +63,7 @@ jobs:
           sed -i 's/^\(DEFAULT_MBEDTLS_VERSION=\).\+$/\1'${NEW_MBEDTLS_VERSION}'/' compileMbedtls.sh
           sed -i 's/^\(mbedtlsVersion=\).\+$/\1'${NEW_MBEDTLS_VERSION}'/' kotlin-mbedtls/src/main/resources/mbedtls.properties
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           branch: update-mbedtls
           delete-branch: true
