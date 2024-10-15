@@ -166,16 +166,10 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    sealed interface VerificationResult {
-        data class Valid(val message: String) : VerificationResult
-        data class Invalid(val message: String) : VerificationResult
-    }
-
     fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
         val memory = encBuffer.cloneToMemory()
         try {
             val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
-            println(SslException.from(result))
             return if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
                 VerificationResult.Valid("Success")
             } else {
@@ -236,5 +230,10 @@ class SslSession internal constructor(
 
     override fun close() {
         mbedtls_ssl_free(sslContext)
+    }
+
+    sealed interface VerificationResult {
+        data class Valid(val message: String) : VerificationResult
+        data class Invalid(val message: String) : VerificationResult
     }
 }

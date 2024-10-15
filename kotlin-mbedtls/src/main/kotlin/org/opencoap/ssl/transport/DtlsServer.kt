@@ -143,7 +143,7 @@ class DtlsServer(
         updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 
-    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, buf: ByteBuffer? = null): Boolean {
+    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer? = null): Boolean {
         return try {
             if (sessBuf == null) {
                 logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
@@ -152,7 +152,7 @@ class DtlsServer(
             }
 
             val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
-            buf?.let {
+            dtlsPacket?.let {
                 val verificationResult = sslSession.checkRecord(it)
                 if (verificationResult is SslSession.VerificationResult.Invalid) {
                     logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
