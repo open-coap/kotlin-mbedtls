@@ -79,7 +79,7 @@ class DtlsServerTransport private constructor(
                 val copyBuf = buf.copy()
 
                 sessionStore.read(result.cid).thenApplyAsync(
-                    { sessBuf -> dtlsServer.loadSession(sessBuf, adr, result.cid) },
+                    { sessBuf -> dtlsServer.loadSession(sessBuf, adr, result.cid, copyBuf) },
                     executor
                 ).thenCompose { isLoaded ->
                     if (isLoaded) {
