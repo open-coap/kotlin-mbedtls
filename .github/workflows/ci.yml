@@ -11,9 +11,9 @@ jobs:
       fail-fast: false
       matrix:
         java: [ '8', '17', '21' ]
-        platform: [ 'ubuntu-latest', 'macos-12', 'windows-latest' ]
+        platform: [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ]
         exclude:
-          - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-12' }}
+          - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-latest' }}
 
 
     runs-on: ${{ matrix.platform }}
@@ -28,7 +28,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Enable using libraries from temporary location in mac
-        if: ${{ matrix.platform == 'macos-12' }}
+        if: ${{ matrix.platform == 'macos-latest' }}
         run: sudo spctl --master-disable
 
       - name: Build with Gradle
