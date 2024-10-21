@@ -6,9 +6,6 @@ plugins {
 dependencies {
     api(project(":mbedtls-lib"))
 
-    api(platform("org.jetbrains.kotlin:kotlin-bom"))
-    api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-
     api("org.slf4j:slf4j-api:2.0.16")
     api("net.java.dev.jna:jna:5.15.0")
 

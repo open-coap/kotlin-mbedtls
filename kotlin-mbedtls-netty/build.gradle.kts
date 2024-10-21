@@ -5,8 +5,6 @@ plugins {
 dependencies {
     api(project(":kotlin-mbedtls"))
 
-    api(platform("org.jetbrains.kotlin:kotlin-bom"))
-    api("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     api("io.netty:netty-handler:4.1.114.Final")
 
     // TESTS
