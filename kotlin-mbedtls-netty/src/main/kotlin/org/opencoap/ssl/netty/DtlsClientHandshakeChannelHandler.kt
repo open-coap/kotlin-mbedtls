@@ -51,6 +51,7 @@ class DtlsClientHandshakeChannelHandler(
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
+        require(ctx.channel().remoteAddress() is InetSocketAddress) { "Remote address must be defined" }
         this.ctx = ctx
         stepAndSchedule()
     }
