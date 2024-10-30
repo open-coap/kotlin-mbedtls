@@ -152,13 +152,11 @@ class DtlsServer(
             }
 
             val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
-            dtlsPacket.let {
-                val verificationResult = sslSession.checkRecord(it)
-                if (verificationResult is SslSession.VerificationResult.Invalid) {
-                    logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
-                    reportMessageDrop(adr)
-                    return false
-                }
+            val verificationResult = sslSession.checkRecord(dtlsPacket)
+            if (verificationResult is SslSession.VerificationResult.Invalid) {
+                logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
+                reportMessageDrop(adr)
+                return false
             }
             sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
             true
