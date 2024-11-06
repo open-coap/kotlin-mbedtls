@@ -16,6 +16,8 @@
 
 package org.opencoap.ssl.transport
 
+import com.sun.jna.Memory
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -69,5 +71,25 @@ class BytesExtensionsTest {
 
         buf.position(2)
         assertEquals("dupa", buf.decodeToString())
+    }
+
+    @Test
+    fun `should clone buffer to memory`() {
+        val originalData = byteArrayOf(1, 2, 3, 4, 5)
+        val byteBuffer = ByteBuffer.wrap(originalData)
+
+        val originalPosition = byteBuffer.position()
+        val originalLimit = byteBuffer.limit()
+        val originalCapacity = byteBuffer.capacity()
+
+        val memory: Memory = byteBuffer.cloneToMemory()
+
+        val clonedData = ByteArray(originalData.size)
+        memory.read(0, clonedData, 0, originalData.size)
+        assertArrayEquals(originalData, clonedData)
+
+        assertEquals(originalPosition, byteBuffer.position(), "Buffer position should not change")
+        assertEquals(originalLimit, byteBuffer.limit(), "Buffer limit should not change")
+        assertEquals(originalCapacity, byteBuffer.capacity(), "Buffer capacity should not change")
     }
 }

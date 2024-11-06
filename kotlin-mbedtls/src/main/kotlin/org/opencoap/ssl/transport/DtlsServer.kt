@@ -125,7 +125,12 @@ class DtlsServer(
     private fun closeSession(addr: InetSocketAddress) {
         sessions.remove(addr)?.apply {
             storeAndClose()
-            logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, (this as? DtlsSession)?.sessionContext?.cid?.toHex() ?: "na")
+            logger.info(
+                "[{}] [CID:{}] DTLS session was stored",
+                peerAddress,
+                (this as? DtlsSession)?.sessionContext?.cid?.toHex()
+                    ?: "na"
+            )
         }
     }
 
@@ -138,18 +143,25 @@ class DtlsServer(
         updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 
-    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray): Boolean {
+    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer): Boolean {
         return try {
             if (sessBuf == null) {
                 logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
                 reportMessageDrop(adr)
-                false
-            } else {
-                sessions[adr] = DtlsSession(sslConfig.loadSession(cid, sessBuf.sessionBlob, adr), adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
-                true
+                return false
             }
-        } catch (ex: SslException) {
-            logger.warn("[{}] [CID:{}] Failed to load session: {}", adr, cid.toHex(), ex.message)
+
+            val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
+            val verificationResult = sslSession.checkRecord(dtlsPacket)
+            if (verificationResult is SslSession.VerificationResult.Invalid) {
+                logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
+                reportMessageDrop(adr)
+                return false
+            }
+            sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
+            true
+        } catch (ex: Exception) {
+            logger.error("[{}] [CID:{}] DTLS failed to load session: {}", adr, cid.toHex(), ex.message)
             reportMessageDrop(adr)
             false
         }

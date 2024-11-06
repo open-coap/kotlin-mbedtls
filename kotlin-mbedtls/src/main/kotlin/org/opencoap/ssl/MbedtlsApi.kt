@@ -78,6 +78,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
     external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: ByteArray): Int
     external fun mbedtls_ssl_context_load(sslContext: Pointer, buf: ByteArray, len: Int): Int
+    external fun mbedtls_ssl_check_record(sslContext: Pointer, buf: Memory, bufLen: Int): Int
     external fun mbedtls_ssl_conf_ca_chain(sslConfig: Pointer, caChain: Pointer, caCrl: Pointer?)
     external fun mbedtls_ssl_conf_own_cert(sslConfig: Pointer, ownCert: Memory, pkKey: Pointer): Int
     external fun mbedtls_ssl_set_mtu(sslContext: Pointer, mtu: Int)
@@ -96,6 +97,7 @@ internal object MbedtlsApi {
     const val MBEDTLS_SSL_TRANSPORT_DATAGRAM = 1
     const val MBEDTLS_SSL_VERIFY_NONE = 0
     const val MBEDTLS_SSL_VERIFY_REQUIRED = 2
+    const val MBEDTLS_ERR_SSL_UNEXPECTED_RECORD = -0x6700
 
     // ----- net_sockets.h -----
     val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
