@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,6 +83,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_conf_own_cert(sslConfig: Pointer, ownCert: Memory, pkKey: Pointer): Int
     external fun mbedtls_ssl_set_mtu(sslContext: Pointer, mtu: Int)
     external fun mbedtls_ssl_get_peer_cert(sslContext: Pointer): Pointer?
+    external fun mbedtls_ssl_set_hostname(sslContext: Pointer, hostname: String?): Int
 
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900

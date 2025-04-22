@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite_id
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_bio
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_cid
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_client_transport_id
+import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_hostname
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
@@ -83,6 +84,7 @@ class SslConfig(
 
         val clientId = peerAddress.toString()
         mbedtls_ssl_set_client_transport_id(sslContext, clientId, clientId.length)
+        mbedtls_ssl_set_hostname(sslContext, null).verify()
 
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
