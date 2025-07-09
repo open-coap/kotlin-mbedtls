@@ -15,14 +15,24 @@ wget -N https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v${MBEDTLS_VERSION
 rm -rf ${BUILD_DIR}
 tar -xf mbedtls-lib/build/mbedtls.tar.gz -C mbedtls-lib/build/ --no-same-owner
 
+# Download framework for MbedTLS 3.6.0+ if needed
+if [ ! -d "${BUILD_DIR}/framework" ] && [ -f "${BUILD_DIR}/scripts/config.py" ]; then
+    echo "Downloading mbedtls-framework for MbedTLS ${MBEDTLS_VERSION}..."
+    git clone --depth 1 https://github.com/Mbed-TLS/mbedtls-framework.git ${BUILD_DIR}/framework || true
+fi
+
 # install python requirements
 python3 -m pip install -r ${BUILD_DIR}/scripts/basic.requirements.txt
+
+# Add framework to Python path if it exists (needed for MbedTLS 3.6.0+)
+if [ -d "${BUILD_DIR}/framework" ]; then
+    export PYTHONPATH="${BUILD_DIR}/framework:${PYTHONPATH:-}"
+fi
 
 # configure
 chmod +x ${BUILD_DIR}/scripts/config.pl
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 ${BUILD_DIR}/scripts/config.pl -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
-
 
 ## compile
 export SHARED=true
@@ -30,7 +40,8 @@ export SHARED=true
 
 # create single shared library
 LIB_DIR="mbedtls-lib/bin/$OSARCH"
-rm ${LIB_DIR}/*
+mkdir -p ${LIB_DIR}
+rm -f ${LIB_DIR}/* 2>/dev/null || true
 $CC -shared ${BUILD_DIR}/library/*.o -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
 
 # generate kotlin object with memory sizes
