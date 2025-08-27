@@ -21,7 +21,8 @@ import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.EventLoopGroup
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
 import io.netty.channel.socket.nio.NioDatagramChannel
@@ -75,7 +76,11 @@ class NettyTransportAdapter(
         fun connect(
             sslConfig: SslConfig,
             destinationAddress: InetSocketAddress,
-            group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true)),
+            group: EventLoopGroup = MultiThreadIoEventLoopGroup(
+                1,
+                DefaultThreadFactory("udp", true),
+                NioIoHandler.newFactory()
+            ),
             sessionWriter: SessionWriter = SessionWriter.NO_OPS,
             bootstrapConfig: (Bootstrap) -> Unit = {},
         ): NettyTransportAdapter = Bootstrap()
@@ -92,7 +97,11 @@ class NettyTransportAdapter(
             sslSession: SslSession,
             destinationAddress: InetSocketAddress,
             sessionWriter: SessionWriter,
-            group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
+            group: EventLoopGroup = MultiThreadIoEventLoopGroup(
+                1,
+                DefaultThreadFactory("udp", true),
+                NioIoHandler.newFactory()
+            ),
         ): NettyTransportAdapter = Bootstrap()
             .group(group)
             .channel(NioDatagramChannel::class.java)

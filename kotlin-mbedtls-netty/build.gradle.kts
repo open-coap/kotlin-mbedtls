@@ -5,7 +5,7 @@ plugins {
 dependencies {
     api(project(":kotlin-mbedtls"))
 
-    api("io.netty:netty-handler:4.1.118.Final")
+    api("io.netty:netty-handler:4.2.4.Final")
 
     // TESTS
     testImplementation(testFixtures(project(":kotlin-mbedtls")))
@@ -15,7 +15,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
     testImplementation("ch.qos.logback:logback-classic:1.3.14")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
-    testImplementation("io.netty:netty-all:4.1.118.Final")
+    testImplementation("io.netty:netty-all:4.2.4.Final")
     testImplementation("io.mockk:mockk:1.14.5")
     testImplementation("org.assertj:assertj-core:3.27.4")
 }
