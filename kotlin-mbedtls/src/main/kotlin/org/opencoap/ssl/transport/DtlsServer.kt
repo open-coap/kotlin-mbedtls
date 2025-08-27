@@ -90,9 +90,7 @@ class DtlsServer(
         }
     }
 
-    fun encrypt(plainPacket: ByteBuffer, peerAddress: InetSocketAddress): ByteBuffer? {
-        return (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
-    }
+    fun encrypt(plainPacket: ByteBuffer, peerAddress: InetSocketAddress): ByteBuffer? = (sessions[peerAddress] as? DtlsSession)?.encrypt(plainPacket)
 
     private fun updateSessionAuthenticationContext(adr: InetSocketAddress, authCtxUpdate: Map<String, String?>): Boolean {
         if (authCtxUpdate.isEmpty()) return true

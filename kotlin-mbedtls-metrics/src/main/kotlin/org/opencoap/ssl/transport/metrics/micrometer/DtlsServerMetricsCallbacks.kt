@@ -35,8 +35,7 @@ class DtlsServerMetricsCallbacks(
     init {
         // Meter filter must be initialized before actual meters will be registered
         registry.config().meterFilter(object : MeterFilter {
-            override fun configure(id: Meter.Id, config: DistributionStatisticConfig): DistributionStatisticConfig =
-                if (id.name.startsWith("$metricsPrefix.handshakes.succeeded")) distributionStatisticConfig.merge(config) else config
+            override fun configure(id: Meter.Id, config: DistributionStatisticConfig): DistributionStatisticConfig = if (id.name.startsWith("$metricsPrefix.handshakes.succeeded")) distributionStatisticConfig.merge(config) else config
         })
     }
 

@@ -51,8 +51,7 @@ object NoOpsSessionStore : SessionStore {
 class HashMapSessionStore : SessionStore {
     private val map = ConcurrentHashMap<String, SessionWithContext>()
 
-    override fun read(cid: CID): CompletableFuture<SessionWithContext?> =
-        completedFuture(map.remove(cid.toHex()))
+    override fun read(cid: CID): CompletableFuture<SessionWithContext?> = completedFuture(map.remove(cid.toHex()))
 
     override fun write(cid: CID, session: SessionWithContext) {
         map.put(cid.toHex(), session)

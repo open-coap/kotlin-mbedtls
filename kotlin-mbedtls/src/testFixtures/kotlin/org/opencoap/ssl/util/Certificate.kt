@@ -43,24 +43,16 @@ data class Certificate(
 
     fun asX509(): X509Certificate = converter.getCertificate(x509Cert)
 
-    fun signNew(cnName: String, isCA: Boolean): Certificate {
-        return createCertificate(cnName, this, isCA, alg, signAlg, keySize)
-    }
+    fun signNew(cnName: String, isCA: Boolean): Certificate = createCertificate(cnName, this, isCA, alg, signAlg, keySize)
 
-    override fun toString(): String {
-        return "Certificate(subject: ${x509Cert.subject}, issuer: ${x509Cert.issuer})"
-    }
+    override fun toString(): String = "Certificate(subject: ${x509Cert.subject}, issuer: ${x509Cert.issuer})"
 
     companion object {
         private val converter = JcaX509CertificateConverter()
 
-        fun createRootEC(cnName: String): Certificate {
-            return createCertificate(cnName, null, true, alg = "EC", signAlg = "SHA256withECDSA", 256)
-        }
+        fun createRootEC(cnName: String): Certificate = createCertificate(cnName, null, true, alg = "EC", signAlg = "SHA256withECDSA", 256)
 
-        fun createRootRSA(cnName: String): Certificate {
-            return createCertificate(cnName, null, true, alg = "RSA", signAlg = "SHA256withRSA", 2048)
-        }
+        fun createRootRSA(cnName: String): Certificate = createCertificate(cnName, null, true, alg = "RSA", signAlg = "SHA256withRSA", 2048)
 
         private fun createCertificate(cnName: String, issuer: Certificate?, isCA: Boolean, alg: String, signAlg: String, keySize: Int): Certificate {
             // Generate the key-pair

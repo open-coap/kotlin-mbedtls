@@ -42,19 +42,15 @@ class DtlsTransmitter private constructor(
 ) : Transport<ByteBuffer> {
     private var storeSession: SessionWriter = SessionWriter.NO_OPS
 
-    override fun send(packet: ByteBuffer): CompletableFuture<Boolean> {
-        return executor
-            .supply { sslSession.encrypt(packet) }
-            .thenCompose(transport::send)
-    }
+    override fun send(packet: ByteBuffer): CompletableFuture<Boolean> = executor
+        .supply { sslSession.encrypt(packet) }
+        .thenCompose(transport::send)
 
     fun send(text: String) = send(text.toByteBuffer())
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> {
-        return transport.receive(timeout).thenApplyAsync({
-            if (it.remaining() == 0) EMPTY_BYTEBUFFER else sslSession.decrypt(it, transport::send)
-        }, executor)
-    }
+    override fun receive(timeout: Duration): CompletableFuture<ByteBuffer> = transport.receive(timeout).thenApplyAsync({
+        if (it.remaining() == 0) EMPTY_BYTEBUFFER else sslSession.decrypt(it, transport::send)
+    }, executor)
 
     fun receive() = receive(Duration.ofSeconds(30))
 
@@ -91,21 +87,15 @@ class DtlsTransmitter private constructor(
 
     companion object {
         private val threadIndex = AtomicInteger(0)
-        internal fun newSingleExecutor(): ExecutorService {
-            return Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
-        }
+        internal fun newSingleExecutor(): ExecutorService = Executors.newSingleThreadExecutor { Thread(it, "dtls-" + threadIndex.getAndIncrement()) }
 
         @JvmStatic
         @JvmOverloads
-        fun connect(server: Transport<*>, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
-            return connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf, bindPort)
-        }
+        fun connect(server: Transport<*>, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> = connect(InetSocketAddress(InetAddress.getLocalHost(), server.localPort()), conf, bindPort)
 
         @JvmStatic
         @JvmOverloads
-        fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> {
-            return connect(dest, conf, DatagramChannelAdapter.connect(dest, bindPort))
-        }
+        fun connect(dest: InetSocketAddress, conf: SslConfig, bindPort: Int = 0): CompletableFuture<DtlsTransmitter> = connect(dest, conf, DatagramChannelAdapter.connect(dest, bindPort))
 
         @JvmStatic
         @JvmOverloads
@@ -157,13 +147,9 @@ class DtlsTransmitter private constructor(
 
         @JvmStatic
         @JvmOverloads
-        fun create(dest: InetSocketAddress, sslSession: SslSession, bindPort: Int = 0): DtlsTransmitter {
-            return create(dest, sslSession, DatagramChannelAdapter.connect(dest, bindPort))
-        }
+        fun create(dest: InetSocketAddress, sslSession: SslSession, bindPort: Int = 0): DtlsTransmitter = create(dest, sslSession, DatagramChannelAdapter.connect(dest, bindPort))
 
         @JvmStatic
-        fun create(dest: InetSocketAddress, sslSession: SslSession, cnnTransmitter: Transport<ByteBuffer>): DtlsTransmitter {
-            return DtlsTransmitter(dest, cnnTransmitter, sslSession, newSingleExecutor())
-        }
+        fun create(dest: InetSocketAddress, sslSession: SslSession, cnnTransmitter: Transport<ByteBuffer>): DtlsTransmitter = DtlsTransmitter(dest, cnnTransmitter, sslSession, newSingleExecutor())
     }
 }

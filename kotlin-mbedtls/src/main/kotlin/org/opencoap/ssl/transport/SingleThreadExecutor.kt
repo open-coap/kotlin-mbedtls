@@ -53,10 +53,6 @@ internal class SingleThreadExecutor private constructor(
     }
 }
 
-internal fun <T> Executor.supply(supplier: Supplier<T>): CompletableFuture<T> {
-    return CompletableFuture.supplyAsync(supplier, this)
-}
+internal fun <T> Executor.supply(supplier: Supplier<T>): CompletableFuture<T> = CompletableFuture.supplyAsync(supplier, this)
 
-internal fun ScheduledExecutorService.schedule(task: Runnable, delay: Duration): ScheduledFuture<*> {
-    return this.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS)
-}
+internal fun ScheduledExecutorService.schedule(task: Runnable, delay: Duration): ScheduledFuture<*> = this.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS)

@@ -29,8 +29,7 @@ interface DtlsSessionLifecycleCallbacks {
     }
 
     fun handshakeStarted(adr: InetSocketAddress) = Unit
-    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: Reason, throwable: Throwable? = null) =
-        Unit
+    fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: Reason, throwable: Throwable? = null) = Unit
 
     fun sessionStarted(adr: InetSocketAddress, cipherSuite: String, reloaded: Boolean) = Unit
     fun sessionFinished(adr: InetSocketAddress, reason: Reason, throwable: Throwable? = null) = Unit
@@ -38,8 +37,7 @@ interface DtlsSessionLifecycleCallbacks {
     fun messageDropped(adr: InetSocketAddress) = Unit
 }
 
-class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private val callbacks: DtlsSessionLifecycleCallbacks) :
-    DtlsSessionLifecycleCallbacks {
+class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private val callbacks: DtlsSessionLifecycleCallbacks) : DtlsSessionLifecycleCallbacks {
 
     override fun handshakeStarted(adr: InetSocketAddress) {
         executor.supply { callbacks.handshakeStarted(adr) }
@@ -62,5 +60,4 @@ class AsyncDtlsSessionLifecycleCallbacks(private val executor: Executor, private
     }
 }
 
-fun DtlsSessionLifecycleCallbacks.toAsync(executor: Executor): DtlsSessionLifecycleCallbacks =
-    AsyncDtlsSessionLifecycleCallbacks(executor, this)
+fun DtlsSessionLifecycleCallbacks.toAsync(executor: Executor): DtlsSessionLifecycleCallbacks = AsyncDtlsSessionLifecycleCallbacks(executor, this)

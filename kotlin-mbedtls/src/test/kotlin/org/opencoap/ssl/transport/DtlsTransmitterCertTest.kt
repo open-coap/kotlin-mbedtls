@@ -197,13 +197,11 @@ internal fun <P> Transport<P>.dropSend(drop: (P) -> Boolean): Transport<P> {
     return object : Transport<P> by this {
         private val logger = LoggerFactory.getLogger(javaClass)
 
-        override fun send(packet: P): CompletableFuture<Boolean> {
-            return if (!drop(packet)) {
-                underlying.send(packet)
-            } else {
-                logger.info("send DROPPED {}", packet)
-                completedFuture(true)
-            }
+        override fun send(packet: P): CompletableFuture<Boolean> = if (!drop(packet)) {
+            underlying.send(packet)
+        } else {
+            logger.info("send DROPPED {}", packet)
+            completedFuture(true)
         }
     }
 }

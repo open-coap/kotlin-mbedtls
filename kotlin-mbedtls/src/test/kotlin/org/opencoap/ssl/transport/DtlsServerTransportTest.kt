@@ -504,22 +504,18 @@ class DtlsServerTransportTest {
         return object : Transport<T> by this {
             private val logger = LoggerFactory.getLogger(javaClass)
 
-            override fun receive(timeout: Duration): CompletableFuture<T> {
-                return underlying.receive(timeout)
-                    .thenCompose {
-                        if (drop(i++)) {
-                            logger.info("receive DROPPED {}", it)
-                            receive(timeout)
-                        } else {
-                            logger.info("receive {}", it)
-                            completedFuture(it)
-                        }
+            override fun receive(timeout: Duration): CompletableFuture<T> = underlying.receive(timeout)
+                .thenCompose {
+                    if (drop(i++)) {
+                        logger.info("receive DROPPED {}", it)
+                        receive(timeout)
+                    } else {
+                        logger.info("receive {}", it)
+                        completedFuture(it)
                     }
-            }
+                }
         }
     }
 }
 
-fun Transport<ByteBuffer>.receiveString(): String {
-    return receive(Duration.ofSeconds(5)).join().decodeToString()
-}
+fun Transport<ByteBuffer>.receiveString(): String = receive(Duration.ofSeconds(5)).join().decodeToString()

@@ -44,10 +44,8 @@ fun ByteBuffer.toByteBuf(): ByteBuf = Unpooled.wrappedBuffer(this)
 
 fun ByteArray.toByteBuf(): ByteBuf = Unpooled.wrappedBuffer(this)
 
-fun ByteBuf.toByteArray(): ByteArray {
-    return ByteBufUtil.getBytes(this, readerIndex(), readableBytes(), false)
-        .also { this.release() }
-}
+fun ByteBuf.toByteArray(): ByteArray = ByteBufUtil.getBytes(this, readerIndex(), readableBytes(), false)
+    .also { this.release() }
 
 fun ByteBuf.writeThroughNioBuffer(f: (ByteBuffer) -> Unit) {
     require(this.nioBufferCount() == 1)
