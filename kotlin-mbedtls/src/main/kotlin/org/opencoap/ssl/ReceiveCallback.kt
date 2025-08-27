@@ -37,9 +37,7 @@ internal object ReceiveCallback : Callback {
         }
     }
 
-    fun timeout(): Int {
-        return timeout.get() ?: 0
-    }
+    fun timeout(): Int = timeout.get() ?: 0
 
     fun callback(ctx: Pointer?, bufPointer: Pointer, len: Int, timeout: Int): Int {
         val buffer = this.buffer.get()

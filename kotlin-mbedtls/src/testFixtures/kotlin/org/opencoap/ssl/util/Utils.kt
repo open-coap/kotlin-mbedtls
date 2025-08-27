@@ -27,9 +27,7 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-fun localAddress(port: Int): InetSocketAddress {
-    return InetSocketAddress(InetAddress.getLocalHost(), port)
-}
+fun localAddress(port: Int): InetSocketAddress = InetSocketAddress(InetAddress.getLocalHost(), port)
 
 fun String.decodeHex(): ByteArray {
     check(length % 2 == 0) { "Must have an even length" }
@@ -39,14 +37,10 @@ fun String.decodeHex(): ByteArray {
         .toByteArray()
 }
 
-fun <T> CompletableFuture<T>.await(timeout: Duration = 5.seconds): T {
-    return this.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
-}
+fun <T> CompletableFuture<T>.await(timeout: Duration = 5.seconds): T = this.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
 
-fun String.toMemory(): Memory {
-    return Memory(this.length.toLong()).also {
-        it.write(0, this.encodeToByteArray(), 0, this.length)
-    }
+fun String.toMemory(): Memory = Memory(this.length.toLong()).also {
+    it.write(0, this.encodeToByteArray(), 0, this.length)
 }
 
 fun runGC() {
@@ -61,11 +55,9 @@ val Int.seconds: Duration
 val Int.millis: Duration
     get() = Duration.ofMillis(this.toLong())
 
-fun <B> Transport<B>.localAddress(): InetSocketAddress =
-    InetSocketAddress(InetAddress.getLocalHost(), this.localPort())
+fun <B> Transport<B>.localAddress(): InetSocketAddress = InetSocketAddress(InetAddress.getLocalHost(), this.localPort())
 
-fun Transport<ByteBuffer>.mapToString(): Transport<String> =
-    this.map(ByteBuffer::decodeToString, String::toByteBuffer)
+fun Transport<ByteBuffer>.mapToString(): Transport<String> = this.map(ByteBuffer::decodeToString, String::toByteBuffer)
 
 // JDK8 compatible
 fun ByteBuffer.flip0(): ByteBuffer {

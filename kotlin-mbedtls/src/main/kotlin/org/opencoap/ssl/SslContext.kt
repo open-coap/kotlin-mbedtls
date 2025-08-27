@@ -113,7 +113,8 @@ class SslSession internal constructor(
     private val sslContext: Memory,
     private val cid: ByteArray?,
     val reloaded: Boolean = false,
-) : SslContext, Closeable {
+) : SslContext,
+    Closeable {
 
     val peerCid: ByteArray? = readPeerCid()
     val ownCid: ByteArray? = if (peerCid != null) cid else null
@@ -152,11 +153,9 @@ class SslSession internal constructor(
 
     val cipherSuite: String get() = mbedtls_ssl_get_ciphersuite(sslContext)
 
-    fun encrypt(data: ByteBuffer): ByteBuffer {
-        return SendCallback.invoke {
-            mbedtls_ssl_write(sslContext, data, data.remaining()).verify()
-        } ?: ByteBuffer.allocate(0)
-    }
+    fun encrypt(data: ByteBuffer): ByteBuffer = SendCallback.invoke {
+        mbedtls_ssl_write(sslContext, data, data.remaining()).verify()
+    } ?: ByteBuffer.allocate(0)
 
     fun decrypt(encBuffer: ByteBuffer, plainBuffer: ByteBuffer, send: (ByteBuffer) -> Unit) {
         // note, send function will only be use when there is retransmission
@@ -206,27 +205,23 @@ class SslSession internal constructor(
         return buffer.copyOf(size)
     }
 
-    override fun toString(): String {
-        return when {
-            peerCid != null && peerCertificateSubject != null ->
-                "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
+    override fun toString(): String = when {
+        peerCid != null && peerCertificateSubject != null ->
+            "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
 
-            peerCid != null ->
-                "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, cipher-suite:$cipherSuite]"
+        peerCid != null ->
+            "[CID:${cid?.toHex()}, peerCID:${peerCid.toHex()}, cipher-suite:$cipherSuite]"
 
-            peerCertificateSubject != null ->
-                "[peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
+        peerCertificateSubject != null ->
+            "[peer-cert:$peerCertificateSubject, cipher-suite:$cipherSuite]"
 
-            else ->
-                "[cipher-suite:$cipherSuite]"
-        }
+        else ->
+            "[cipher-suite:$cipherSuite]"
     }
 
-    fun closeNotify(): ByteBuffer {
-        return SendCallback {
-            mbedtls_ssl_close_notify(sslContext)
-        } ?: ByteBuffer.allocate(0)
-    }
+    fun closeNotify(): ByteBuffer = SendCallback {
+        mbedtls_ssl_close_notify(sslContext)
+    } ?: ByteBuffer.allocate(0)
 
     override fun close() {
         mbedtls_ssl_free(sslContext)

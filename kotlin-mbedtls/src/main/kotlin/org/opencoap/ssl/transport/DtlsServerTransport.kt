@@ -57,15 +57,13 @@ class DtlsServerTransport private constructor(
     fun numberOfSessions(): Int = executor.supply { dtlsServer.numberOfSessions }.join()
     fun executor(): ScheduledExecutorService = executor.underlying
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
-        return transport.receive(timeout).thenComposeAsync({ packet ->
-            if (packet == Packet.EmptyByteBufferPacket) {
-                completedFuture(Packet.EmptyByteBufferPacket)
-            } else {
-                receive0(packet.peerAddress, packet.buffer, timeout)
-            }
-        }, executor)
-    }
+    override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> = transport.receive(timeout).thenComposeAsync({ packet ->
+        if (packet == Packet.EmptyByteBufferPacket) {
+            completedFuture(Packet.EmptyByteBufferPacket)
+        } else {
+            receive0(packet.peerAddress, packet.buffer, timeout)
+        }
+    }, executor)
 
     private fun receive0(adr: InetSocketAddress, buf: ByteBuffer, timeout: Duration): CompletableFuture<ByteBufferPacket>? {
         val result = dtlsServer.handleReceived(adr, buf)

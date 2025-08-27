@@ -25,8 +25,7 @@ import org.opencoap.ssl.SslSession
 import org.opencoap.ssl.transport.SessionWriter
 import org.slf4j.LoggerFactory
 
-class DtlsClientChannelHandler(private val sslSession: SslSession, private val sessionWriter: SessionWriter) :
-    ChannelDuplexHandler() {
+class DtlsClientChannelHandler(private val sslSession: SslSession, private val sessionWriter: SessionWriter) : ChannelDuplexHandler() {
     private val logger = LoggerFactory.getLogger(javaClass)
     private lateinit var ctx: ChannelHandlerContext
 

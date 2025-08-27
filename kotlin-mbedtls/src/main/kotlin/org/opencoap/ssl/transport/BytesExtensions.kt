@@ -19,9 +19,7 @@ package org.opencoap.ssl.transport
 import com.sun.jna.Memory
 import java.nio.ByteBuffer
 
-internal fun ByteArray.toHex(): String {
-    return joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-}
+internal fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
 
 fun ByteBuffer.copy(): ByteBuffer {
     val bb = ByteBuffer.allocateDirect(this.remaining())

@@ -43,7 +43,9 @@ data class DtlsSessionContext @JvmOverloads constructor(
         if (cid != null) {
             if (other.cid == null) return false
             if (!cid.contentEquals(other.cid)) return false
-        } else if (other.cid != null) return false
+        } else if (other.cid != null) {
+            return false
+        }
         if (sessionStartTimestamp != other.sessionStartTimestamp) return false
         if (sessionSuspensionHint != other.sessionSuspensionHint) return false
 

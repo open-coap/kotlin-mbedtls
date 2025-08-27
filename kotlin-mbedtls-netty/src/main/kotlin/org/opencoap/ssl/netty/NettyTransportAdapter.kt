@@ -83,17 +83,15 @@ class NettyTransportAdapter(
             ),
             sessionWriter: SessionWriter = SessionWriter.NO_OPS,
             bootstrapConfig: (Bootstrap) -> Unit = {},
-        ): NettyTransportAdapter {
-            return Bootstrap()
-                .group(group)
-                .channel(NioDatagramChannel::class.java)
-                .handler(DtlsClientHandshakeChannelHandler(sslConfig, sessionWriter))
-                .also(bootstrapConfig)
-                .connect(destinationAddress)
-                .sync()
-                .channel()
-                .let { NettyTransportAdapter(it as DatagramChannel, destinationAddress) }
-        }
+        ): NettyTransportAdapter = Bootstrap()
+            .group(group)
+            .channel(NioDatagramChannel::class.java)
+            .handler(DtlsClientHandshakeChannelHandler(sslConfig, sessionWriter))
+            .also(bootstrapConfig)
+            .connect(destinationAddress)
+            .sync()
+            .channel()
+            .let { NettyTransportAdapter(it as DatagramChannel, destinationAddress) }
 
         fun reload(
             sslSession: SslSession,
@@ -104,16 +102,14 @@ class NettyTransportAdapter(
                 DefaultThreadFactory("udp", true),
                 NioIoHandler.newFactory()
             ),
-        ): NettyTransportAdapter {
-            return Bootstrap()
-                .group(group)
-                .channel(NioDatagramChannel::class.java)
-                .handler(DtlsClientChannelHandler(sslSession, sessionWriter))
-                .bind(0)
-                .sync()
-                .channel()
-                .let { NettyTransportAdapter(it as DatagramChannel, destinationAddress) }
-        }
+        ): NettyTransportAdapter = Bootstrap()
+            .group(group)
+            .channel(NioDatagramChannel::class.java)
+            .handler(DtlsClientChannelHandler(sslSession, sessionWriter))
+            .bind(0)
+            .sync()
+            .channel()
+            .let { NettyTransportAdapter(it as DatagramChannel, destinationAddress) }
     }
 
     private class InboundMessageReceiver : ChannelInboundHandlerAdapter() {

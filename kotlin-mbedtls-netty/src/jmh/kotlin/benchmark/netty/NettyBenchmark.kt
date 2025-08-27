@@ -116,28 +116,24 @@ open class NettyBenchmark {
         @Param("direct", "heap", "heap-8kb", "unpooled")
         var bufAllocator = "heap"
 
-        fun wrap(bb: ByteBuffer): ByteBuf {
-            return when (bufAllocator) {
-                "direct" -> Unpooled.directBuffer().writeBytes(bb)
-                "heap", "unpooled", "heap-8kb" -> Unpooled.wrappedBuffer(bb)
-                else -> throw IllegalArgumentException()
-            }
+        fun wrap(bb: ByteBuffer): ByteBuf = when (bufAllocator) {
+            "direct" -> Unpooled.directBuffer().writeBytes(bb)
+            "heap", "unpooled", "heap-8kb" -> Unpooled.wrappedBuffer(bb)
+            else -> throw IllegalArgumentException()
         }
 
         fun configure(bootstrap: Bootstrap) {
             bootstrap.option(ChannelOption.ALLOCATOR, allocator())
         }
 
-        private fun allocator(): ByteBufAllocator {
-            return when (bufAllocator) {
-                "direct" -> PooledByteBufAllocator(true)
-                "unpooled" -> UnpooledByteBufAllocator(false)
-                "heap" -> PooledByteBufAllocator(false)
-                "heap-8kb" -> PooledByteBufAllocator(false, 2, 2, 8192, 1, 256, 64, false)
-                // Note: max order is set to 2 so that allocated single byte[] is 8kB, with default one it is 4MB and slows down drastically performance
+        private fun allocator(): ByteBufAllocator = when (bufAllocator) {
+            "direct" -> PooledByteBufAllocator(true)
+            "unpooled" -> UnpooledByteBufAllocator(false)
+            "heap" -> PooledByteBufAllocator(false)
+            "heap-8kb" -> PooledByteBufAllocator(false, 2, 2, 8192, 1, 256, 64, false)
+            // Note: max order is set to 2 so that allocated single byte[] is 8kB, with default one it is 4MB and slows down drastically performance
 
-                else -> throw IllegalArgumentException()
-            }
+            else -> throw IllegalArgumentException()
         }
     }
 }

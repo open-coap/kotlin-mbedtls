@@ -30,9 +30,7 @@ class DatagramPacketWithContext(
 ) : DatagramPacket(data, recipient, sender) {
 
     companion object {
-        fun from(packet: ByteBufferPacket): DatagramPacketWithContext {
-            return DatagramPacketWithContext(packet.buffer.toByteBuf(), null, packet.peerAddress, packet.sessionContext)
-        }
+        fun from(packet: ByteBufferPacket): DatagramPacketWithContext = DatagramPacketWithContext(packet.buffer.toByteBuf(), null, packet.peerAddress, packet.sessionContext)
 
         @JvmStatic
         fun contextFrom(msg: DatagramPacket): DtlsSessionContext = when (msg) {

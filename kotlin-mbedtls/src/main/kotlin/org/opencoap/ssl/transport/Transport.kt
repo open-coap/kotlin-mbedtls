@@ -23,7 +23,9 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.function.Consumer
 
-interface Transport<P> : TransportOutbound<P>, Closeable {
+interface Transport<P> :
+    TransportOutbound<P>,
+    Closeable {
     fun receive(timeout: Duration): CompletableFuture<P>
     fun localPort(): Int
 

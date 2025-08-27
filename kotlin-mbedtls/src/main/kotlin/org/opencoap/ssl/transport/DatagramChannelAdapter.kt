@@ -57,30 +57,26 @@ class DatagramChannelAdapter(
         channel.register(selector, SelectionKey.OP_READ)
     }
 
-    override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
-        return executor.supply {
-            selector.select(timeout.toMillis())
-            buffer.clear()
+    override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> = executor.supply {
+        selector.select(timeout.toMillis())
+        buffer.clear()
 
-            val sourceAddress = channel.receive(buffer)
-            if (sourceAddress == null) {
-                logger.trace("[DgramCh:{}] No data received", port)
-                Packet.EmptyByteBufferPacket
-            } else {
-                buffer.flip()
-                logger.trace("[DgramCh:{}] Received {} bytes from {}", port, buffer.remaining(), sourceAddress)
-                Packet(buffer, sourceAddress as InetSocketAddress)
-            }
+        val sourceAddress = channel.receive(buffer)
+        if (sourceAddress == null) {
+            logger.trace("[DgramCh:{}] No data received", port)
+            Packet.EmptyByteBufferPacket
+        } else {
+            buffer.flip()
+            logger.trace("[DgramCh:{}] Received {} bytes from {}", port, buffer.remaining(), sourceAddress)
+            Packet(buffer, sourceAddress as InetSocketAddress)
         }
     }
 
-    override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> {
-        return try {
-            logger.trace("[DgramCh:{}] Sent {} bytes to {}", port, packet.buffer.remaining(), packet.peerAddress)
-            completedFuture(channel.send(packet.buffer, packet.peerAddress) > 0)
-        } catch (ex: Exception) {
-            CompletableFuture<Boolean>().also { it.completeExceptionally(ex) }
-        }
+    override fun send(packet: Packet<ByteBuffer>): CompletableFuture<Boolean> = try {
+        logger.trace("[DgramCh:{}] Sent {} bytes to {}", port, packet.buffer.remaining(), packet.peerAddress)
+        completedFuture(channel.send(packet.buffer, packet.peerAddress) > 0)
+    } catch (ex: Exception) {
+        CompletableFuture<Boolean>().also { it.completeExceptionally(ex) }
     }
 
     override fun close() {
