@@ -18,7 +18,8 @@ package org.opencoap.ssl.netty
 
 import io.mockk.mockk
 import io.mockk.verify
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.DatagramPacket
 import io.netty.util.concurrent.DefaultThreadFactory
@@ -154,7 +155,11 @@ class NettyTest {
     @Test
     fun testMultipleConnections() {
         val max = 20
-        val eventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
+        val eventLoopGroup = MultiThreadIoEventLoopGroup(
+            1,
+            DefaultThreadFactory("udp", true),
+            NioIoHandler.newFactory()
+        )
 
         val clients = (1..max)
             .map {
