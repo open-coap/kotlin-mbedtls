@@ -23,7 +23,8 @@ import io.netty.channel.ChannelInboundHandler
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelPipeline
 import io.netty.channel.EventLoopGroup
-import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.MultiThreadIoEventLoopGroup
+import io.netty.channel.nio.NioIoHandler
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.nio.NioDatagramChannel
 import io.netty.util.concurrent.DefaultThreadFactory
@@ -32,7 +33,11 @@ import java.nio.charset.Charset
 object NettyHelpers {
 
     fun createBootstrap(port: Int, dtlsChannelHandler: DtlsChannelHandler, pipelineBuilder: ChannelPipeline.() -> Unit, bootstrapConfig: (Bootstrap) -> Unit = {}): Bootstrap {
-        val group: EventLoopGroup = NioEventLoopGroup(1, DefaultThreadFactory("udp", true))
+        val group: EventLoopGroup = MultiThreadIoEventLoopGroup(
+            1,
+            DefaultThreadFactory("udp", true),
+            NioIoHandler.newFactory()
+        )
 
         return Bootstrap()
             .group(group)
