@@ -27,10 +27,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-#      - name: Enable using libraries from temporary location in mac
-#        if: ${{ matrix.platform == 'macos-latest' }}
-#        run: sudo spctl --master-disable
-
       - name: Build with Gradle
         run: ./gradlew build -i
 
