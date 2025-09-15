@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.2.10"
-    id("com.github.mfarsikov.kewt-versioning") version "1.0.0"
+    id("pl.allegro.tech.build.axion-release") version "1.15.4"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
     id("com.github.ben-manes.versions") version "0.52.0"
     id("java-library")
@@ -17,9 +17,14 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
+scmVersion {
+    versionIncrementer("incrementMinor")
+}
+
+version = scmVersion.version
+
 allprojects {
     apply {
-        plugin("com.github.mfarsikov.kewt-versioning")
         plugin("se.patrikerdes.use-latest-versions")
         plugin("com.github.ben-manes.versions")
         plugin("java-library")
@@ -35,10 +40,6 @@ allprojects {
         mavenCentral()
     }
 
-    kewtVersioning.configuration {
-        separator = ""
-    }
-    version = kewtVersioning.version
     group = "io.github.open-coap"
 
     java {
@@ -67,9 +68,7 @@ allprojects {
                 val regex = "^[0-9,.v-]+(-r)?$".toRegex()
                 val isNonStable = !(stableKeyword || regex.matches(candidate.version))
 
-                // newer version of logback-classic is not java8 compatible
-                // newer version of kewt-versioning plugin requires java 21
-                isNonStable || listOf("logback-classic", "com.github.mfarsikov.kewt-versioning.gradle.plugin").contains(candidate.module)
+                isNonStable
             }
         }
 
