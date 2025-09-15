@@ -4,8 +4,8 @@ import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.2.10"
-    id("pl.allegro.tech.build.axion-release") version "1.15.4"
+    id("org.jetbrains.kotlin.jvm") version "2.2.20"
+    id("pl.allegro.tech.build.axion-release") version "1.20.1"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
     id("com.github.ben-manes.versions") version "0.52.0"
     id("java-library")
@@ -41,6 +41,7 @@ allprojects {
     }
 
     group = "io.github.open-coap"
+    project.version = rootProject.version
 
     java {
         sourceCompatibility = JavaVersion.VERSION_1_8
