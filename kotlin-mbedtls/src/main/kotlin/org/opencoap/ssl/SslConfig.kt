@@ -19,10 +19,6 @@ package org.opencoap.ssl
 import com.sun.jna.Callback
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
-import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_free
-import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_random
-import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_ctr_drbg_seed
-import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_entropy_free
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_free
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_parse_key
 import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_x509_crt_free
@@ -34,10 +30,8 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_ciphersuites
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dbg
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_dtls_cookies
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_handshake_timeout
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_min_version
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_own_cert
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_psk
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_rng
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_defaults
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_config_free
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_load
@@ -53,6 +47,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_hostname
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
+import org.opencoap.ssl.MbedtlsApi.psa_crypto_init
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -124,30 +119,33 @@ class SslConfig(
             retransmitMax: Duration
         ): SslConfig {
             val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
-            val entropy = Memory(MbedtlsSizeOf.mbedtls_entropy_context).also(MbedtlsApi.Crypto::mbedtls_entropy_init)
-            val ctrDrbg = Memory(MbedtlsSizeOf.mbedtls_ctr_drbg_context).also(MbedtlsApi.Crypto::mbedtls_ctr_drbg_init)
             val ownCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
             val caCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
             val pkey = Memory(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi.Crypto::mbedtls_pk_init)
             var cipherSuiteIds: Memory? = null
 
+            // Initialize PSA Crypto subsystem (required in MbedTLS 4.0+)
+            val test = psa_crypto_init().verify()
+            println("psa_crypto_init() = $test")
             val endpointType = if (isServer) MbedtlsApi.MBEDTLS_SSL_IS_SERVER else MbedtlsApi.MBEDTLS_SSL_IS_CLIENT
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
-            mbedtls_ssl_conf_min_version(sslConfig, MbedtlsApi.MBEDTLS_SSL_MAJOR_VERSION_3, MbedtlsApi.MBEDTLS_SSL_MINOR_VERSION_3)
 
-            mbedtls_ctr_drbg_seed(ctrDrbg, MbedtlsApi.Crypto.mbedtls_entropy_func, entropy, Pointer.NULL, 0).verify()
-            mbedtls_ssl_conf_rng(sslConfig, mbedtls_ctr_drbg_random, ctrDrbg)
-
+            println("Initialized mbedtls_ssl_config defaults")
             // cookies
             var cookieCtx: Memory? = null
             if (!isServer) {
+                println("Client mode: disabling DTLS cookies")
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
             } else {
+                println("Server mode: enabling DTLS cookies")
                 cookieCtx = Memory(MbedtlsSizeOf.mbedtls_ssl_cookie_ctx).also(MbedtlsApi::mbedtls_ssl_cookie_init)
-                mbedtls_ssl_cookie_setup(cookieCtx, mbedtls_ctr_drbg_random, ctrDrbg).verify()
+                println("Initialized mbedtls_ssl_cookie_ctx")
+                val cookie = mbedtls_ssl_cookie_setup(cookieCtx).verify()
+                println("mbedtls_ssl_cookie_setup() = $cookie")
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, cookieCtx)
             }
 
+            println("Configured mbedtls_ssl_config")
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
                 cipherSuiteIds = mapCipherSuites(cipherSuites)
@@ -158,7 +156,7 @@ class SslConfig(
                 mbedtls_ssl_conf_cid(sslConfig, cidSupplier.next().size, 0)
             }
 
-            authConfig.configure(sslConfig, caCert, ownCert, pkey, ctrDrbg)
+            authConfig.configure(sslConfig, caCert, ownCert, pkey)
 
             // retransmission timeout
             mbedtls_ssl_conf_handshake_timeout(sslConfig, retransmitMin.toMillis().toInt(), retransmitMax.toMillis().toInt())
@@ -166,10 +164,9 @@ class SslConfig(
             // Logging
             mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)
 
+            println("Finalized mbedtls_ssl_config")
             return SslConfig(sslConfig, cidSupplier, mtu) {
                 mbedtls_ssl_config_free(sslConfig)
-                mbedtls_entropy_free(entropy)
-                mbedtls_ctr_drbg_free(ctrDrbg)
                 mbedtls_pk_free(pkey)
                 mbedtls_x509_crt_free(ownCert)
                 mbedtls_x509_crt_free(caCert)
@@ -228,7 +225,7 @@ class SslConfig(
 }
 
 sealed interface AuthConfig {
-    fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory)
+    fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory)
 }
 
 data class PskAuth(
@@ -238,7 +235,7 @@ data class PskAuth(
 
     constructor(pskId: String, pskSecret: ByteArray) : this(pskId.encodeToByteArray(), pskSecret)
 
-    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory) {
+    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory) {
         mbedtls_ssl_conf_psk(sslConfig, pskSecret, pskSecret.size, pskId, pskId.size).verify()
     }
 }
@@ -255,7 +252,7 @@ data class CertificateAuth(
     constructor(ownCertChain: List<X509Certificate>, privateKey: PrivateKey) :
         this(ownCertChain, privateKey, listOf())
 
-    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory, ctrDrbg: Memory) {
+    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory) {
         for (cert in trustedCerts) {
             val certDer = cert.encoded
             mbedtls_x509_crt_parse_der(caCert, certDer, certDer.size).verify()
@@ -268,7 +265,7 @@ data class CertificateAuth(
             mbedtls_x509_crt_parse_der(ownCert, certDer, certDer.size).verify()
         }
         if (privateKey != null) {
-            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0, mbedtls_ctr_drbg_random, ctrDrbg)
+            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0)
             mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
         }
     }

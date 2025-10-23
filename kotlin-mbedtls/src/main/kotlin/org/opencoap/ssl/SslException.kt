@@ -29,7 +29,7 @@ open class SslException(message: String) : Exception(message) {
 
         internal fun translateError(error: Int): String {
             val buffer = Memory(100)
-            MbedtlsApi.Crypto.mbedtls_strerror(error, buffer, buffer.size().toInt())
+            MbedtlsApi.X509.mbedtls_strerror(error, buffer, buffer.size().toInt())
             return buffer.getString(0).trim()
         }
     }
