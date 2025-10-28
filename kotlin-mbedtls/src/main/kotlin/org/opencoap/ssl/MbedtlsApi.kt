@@ -23,30 +23,28 @@ import com.sun.jna.Function
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
+import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
+import java.util.Properties
 
 /*
 Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
-
-    // private val libraryName = javaClass.classLoader.getResourceAsStream("mbedtls.properties").use { resource ->
-    //     Properties().apply { load(resource) }.let { props ->
-    //         val mbedtlsVersion = props.getProperty("mbedtlsVersion")
-    //         if (Platform.isWindows()) "libmbedtls-$mbedtlsVersion" else "mbedtls-$mbedtlsVersion"
-    //     }
-    // }
-
-    private val LIB_MBEDTLS = NativeLibrary.getInstance("libmbedtls.so.4.0.0")
-    private val LIB_MBEDCRYPTO = NativeLibrary.getInstance("libmbedcrypto.so.4.0.0")
-    private val LIB_MBEDX509 = NativeLibrary.getInstance("libmbedx509.so.4.0.0")
+    private val libraryName = javaClass.classLoader.getResourceAsStream("mbedtls.properties").use { resource ->
+        Properties().apply { load(resource) }.let { props ->
+            val mbedtlsVersion = props.getProperty("mbedtlsVersion")
+            if (Platform.isWindows()) "libmbedtls-$mbedtlsVersion" else "mbedtls-$mbedtlsVersion"
+        }
+    }
+    private val LIB_MBEDTLS = NativeLibrary.getInstance(libraryName)
 
     init {
         Native.register(LIB_MBEDTLS)
-        Native.register(Crypto::class.java, LIB_MBEDCRYPTO)
-        Native.register(X509::class.java, LIB_MBEDX509)
+        Native.register(Crypto::class.java, LIB_MBEDTLS)
+        Native.register(X509::class.java, LIB_MBEDTLS)
 
         configureLogThreshold()
     }
@@ -86,6 +84,9 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_set_hostname(sslContext: Pointer, hostname: String?): Int
     external fun psa_crypto_init(): Int
 
+    // mbedtls/error.h
+    external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
+
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
     const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880
@@ -118,7 +119,6 @@ internal object MbedtlsApi {
     internal fun Int.verify(): Int {
         if (this >= 0) return this
 
-        println(this)
         throw SslException.from(this)
     }
 
@@ -148,8 +148,5 @@ internal object MbedtlsApi {
         external fun mbedtls_x509_crt_init(cert: Pointer)
         external fun mbedtls_x509_crt_free(cert: Pointer)
         external fun mbedtls_x509_crt_parse_der(chain: Pointer, buf: ByteArray, len: Int): Int
-
-        // mbedtls/error.h
-        external fun mbedtls_strerror(errnum: Int, buffer: Pointer, buflen: Int)
     }
 }

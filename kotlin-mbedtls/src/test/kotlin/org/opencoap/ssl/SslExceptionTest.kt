@@ -23,8 +23,8 @@ class SslExceptionTest {
 
     @Test
     fun `should translate error code`() {
-        val sslException = SslException.from(-25344)
+        val sslException = SslException.from(-10240)
 
-        assertEquals("CIPHER - Authentication failed (for AEAD modes) [-0x6300]", sslException.message)
+        assertEquals("X509 - Input invalid [-0x2800]", sslException.message)
     }
 }

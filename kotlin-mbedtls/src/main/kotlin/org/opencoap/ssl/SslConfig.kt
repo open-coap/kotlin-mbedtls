@@ -125,27 +125,20 @@ class SslConfig(
             var cipherSuiteIds: Memory? = null
 
             // Initialize PSA Crypto subsystem (required in MbedTLS 4.0+)
-            val test = psa_crypto_init().verify()
-            println("psa_crypto_init() = $test")
+            psa_crypto_init().verify()
             val endpointType = if (isServer) MbedtlsApi.MBEDTLS_SSL_IS_SERVER else MbedtlsApi.MBEDTLS_SSL_IS_CLIENT
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
 
-            println("Initialized mbedtls_ssl_config defaults")
             // cookies
             var cookieCtx: Memory? = null
             if (!isServer) {
-                println("Client mode: disabling DTLS cookies")
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
             } else {
-                println("Server mode: enabling DTLS cookies")
                 cookieCtx = Memory(MbedtlsSizeOf.mbedtls_ssl_cookie_ctx).also(MbedtlsApi::mbedtls_ssl_cookie_init)
-                println("Initialized mbedtls_ssl_cookie_ctx")
-                val cookie = mbedtls_ssl_cookie_setup(cookieCtx).verify()
-                println("mbedtls_ssl_cookie_setup() = $cookie")
+                mbedtls_ssl_cookie_setup(cookieCtx).verify()
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, cookieCtx)
             }
 
-            println("Configured mbedtls_ssl_config")
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
                 cipherSuiteIds = mapCipherSuites(cipherSuites)
@@ -164,7 +157,6 @@ class SslConfig(
             // Logging
             mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)
 
-            println("Finalized mbedtls_ssl_config")
             return SslConfig(sslConfig, cidSupplier, mtu) {
                 mbedtls_ssl_config_free(sslConfig)
                 mbedtls_pk_free(pkey)

@@ -33,27 +33,45 @@ fi
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
-
 # Run cmake configuration
-cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DUSE_SHARED_MBEDTLS_LIBRARY=ON
+cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 
-# Build (shared library)
+# Build
 cmake --build "${BUILD_DIR}"/build --target lib
 
 LIB_DIR="mbedtls-lib/bin/$OSARCH"
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
-#$CC -shared ${BUILD_DIR}/library/*.o -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
 
+# Combine static libraries into a single binary
+if [[ "$OSARCH" == linux* ]]; then
+    DLEXT=so
+    $CC -shared -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
+        -Wl,--soname,libmbedtls-$MBEDTLS_VERSION.$DLEXT \
+        -Wl,--whole-archive \
+          $BUILD_DIR/build/library/libmbedtls.a \
+          $BUILD_DIR/build/library/libmbedcrypto.a \
+          $BUILD_DIR/build/library/libmbedx509.a \
+        -Wl,--no-whole-archive \
+        -lpthread -ldl
 
-TARGET=mbedtls-lib/bin/linux-x86-64
-mkdir -p "$TARGET"
+elif [[ "$OSARCH" == darwin* ]]; then
+    DLEXT=dylib
+    $CC -dynamiclib -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
+        -Wl,-install_name,@rpath/libmbedtls-$MBEDTLS_VERSION.$DLEXT \
+        $BUILD_DIR/build/library/libmbedtls.a \
+        $BUILD_DIR/build/library/libmbedcrypto.a \
+        $BUILD_DIR/build/library/libmbedx509.a \
+        -lpthread
 
-# Copy all required .so files
-cp mbedtls-lib/build/mbedtls-4.0.0/build/library/libmbedtls.so.4.0.0           "$TARGET/"
-cp mbedtls-lib/build/mbedtls-4.0.0/build/library/libmbedcrypto.so.4.0.0        "$TARGET/"
-cp mbedtls-lib/build/mbedtls-4.0.0/build/library/libmbedx509.so.4.0.0          "$TARGET/"
-cp mbedtls-lib/build/mbedtls-4.0.0/build/library/libtfpsacrypto.so.1.0.0       "$TARGET/"
+elif [[ "$OSARCH" == win32-x86-64* ]]; then
+    DLEXT=dll
+    $CC -shared -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
+        $BUILD_DIR/build/library/libmbedtls.a \
+        $BUILD_DIR/build/library/libmbedcrypto.a \
+        $BUILD_DIR/build/library/libmbedx509.a \
+        -lpthread -lws2_32 -lwinmm -lgdi32
+fi
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \
