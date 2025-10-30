@@ -75,7 +75,7 @@ jobs:
         run: |
           WINDOWS=1 \
           OBJEXT=obj \
-          CMAKE_C_FLAGS='-DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0"' \
+          CMAKE_C_FLAGS='"-D__USE_MINGW_ANSI_STDIO=0"' \
           LDFLAGS='-lbcrypt -lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' \
           DLEXT=dll \
           OSARCH=win32-x86-64 \
