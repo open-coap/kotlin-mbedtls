@@ -34,44 +34,32 @@ python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 # Run cmake configuration
-cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+# -DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0" is needed to avoid issues with MinGW on Windows https://github.com/Mbed-TLS/mbedtls/issues/10161
+if [[ "$OSARCH" == "win32-x86-64" ]]; then
+    cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0"
+else
+    cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+fi
 
-# Build
 cmake --build "${BUILD_DIR}"/build --target lib
 
+# create single shared library
 LIB_DIR="mbedtls-lib/bin/$OSARCH"
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
-# Combine static libraries into a single binary
-if [[ "$OSARCH" == linux* ]]; then
-    DLEXT=so
-    $CC -shared -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
-        -Wl,--soname,libmbedtls-$MBEDTLS_VERSION.$DLEXT \
-        -Wl,--whole-archive \
-          $BUILD_DIR/build/library/libmbedtls.a \
-          $BUILD_DIR/build/library/libmbedcrypto.a \
-          $BUILD_DIR/build/library/libmbedx509.a \
-        -Wl,--no-whole-archive \
-        -lpthread -ldl
-
-elif [[ "$OSARCH" == darwin* ]]; then
-    DLEXT=dylib
-    $CC -dynamiclib -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
-        -Wl,-install_name,@rpath/libmbedtls-$MBEDTLS_VERSION.$DLEXT \
-        $BUILD_DIR/build/library/libmbedtls.a \
-        $BUILD_DIR/build/library/libmbedcrypto.a \
-        $BUILD_DIR/build/library/libmbedx509.a \
-        -lpthread
-
-elif [[ "$OSARCH" == win32-x86-64* ]]; then
-    DLEXT=dll
-    $CC -shared -o "$LIB_DIR/libmbedtls-$MBEDTLS_VERSION.$DLEXT" \
-        $BUILD_DIR/build/library/libmbedtls.a \
-        $BUILD_DIR/build/library/libmbedcrypto.a \
-        $BUILD_DIR/build/library/libmbedx509.a \
-        -lpthread -lws2_32 -lwinmm -lgdi32
+if [[ "$OSARCH" == "win32-x86-64" ]]; then
+    OBJ_EXT="obj"
+else
+    OBJ_EXT="o"
 fi
+
+$CC -shared \
+    ${BUILD_DIR}/build/library/CMakeFiles/mbedtls.dir/*.${OBJ_EXT} \
+    ${BUILD_DIR}/build/library/CMakeFiles/mbedx509.dir/*.${OBJ_EXT} \
+    ${BUILD_DIR}/build/tf-psa-crypto/core/CMakeFiles/tfpsacrypto.dir/*.${OBJ_EXT} \
+    ${BUILD_DIR}/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/*.${OBJ_EXT} \
+    -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \

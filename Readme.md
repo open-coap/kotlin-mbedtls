@@ -110,7 +110,13 @@ Mac (intel and arm):
 
 Windows
 
-- `docker run -it -v$(pwd):/work --rm dockcross/windows-static-x64 sh -c "WINDOWS=1 LDFLAGS='-lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' DLEXT=dll OSARCH=win32-x86-64 ./compileMbedtls.sh"`
+- `docker run -it -v$(pwd):/work --rm dockcross/windows-static-x64 \
+    sh -c "apt-get update && apt-get install -y python3-venv && \
+    WINDOWS=1 \
+    LDFLAGS='-lws2_32 -lwinmm -lgdi32 -lbcrypt -L. -static-libgcc' \
+    DLEXT=dll \
+    OSARCH=win32-x86-64 \
+    ./compileMbedtls.sh"`
 
 Cross compiling for linux (x86_64):
 
