@@ -8,6 +8,8 @@ DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
 CC="${CC:-gcc}"
 LDFLAGS="${LDFLAGS:-}"
+OBJEXT="${OBJEXT:-o}"
+DCMAKE_C_FLAGS="${DCMAKE_C_FLAGS:-}"
 
 # prepare build directory
 mkdir -p mbedtls-lib/build
@@ -34,12 +36,7 @@ python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 # Run cmake configuration
-# -DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0" is needed to avoid issues with MinGW on Windows https://github.com/Mbed-TLS/mbedtls/issues/10161
-if [[ "$OSARCH" == "win32-x86-64" ]]; then
-    cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0"
-else
-    cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-fi
+cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON ${DCMAKE_C_FLAGS}
 
 cmake --build "${BUILD_DIR}"/build --target lib
 
@@ -48,17 +45,11 @@ LIB_DIR="mbedtls-lib/bin/$OSARCH"
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
-if [[ "$OSARCH" == "win32-x86-64" ]]; then
-    OBJ_EXT="obj"
-else
-    OBJ_EXT="o"
-fi
-
 $CC -shared \
-    ${BUILD_DIR}/build/library/CMakeFiles/mbedtls.dir/*.${OBJ_EXT} \
-    ${BUILD_DIR}/build/library/CMakeFiles/mbedx509.dir/*.${OBJ_EXT} \
-    ${BUILD_DIR}/build/tf-psa-crypto/core/CMakeFiles/tfpsacrypto.dir/*.${OBJ_EXT} \
-    ${BUILD_DIR}/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/*.${OBJ_EXT} \
+    ${BUILD_DIR}/build/library/CMakeFiles/mbedtls.dir/*.${OBJEXT} \
+    ${BUILD_DIR}/build/library/CMakeFiles/mbedx509.dir/*.${OBJEXT} \
+    ${BUILD_DIR}/build/tf-psa-crypto/core/CMakeFiles/tfpsacrypto.dir/*.${OBJEXT} \
+    ${BUILD_DIR}/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/*.${OBJEXT} \
     -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
 
 # generate kotlin object with memory sizes
