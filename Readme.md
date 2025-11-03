@@ -116,7 +116,7 @@ Windows
     LDFLAGS='-lws2_32 -lwinmm -lgdi32 -lbcrypt -L. -static-libgcc' \
     DLEXT=dll \
     OBJEXT=obj \
-    DCMAKE_C_FLAGS='-D__USE_MINGW_ANSI_STDIO=0' \
+    CMAKE_EXTRA='-DCMAKE_C_FLAGS=-D__USE_MINGW_ANSI_STDIO=0' \
     OSARCH=win32-x86-64 \
     ./compileMbedtls.sh"`
 

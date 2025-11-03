@@ -9,7 +9,7 @@ OSARCH="${OSARCH:-linux-x86-64}"
 CC="${CC:-gcc}"
 LDFLAGS="${LDFLAGS:-}"
 OBJEXT="${OBJEXT:-o}"
-DCMAKE_C_FLAGS="${DCMAKE_C_FLAGS:-}"
+CMAKE_EXTRA="${CMAKE_EXTRA:-}"
 
 # prepare build directory
 mkdir -p mbedtls-lib/build
@@ -36,7 +36,7 @@ python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 # Run cmake configuration
-cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=${DCMAKE_C_FLAGS}
+cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release ${CMAKE_EXTRA}
 
 cmake --build "${BUILD_DIR}"/build --target lib
 
