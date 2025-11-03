@@ -97,6 +97,8 @@ Precompiled:
 - `./gradlew currentVersion`       print current version
 - `./gradlew dependencyUpdates`    determine which dependencies have updates
 - `./gradlew useLatestVersions`    update dependencies to the latest available versions
+- `./gradlew jmh`                  run benchmarks
+- `./gradlew :kotlin-mbedtls:jmh -PjmhIncludes=benchmark.SslContextBenchmark.handshake_cert_ecdhe_ecdsa_with_aes_128_gcm` run specific benchmark
 
 ### Build mbedtls binaries
 
