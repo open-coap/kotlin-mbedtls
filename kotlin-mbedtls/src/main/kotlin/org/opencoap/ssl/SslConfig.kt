@@ -190,6 +190,9 @@ class SslConfig(
                 // seems like a bug in log levels:
                 if (message?.startsWith("got supported group") == true) return
 
+                // appeared in 4.0.0
+                if (message?.startsWith("Perform PSA-based ECDH computation") == true) return
+
                 // logs when close notify is received
                 if (message?.startsWith("mbedtls_ssl_handle_message_type() returned -30848 (-0x7880)") == true) return
                 if (message?.startsWith("mbedtls_ssl_read_record() returned -30848 (-0x7880)") == true) return
