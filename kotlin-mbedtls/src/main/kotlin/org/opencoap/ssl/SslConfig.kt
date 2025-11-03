@@ -190,7 +190,7 @@ class SslConfig(
                 // seems like a bug in log levels:
                 if (message?.startsWith("got supported group") == true) return
 
-                // appeared in 4.0.0
+                // Introduced in MbedTLS 4.0.0: this log message should be at trace level, not warning
                 if (message?.startsWith("Perform PSA-based ECDH computation") == true) return
 
                 // logs when close notify is received
