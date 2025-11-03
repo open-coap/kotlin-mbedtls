@@ -24,3 +24,12 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+jmh {
+    // Read -PjmhInclude(comma separated)
+    val includeProp = findProperty("jmhIncludes")?.toString()
+
+    if (!includeProp.isNullOrBlank()) {
+        includes.set(includeProp.split(',').map { it.trim() }.filter { it.isNotEmpty() })
+    }
+}
