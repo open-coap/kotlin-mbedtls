@@ -53,10 +53,3 @@ jobs:
           ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.SIGNING_PASSWORD }}
           ORG_GRADLE_PROJECT_ossrhUserName: ${{ secrets.OSSRH_USERNAME }}
           ORG_GRADLE_PROJECT_ossrhPassword: ${{ secrets.OSSRH_PASSWORD }}
-
-      - name: Manual release
-        run: |
-          AUTH_TOKEN=$(echo -n "${{ secrets.OSSRH_USERNAME }}:${{ secrets.OSSRH_PASSWORD }}" | base64)
-          curl -X POST \
-            -H "Authorization: Bearer $AUTH_TOKEN" \
-            https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/io.github.open-coap?automatic=true
