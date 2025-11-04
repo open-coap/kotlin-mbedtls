@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ class SslExceptionTest {
 
     @Test
     fun `should translate error code`() {
-        val sslException = SslException.from(-25344)
+        val sslException = SslException.from(-10240)
 
-        assertEquals("CIPHER - Authentication failed (for AEAD modes) [-0x6300]", sslException.message)
+        assertEquals("X509 - Input invalid [-0x2800]", sslException.message)
     }
 }
