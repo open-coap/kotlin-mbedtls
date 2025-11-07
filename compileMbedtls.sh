@@ -17,11 +17,7 @@ rm -rf ${BUILD_DIR}
 
 # Clone the repository for MbedTLS 4.0.0+
 echo "Cloning MbedTLS ${MBEDTLS_VERSION}..."
-git clone --depth 1 --branch v${MBEDTLS_VERSION} https://github.com/Mbed-TLS/mbedtls.git ${BUILD_DIR}
-
-# Initialize submodules recursively
-echo "Initializing all submodules recursively..."
-(cd ${BUILD_DIR} && git submodule update --init --recursive --depth 1)
+git clone --depth 1 --branch v${MBEDTLS_VERSION} --recurse-submodules --shallow-submodules https://github.com/Mbed-TLS/mbedtls.git ${BUILD_DIR}
 
 # install python requirements
 python3 -m pip install -r ${BUILD_DIR}/scripts/basic.requirements.txt
