@@ -47,16 +47,17 @@ rm -f ${LIB_DIR}/* 2>/dev/null || true
 echo "Copying .so files out of build directory to $LIB_DIR..."
 find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "*.${DLEXT}*" -exec cp {} "${LIB_DIR}/" \;
 
+# remove version suffixes from shared libraries
 if [[ "$DLEXT" == "so" ]]; then
-    # Linux
-    mv "${LIB_DIR}/libmbedtls.so.4.0.0" "${LIB_DIR}/libmbedtls.so"
-    mv "${LIB_DIR}/libmbedx509.so.4.0.0" "${LIB_DIR}/libmbedx509.so"
-    mv "${LIB_DIR}/libtfpsacrypto.so.1.0.0" "${LIB_DIR}/libtfpsacrypto.so"
+    for lib in mbedtls mbedx509 tfpsacrypto; do
+        src=$(ls "${LIB_DIR}/lib${lib}.so."* 2>/dev/null | head -n1)
+        [[ -n "$src" ]] && mv "$src" "${LIB_DIR}/lib${lib}.so"
+    done
 elif [[ "$DLEXT" == "dylib" ]]; then
-    # macOS
-    mv "${LIB_DIR}/libmbedtls.4.0.0.dylib" "${LIB_DIR}/libmbedtls.dylib"
-    mv "${LIB_DIR}/libmbedx509.4.0.0.dylib" "${LIB_DIR}/libmbedx509.dylib"
-    mv "${LIB_DIR}/libtfpsacrypto.1.0.0.dylib" "${LIB_DIR}/libtfpsacrypto.dylib"
+    for lib in mbedtls mbedx509 tfpsacrypto; do
+        src=$(ls "${LIB_DIR}/lib${lib}."*.dylib 2>/dev/null | head -n1)
+        [[ -n "$src" ]] && mv "$src" "${LIB_DIR}/lib${lib}.dylib"
+    done
 fi
 
 # generate kotlin object with memory sizes
