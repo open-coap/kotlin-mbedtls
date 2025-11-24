@@ -38,15 +38,10 @@ internal object MbedtlsApi {
     private var LIB_TFPSACRYPTO: NativeLibrary
 
     init {
-        val libPrefix = if (Platform.isWindows()) "lib" else ""
-        val libTfPsaCryptoName = libPrefix + "tfpsacrypto"
-        val libMbedX509Name = libPrefix + "mbedx509"
-        val libMbedTlsName = libPrefix + "mbedtls"
-
-        LIB_TFPSACRYPTO = NativeLibrary.getInstance(libTfPsaCryptoName)
-        LIB_MBEDX509 = NativeLibrary.getInstance(libMbedX509Name)
-        LIB_MBEDTLS = NativeLibrary.getInstance(libMbedTlsName)
-
+        LIB_TFPSACRYPTO = NativeLibrary.getInstance("tfpsacrypto")
+        LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509")
+        LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls")
+        
         Native.register(LIB_MBEDTLS)
         Native.register(X509::class.java, LIB_MBEDX509)
         Native.register(Crypto::class.java, LIB_TFPSACRYPTO)
