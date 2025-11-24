@@ -23,7 +23,6 @@ import com.sun.jna.Function
 import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
-import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
@@ -33,15 +32,11 @@ Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
 
-    private var LIB_MBEDTLS: NativeLibrary
-    private var LIB_MBEDX509: NativeLibrary
-    private var LIB_TFPSACRYPTO: NativeLibrary
+    private var LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls")
+    private var LIB_MBEDX509: NativeLibrary = NativeLibrary.getInstance("mbedx509")
+    private var LIB_TFPSACRYPTO: NativeLibrary = NativeLibrary.getInstance("tfpsacrypto")
 
     init {
-        LIB_TFPSACRYPTO = NativeLibrary.getInstance("tfpsacrypto")
-        LIB_MBEDX509 = NativeLibrary.getInstance("mbedx509")
-        LIB_MBEDTLS = NativeLibrary.getInstance("mbedtls")
-        
         Native.register(LIB_MBEDTLS)
         Native.register(X509::class.java, LIB_MBEDX509)
         Native.register(Crypto::class.java, LIB_TFPSACRYPTO)
