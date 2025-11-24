@@ -108,7 +108,7 @@ Linux (x86_64):
 
 Mac (intel and arm):
 
-`DLEXT=dylib OSARCH=darwin CMAKE_EXTRA='-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' ./compileMbedtls.sh`
+`DLEXT=dylib OSARCH=darwin CMAKE_EXTRA='-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'' ./compileMbedtls.sh`
 
 Windows
 
