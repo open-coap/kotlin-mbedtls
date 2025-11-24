@@ -32,9 +32,9 @@ Defines mbedtls native functions that can be used from jvm.
  */
 internal object MbedtlsApi {
 
-    private var LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls")
-    private var LIB_MBEDX509: NativeLibrary = NativeLibrary.getInstance("mbedx509")
     private var LIB_TFPSACRYPTO: NativeLibrary = NativeLibrary.getInstance("tfpsacrypto")
+    private var LIB_MBEDX509: NativeLibrary = NativeLibrary.getInstance("mbedx509")
+    private var LIB_MBEDTLS: NativeLibrary = NativeLibrary.getInstance("mbedtls")
 
     init {
         Native.register(LIB_MBEDTLS)
