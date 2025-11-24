@@ -115,8 +115,8 @@ Windows
 - `docker run -it -v$(pwd):/work --rm dockcross/windows-static-x64 \
     sh -c "apt-get update && apt-get install -y python3-venv && \
     WINDOWS=1 \
-    OBJEXT=obj \
     CMAKE_EXTRA='-DCMAKE_C_FLAGS=-D__USE_MINGW_ANSI_STDIO=0' \
+    DLEXT=dll \
     OSARCH=win32-x86-64 \
     ./compileMbedtls.sh"`
 
