@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_strerror
 import java.util.Locale
 
 open class SslException(message: String) : Exception(message) {
@@ -29,7 +30,7 @@ open class SslException(message: String) : Exception(message) {
 
         internal fun translateError(error: Int): String {
             val buffer = Memory(100)
-            MbedtlsApi.mbedtls_strerror(error, buffer, buffer.size().toInt())
+            mbedtls_strerror(error, buffer, buffer.size().toInt())
             return buffer.getString(0).trim()
         }
     }

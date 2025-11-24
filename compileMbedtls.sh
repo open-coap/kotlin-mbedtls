@@ -6,10 +6,8 @@ MBEDTLS_VERSION=${MBEDTLS_VERSION:-$DEFAULT_MBEDTLS_VERSION}
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
-CC="${CC:-gcc}"
-LDFLAGS="${LDFLAGS:-}"
-OBJEXT="${OBJEXT:-o}"
 CMAKE_EXTRA="${CMAKE_EXTRA:-}"
+LIB_DIR="mbedtls-lib/bin/$OSARCH"
 
 # prepare build directory
 mkdir -p mbedtls-lib/build
@@ -31,22 +29,35 @@ fi
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
-# Run cmake configuration
-cmake -S "${BUILD_DIR}" -B "${BUILD_DIR}"/build -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release ${CMAKE_EXTRA}
+echo "Configuring CMake..."
+cmake \
+  -S "${BUILD_DIR}" \
+  -B "${BUILD_DIR}"/build \
+  -DUSE_SHARED_MBEDTLS_LIBRARY=On \
+  -DCMAKE_BUILD_TYPE=Release \
+  ${CMAKE_EXTRA}
 
-cmake --build "${BUILD_DIR}"/build --target lib
+echo "Building MbedTLS..."
+cmake --build "${BUILD_DIR}"/build --parallel --target lib
 
 # create single shared library
-LIB_DIR="mbedtls-lib/bin/$OSARCH"
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
-$CC -shared \
-    ${BUILD_DIR}/build/library/CMakeFiles/mbedtls.dir/*.${OBJEXT} \
-    ${BUILD_DIR}/build/library/CMakeFiles/mbedx509.dir/*.${OBJEXT} \
-    ${BUILD_DIR}/build/tf-psa-crypto/core/CMakeFiles/tfpsacrypto.dir/*.${OBJEXT} \
-    ${BUILD_DIR}/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/*.${OBJEXT} \
-    -o ${LIB_DIR}/libmbedtls-${MBEDTLS_VERSION}.${DLEXT} ${LDFLAGS}
+echo "Copying .so files out of build directory to $LIB_DIR..."
+find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "*.${DLEXT}*" -exec cp {} "${LIB_DIR}/" \;
+
+if [[ "$DLEXT" == "so" ]]; then
+    # Linux
+    mv "${LIB_DIR}/libmbedtls.so.4.0.0" "${LIB_DIR}/libmbedtls.so"
+    mv "${LIB_DIR}/libmbedx509.so.4.0.0" "${LIB_DIR}/libmbedx509.so"
+    mv "${LIB_DIR}/libtfpsacrypto.so.1.0.0" "${LIB_DIR}/libtfpsacrypto.so"
+elif [[ "$DLEXT" == "dylib" ]]; then
+    # macOS
+    mv "${LIB_DIR}/libmbedtls.4.0.0.dylib" "${LIB_DIR}/libmbedtls.dylib"
+    mv "${LIB_DIR}/libmbedx509.4.0.0.dylib" "${LIB_DIR}/libmbedx509.dylib"
+    mv "${LIB_DIR}/libtfpsacrypto.1.0.0.dylib" "${LIB_DIR}/libtfpsacrypto.dylib"
+fi
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \
