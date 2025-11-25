@@ -44,21 +44,25 @@ cmake --build "${BUILD_DIR}"/build --parallel --target lib
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
-echo "Copying .so files out of build directory to $LIB_DIR..."
-find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "*.${DLEXT}*" -exec cp {} "${LIB_DIR}/" \;
-
-# remove version suffixes from shared libraries
-if [[ "$DLEXT" == "so" ]]; then
-    for lib in mbedtls mbedx509 tfpsacrypto; do
-        src=$(ls "${LIB_DIR}/lib${lib}.so."* 2>/dev/null | head -n1)
-        [[ -n "$src" ]] && mv "$src" "${LIB_DIR}/lib${lib}.so"
-    done
-elif [[ "$DLEXT" == "dylib" ]]; then
-    for lib in mbedtls mbedx509 tfpsacrypto; do
-        src=$(ls "${LIB_DIR}/lib${lib}."*.dylib 2>/dev/null | head -n1)
-        [[ -n "$src" ]] && mv "$src" "${LIB_DIR}/lib${lib}.dylib"
-    done
-fi
+echo "Copying and renaming shared libraries to $LIB_DIR..."
+for lib in mbedtls mbedx509 tfpsacrypto; do
+    if [[ "$DLEXT" == "so" ]]; then
+        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.so.*" | head -n1)
+        if [[ -n "$src" ]]; then
+            cp "$src" "${LIB_DIR}/lib${lib}.so"
+        fi
+    elif [[ "$DLEXT" == "dylib" ]]; then
+        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.*.dylib" | head -n1)
+        if [[ -n "$src" ]]; then
+            cp "$src" "${LIB_DIR}/lib${lib}.dylib"
+        fi
+    elif [[ "$DLEXT" == "dll" ]]; then
+        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.dll" | head -n1)
+        if [[ -n "$src" ]]; then
+            cp "$src" "${LIB_DIR}/lib${lib}.dll"
+        fi
+    fi
+done
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \
