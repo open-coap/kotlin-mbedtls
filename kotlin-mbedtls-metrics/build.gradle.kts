@@ -14,4 +14,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // On Windows, native libraries must be found via PATH or explicitly set, as dynamic linking is used to load them.
+    if (System.getProperty("os.name").lowercase().contains("win")) {
+        val osArch = "win32-x86-64"
+        systemProperty("jna.library.path", file("../mbedtls-lib/bin/$osArch").absolutePath)
+    }
 }

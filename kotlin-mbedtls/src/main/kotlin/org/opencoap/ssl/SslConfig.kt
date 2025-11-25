@@ -21,6 +21,7 @@ import com.sun.jna.Memory
 import com.sun.jna.Pointer
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_free
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_parse_key
+import org.opencoap.ssl.MbedtlsApi.Crypto.psa_crypto_init
 import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_x509_crt_free
 import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_x509_crt_parse_der
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_conf_authmode
@@ -47,7 +48,6 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_hostname
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
-import org.opencoap.ssl.MbedtlsApi.psa_crypto_init
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable

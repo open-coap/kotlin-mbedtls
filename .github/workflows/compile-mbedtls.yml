@@ -51,7 +51,7 @@ jobs:
           VENV_DIR=$(mktemp -d)
           python3 -m venv ${VENV_DIR}
           source ${VENV_DIR}/bin/activate
-          LDFLAGS='-arch x86_64 -arch arm64' CFLAGS='-O2 -arch x86_64 -arch arm64' DLEXT=dylib OSARCH=darwin ./compileMbedtls.sh
+          DLEXT=dylib OSARCH=darwin CMAKE_EXTRA='-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -74,9 +74,7 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: |
           WINDOWS=1 \
-          OBJEXT=obj \
           CMAKE_EXTRA='-DCMAKE_C_FLAGS=-D__USE_MINGW_ANSI_STDIO=0' \
-          LDFLAGS='-lbcrypt -lws2_32 -lwinmm -lgdi32 -L. -static-libgcc' \
           DLEXT=dll \
           OSARCH=win32-x86-64 \
           ./compileMbedtls.sh
