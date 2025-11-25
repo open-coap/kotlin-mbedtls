@@ -44,25 +44,10 @@ cmake --build "${BUILD_DIR}"/build --parallel --target lib
 mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
-echo "Copying and renaming shared libraries to $LIB_DIR..."
-for lib in mbedtls mbedx509 tfpsacrypto; do
-    if [[ "$DLEXT" == "so" ]]; then
-        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.so.*" | head -n1)
-        if [[ -n "$src" ]]; then
-            cp "$src" "${LIB_DIR}/lib${lib}.so"
-        fi
-    elif [[ "$DLEXT" == "dylib" ]]; then
-        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.*.dylib" | head -n1)
-        if [[ -n "$src" ]]; then
-            cp "$src" "${LIB_DIR}/lib${lib}.dylib"
-        fi
-    elif [[ "$DLEXT" == "dll" ]]; then
-        src=$(find "${BUILD_DIR}/build/library" -maxdepth 1 -type f -name "lib${lib}.dll" | head -n1)
-        if [[ -n "$src" ]]; then
-            cp "$src" "${LIB_DIR}/lib${lib}.dll"
-        fi
-    fi
-done
+# copy shared libraries
+cp "${BUILD_DIR}/build/library/libmbedtls.${DLEXT}" "${LIB_DIR}/libmbedtls.${DLEXT}"
+cp "${BUILD_DIR}/build/library/libmbedx509.${DLEXT}" "${LIB_DIR}/libmbedx509.${DLEXT}"
+cp "${BUILD_DIR}/build/library/libtfpsacrypto"*.${DLEXT} "${LIB_DIR}/libtfpsacrypto.${DLEXT}"
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \
