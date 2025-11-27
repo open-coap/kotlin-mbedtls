@@ -187,11 +187,11 @@ class SslConfig(
         private val logger = LoggerFactory.getLogger(MbedtlsApi::class.java)
         fun callback(ctx: Pointer?, debugLevel: Int, fileName: String, lineNumber: Int, message: String?) {
             if (debugLevel == 1) {
-                // seems like a bug in log levels:
-                if (message?.startsWith("got supported group") == true) return
-
                 // Introduced in MbedTLS 4.0.0: this log message should be at trace level, not warning
+                // These should be fixed in the next MbedTLS release of 4.x
                 if (message?.startsWith("Perform PSA-based ECDH computation") == true) return
+                if (message?.startsWith("<= mbedtls_ssl_check_record") == true) return
+                if (message?.startsWith("=> mbedtls_ssl_check_record") == true) return
 
                 // logs when close notify is received
                 if (message?.startsWith("mbedtls_ssl_handle_message_type() returned -30848 (-0x7880)") == true) return
