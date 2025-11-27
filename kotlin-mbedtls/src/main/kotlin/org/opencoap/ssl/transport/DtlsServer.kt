@@ -159,7 +159,11 @@ class DtlsServer(
             sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
             true
         } catch (ex: Exception) {
-            logger.error("[{}] [CID:{}] DTLS failed to load session: {}", adr, cid.toHex(), ex.message)
+            if (ex.message?.contains("-0x5F00") == true || ex.message?.contains("unexpected version") == true) {
+                logger.warn("[{}] [CID:{}] DTLS session not loaded due to version mismatch: {}", adr, cid.toHex(), ex.message)
+            } else {
+                logger.error("[{}] [CID:{}] DTLS failed to load session: {}", adr, cid.toHex(), ex.message)
+            }
             reportMessageDrop(adr)
             false
         }
@@ -287,8 +291,14 @@ class DtlsServer(
         override fun storeAndClose0() {
             if (ctx.ownCid != null) {
                 try {
+                    val sessionBlob = try {
+                        ctx.saveAndClose()
+                    } catch (ex: Exception) {
+                        logger.warn("[{}] [CID:{}] Failed to save ssl context: {}", peerAddress, ownCidHex, ex.message)
+                        return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
+                    }
                     val session = SessionWithContext(
-                        sessionBlob = ctx.saveAndClose(),
+                        sessionBlob = sessionBlob,
                         authenticationContext = authenticationContext,
                         sessionStartTimestamp = sessionStartTimestamp
                     )
