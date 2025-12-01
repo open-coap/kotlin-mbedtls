@@ -150,7 +150,7 @@ open class SslContextBenchmark {
     }
 
     @Benchmark
-    fun load_and_save_ssl_session(bh: Blackhole) {
+    open fun load_and_save_ssl_session(bh: Blackhole) {
         val session = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
         val sessionData = session.saveAndClose()
 
