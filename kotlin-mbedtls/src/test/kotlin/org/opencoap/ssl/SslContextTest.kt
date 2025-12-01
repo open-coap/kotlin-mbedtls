@@ -172,7 +172,7 @@ class SslContextTest {
     fun loadSessionByManyThreads() {
         // without proper synchronization mbedtls_ssl_context_load may crash
         val tasks = buildList {
-            repeat(10) {
+            repeat(100) {
                 add(
                     Thread {
                         repeat(100) {
