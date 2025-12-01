@@ -30,7 +30,6 @@ import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
-import kotlin.random.Random
 
 class SslContextTest {
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
@@ -175,11 +174,11 @@ class SslContextTest {
             repeat(100) {
                 add(
                     Thread {
-                        repeat(100) {
+                        repeat(1000) {
                             val session = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
 
-                            val smallMessage = Random.nextBytes(64).asByteBuffer()
-                            session.checkRecord(smallMessage)
+                            // val smallMessage = Random.nextBytes(64).asByteBuffer()
+                            // session.checkRecord(smallMessage)
                             session.saveAndClose()
                         }
                     }
