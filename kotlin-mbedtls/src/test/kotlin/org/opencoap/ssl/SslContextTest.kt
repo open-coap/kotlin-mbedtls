@@ -30,6 +30,7 @@ import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
+import kotlin.random.Random
 
 class SslContextTest {
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
@@ -165,6 +166,29 @@ class SslContextTest {
 
         clientSession.close()
         serverSession.close()
+    }
+
+    @Test
+    fun loadSessionByManyThreads() {
+        // without proper synchronization mbedtls_ssl_context_load may crash
+        val tasks = buildList {
+            repeat(10) {
+                add(
+                    Thread {
+                        repeat(100) {
+                            val session = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+
+                            val smallMessage = Random.nextBytes(64).asByteBuffer()
+                            session.checkRecord(smallMessage)
+                            session.saveAndClose()
+                        }
+                    }
+                )
+            }
+        }
+
+        tasks.forEach { it.start() }
+        tasks.forEach { it.join() }
     }
 
     private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
