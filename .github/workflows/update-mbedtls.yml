@@ -12,7 +12,7 @@ jobs:
       currentMbedtlsVersion: ${{ steps.step1.outputs.currentMbedtlsVersion }}
       latestMbedtlsVersion: ${{ steps.step1.outputs.latestMbedtlsVersion }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: step1
         run: |
           echo -n "latestMbedtlsVersion=" >>  "$GITHUB_OUTPUT"
@@ -36,7 +36,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cleanup old mbedtls binaries
         run: |
           rm -rf mbedtls-lib/bin
