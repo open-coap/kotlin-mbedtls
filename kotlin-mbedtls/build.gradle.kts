@@ -31,6 +31,7 @@ tasks.test {
 }
 
 jmh {
+    failOnError.set(true)
     // Read -PjmhInclude(comma separated)
     val includeProp = findProperty("jmhIncludes")?.toString()
 
