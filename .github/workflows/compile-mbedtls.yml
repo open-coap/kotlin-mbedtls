@@ -24,13 +24,13 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: linux-x86-64
           path: mbedtls-lib/bin/linux-x86-64/*
           if-no-files-found: error
       - name: Archive mbledtlsSizeOf.kt
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: MbedtlsSizeOf.kt
           path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
@@ -53,7 +53,7 @@ jobs:
           source ${VENV_DIR}/bin/activate
           DLEXT=dylib OSARCH=darwin CMAKE_EXTRA='-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: darwin
           path: mbedtls-lib/bin/darwin/*
@@ -79,7 +79,7 @@ jobs:
           OSARCH=win32-x86-64 \
           ./compileMbedtls.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: win32-x86-64
           path: mbedtls-lib/bin/win32-x86-64/*
