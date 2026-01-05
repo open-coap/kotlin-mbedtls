@@ -218,7 +218,7 @@ class DtlsTransmitterTest {
 
         // optionally, it is possible to save session before closing client, it could be later reloaded
         // note: after saving session, it is not possible to is client
-        val storedSession: ByteArray = client.saveSession()
+        client.saveSession()
         client.close()
 
         // close SSL configuration:

@@ -71,7 +71,7 @@ class DtlsTransmitterCertTest {
 
     @Test
     fun `should fail when non trusted`() {
-        val server = newServerDtlsTransmitter(7002)
+        newServerDtlsTransmitter(7002)
 
         val clientConf = SslConfig.client(CertificateAuth(Certs.dev99Chain, Certs.dev99.privateKey, Certs.root.asX509()))
         val client = DtlsTransmitter.connect(srvTrans, clientConf, 7002)

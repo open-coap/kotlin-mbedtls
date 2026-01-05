@@ -86,7 +86,7 @@ class DatagramChannelAdapterTest {
         }
 
         for (i in 1..10) {
-            assertEquals("echo:$i:dupa", cli.receive(1.seconds).await()!!.buffer.decodeToString())
+            assertEquals("echo:$i:dupa", cli.receive(1.seconds).await().buffer.decodeToString())
         }
 
         trans.close()

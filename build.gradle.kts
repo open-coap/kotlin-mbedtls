@@ -4,15 +4,15 @@ import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.2.20"
-    id("pl.allegro.tech.build.axion-release") version "1.20.1"
+    id("org.jetbrains.kotlin.jvm") version "2.3.0"
+    id("pl.allegro.tech.build.axion-release") version "1.21.1"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
-    id("com.github.ben-manes.versions") version "0.52.0"
+    id("com.github.ben-manes.versions") version "0.53.0"
     id("java-library")
     id("maven-publish")
     id("org.gradle.signing")
     id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
-    id("org.jlleitschuh.gradle.ktlint") version "13.1.0"
+    id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.adarshr.test-logger") version "4.0.0"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
@@ -51,7 +51,8 @@ allprojects {
     kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_1_8)
-            freeCompilerArgs.add("-Werror")
+            allWarningsAsErrors = true
+            extraWarnings = true
         }
     }
 
@@ -73,12 +74,12 @@ allprojects {
             }
         }
 
-        create<Jar>("sourceJar") {
+        register<Jar>("sourceJar") {
             archiveClassifier.set("sources")
             from(sourceSets["main"].allSource)
         }
 
-        create<Jar>("javadocJar") {
+        register<Jar>("javadocJar") {
             archiveClassifier.set("javadoc")
             from(javadoc)
         }
