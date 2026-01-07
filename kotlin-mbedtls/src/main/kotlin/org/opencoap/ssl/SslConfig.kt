@@ -207,14 +207,14 @@ class SslConfig(
     }
 
     private object NoOpsSetDelayCallback : Callback {
-        @Suppress("UnusedPrivateMember")
+        @Suppress("UnusedParameter")
         fun callback(data: Pointer?, intermediateMs: Int, finalMs: Int) {
             // do nothing
         }
     }
 
     private object NoOpsGetDelayCallback : Callback {
-        @Suppress("FunctionOnlyReturningConstant", "UnusedPrivateMember")
+        @Suppress("FunctionOnlyReturningConstant", "UnusedParameter")
         fun callback(data: Pointer?): Int = 1
     }
 }
