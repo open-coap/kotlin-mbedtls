@@ -49,9 +49,19 @@ mkdir -p ${LIB_DIR}
 rm -f ${LIB_DIR}/* 2>/dev/null || true
 
 # copy shared libraries
-cp "${BUILD_DIR}/build/library/libmbedtls.${DLEXT}" "${LIB_DIR}/libmbedtls.${DLEXT}"
-cp "${BUILD_DIR}/build/library/libmbedx509.${DLEXT}" "${LIB_DIR}/libmbedx509.${DLEXT}"
-cp "${BUILD_DIR}/build/library/libtfpsacrypto"*.${DLEXT} "${LIB_DIR}/libtfpsacrypto.${DLEXT}"
+# On Windows, DLLs should not have the "lib" prefix (JNA expects them without it)
+# On Unix systems (Linux, macOS), libraries should keep the "lib" prefix
+if [ "${DLEXT}" = "dll" ]; then
+    # Windows: remove "lib" prefix
+    cp "${BUILD_DIR}/build/library/libmbedtls.${DLEXT}" "${LIB_DIR}/mbedtls.${DLEXT}"
+    cp "${BUILD_DIR}/build/library/libmbedx509.${DLEXT}" "${LIB_DIR}/mbedx509.${DLEXT}"
+    cp "${BUILD_DIR}/build/library/libtfpsacrypto"*.${DLEXT} "${LIB_DIR}/tfpsacrypto.${DLEXT}"
+else
+    # Unix: keep "lib" prefix
+    cp "${BUILD_DIR}/build/library/libmbedtls.${DLEXT}" "${LIB_DIR}/libmbedtls.${DLEXT}"
+    cp "${BUILD_DIR}/build/library/libmbedx509.${DLEXT}" "${LIB_DIR}/libmbedx509.${DLEXT}"
+    cp "${BUILD_DIR}/build/library/libtfpsacrypto"*.${DLEXT} "${LIB_DIR}/libtfpsacrypto.${DLEXT}"
+fi
 
 # generate kotlin object with memory sizes
 gcc mbedtls-lib/mbedtls_sizeof_generator.c \
