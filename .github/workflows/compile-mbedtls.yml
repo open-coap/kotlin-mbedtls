@@ -74,7 +74,6 @@ jobs:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
         run: |
           WINDOWS=1 \
-          CMAKE_EXTRA='-DCMAKE_C_FLAGS=-D__USE_MINGW_ANSI_STDIO=0' \
           DLEXT=dll \
           OSARCH=win32-x86-64 \
           ./compileMbedtls.sh
