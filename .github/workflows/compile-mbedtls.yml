@@ -36,6 +36,24 @@ jobs:
           path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
           if-no-files-found: error
 
+  compile-linux-arm64:
+    name: "compile: linux-aarch64"
+    timeout-minutes: 5
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compile
+        env:
+          MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
+          OSARCH: linux-aarch64
+        run: ./compileMbedtls.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-aarch64
+          path: mbedtls-lib/bin/linux-aarch64/*
+          if-no-files-found: error
+
   compile-macos:
     name: "compile: macos"
     timeout-minutes: 5
