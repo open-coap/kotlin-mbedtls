@@ -260,7 +260,7 @@ data class CertificateAuth(
             mbedtls_x509_crt_parse_der(ownCert, certDer, certDer.size).verify()
         }
         if (privateKey != null) {
-            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0)
+            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0).verify()
             mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
         }
     }
