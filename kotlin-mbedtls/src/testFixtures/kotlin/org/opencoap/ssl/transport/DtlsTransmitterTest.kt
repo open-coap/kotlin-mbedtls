@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.Mbedtls
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.util.StoredSessionPair
@@ -36,10 +37,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.random.Random
 
-class DtlsTransmitterTest {
+abstract class DtlsTransmitterTest(protected val engine: Mbedtls) {
 
     private val cidSupplier = { Random.nextBytes(16) }
-    private val serverConf = SslConfig.server(PskAuth("device-007", byteArrayOf(0x01, 0x02)), cidSupplier = cidSupplier)
+    private val serverConf = SslConfig.server(engine, PskAuth("device-007", byteArrayOf(0x01, 0x02)), cidSupplier = cidSupplier)
     private lateinit var srvTrans: Transport<ByteBuffer>
 
     @AfterEach
@@ -56,7 +57,7 @@ class DtlsTransmitterTest {
     @Test
     fun `should successfully handshake and send data`() {
         val server = newServerDtlsTransmitter(6001)
-        val conf = SslConfig.client(PskAuth("device-007", byteArrayOf(0x01, 0x02)))
+        val conf = SslConfig.client(engine, PskAuth("device-007", byteArrayOf(0x01, 0x02)))
         runGC() // make sure none of needed objects is garbage collected
 
         // when
@@ -80,7 +81,7 @@ class DtlsTransmitterTest {
     fun `should fail to handshake - wrong psk`() {
         newServerDtlsTransmitter(6002)
 
-        val conf = SslConfig.client(PskAuth("device-007", "bad".encodeToByteArray()))
+        val conf = SslConfig.client(engine, PskAuth("device-007", "bad".encodeToByteArray()))
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6002)
 
         val result = runCatching { client.await() }
@@ -98,6 +99,7 @@ class DtlsTransmitterTest {
         val server = newServerDtlsTransmitter(6003)
 
         val conf = SslConfig.client(
+            engine,
             auth = PskAuth("device-007".encodeToByteArray(), byteArrayOf(0x01, 0x02)),
             cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
@@ -121,12 +123,12 @@ class DtlsTransmitterTest {
 
     @Test
     fun `should reload session`() {
-        val clientConf = SslConfig.client(PskAuth("dupa", byteArrayOf(0x01, 0x02)), cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"), cidSupplier = { byteArrayOf(0x01) })
+        val clientConf = SslConfig.client(engine, PskAuth("dupa", byteArrayOf(0x01, 0x02)), cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"), cidSupplier = { byteArrayOf(0x01) })
         srvTrans = DatagramChannelAdapter.connect(localAddress(6004), 2_5684)
 
         // when
-        val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684)), 6004)
-        val server = DtlsTransmitter.create(localAddress(6004), serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(6004)), srvTrans)
+        val client = DtlsTransmitter.create(localAddress(2_5684), clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).cliSession, localAddress(2_5684)), 6004)
+        val server = DtlsTransmitter.create(localAddress(6004), serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).srvSession, localAddress(6004)), srvTrans)
         runGC()
 
         // then
@@ -142,6 +144,7 @@ class DtlsTransmitterTest {
         val server = newServerDtlsTransmitter(6004)
 
         val clientConf = SslConfig.client(
+            engine,
             auth = PskAuth("device-007", byteArrayOf(0x01, 0x02)),
             cidSupplier = { byteArrayOf(0x01) },
             cipherSuites = listOf("TLS-PSK-WITH-AES-128-CCM"),
@@ -170,7 +173,7 @@ class DtlsTransmitterTest {
     fun `should send close notify`() {
         // given
         val serverPromise = newServerDtlsTransmitter(6005)
-        val conf = SslConfig.client(PskAuth("device-007", byteArrayOf(0x01, 0x02)))
+        val conf = SslConfig.client(engine, PskAuth("device-007", byteArrayOf(0x01, 0x02)))
 
         val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6005).await()
         val server = serverPromise.await()
@@ -195,6 +198,7 @@ class DtlsTransmitterTest {
 
         // create mbedtls SSL configuration with PSK credentials
         val conf: SslConfig = SslConfig.client(
+            engine,
             PskAuth(
                 pskId = "device-007",
                 pskSecret = byteArrayOf(0x01, 0x02)

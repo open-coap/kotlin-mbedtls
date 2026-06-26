@@ -27,6 +27,7 @@ import io.netty.channel.ChannelOption
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.jna.Jna
 import org.opencoap.ssl.netty.DtlsChannelHandler
 import org.opencoap.ssl.netty.EchoHandler
 import org.opencoap.ssl.netty.NettyHelpers
@@ -56,8 +57,8 @@ import kotlin.random.Random
 @Measurement(iterations = 1, time = 10)
 open class NettyBenchmark {
 
-    private val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
-    private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    private val serverConf = SslConfig.server(Jna, CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    private val clientConf = SslConfig.client(Jna, CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     private lateinit var serverChannel: Channel
     private lateinit var client: NettyTransportAdapter
     private val message = ByteBuffer.wrap(Random.nextBytes(1280)) // usual IP MTU

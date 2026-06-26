@@ -37,6 +37,7 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.jna.Jna
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.HashMapSessionStore
@@ -58,8 +59,8 @@ import kotlin.random.Random
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyTest {
 
-    private val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, cidSupplier = RandomCidSupplier(16))
-    private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()))
+    private val serverConf = SslConfig.server(Jna, CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, cidSupplier = RandomCidSupplier(16))
+    private val clientConf = SslConfig.client(Jna, CertificateAuth.trusted(Certs.root.asX509()))
     private lateinit var srvChannel: DatagramChannel
     private val srvAddress: InetSocketAddress by lazy { localAddress(srvChannel.localAddress().port) }
     private val dtlsServer: DtlsServer by lazy { (srvChannel.pipeline().get("DTLS") as DtlsChannelHandler).dtlsServer }
@@ -138,7 +139,7 @@ class NettyTest {
 
     @Test
     fun testFailedHandshake() {
-        val clientConfig2 = SslConfig.client(PskAuth("wrong", byteArrayOf(1)), cidSupplier = EmptyCidSupplier)
+        val clientConfig2 = SslConfig.client(Jna, PskAuth("wrong", byteArrayOf(1)), cidSupplier = EmptyCidSupplier)
 
         // when
         val client = NettyTransportAdapter.connect(clientConfig2, srvAddress).mapToString()
@@ -197,9 +198,9 @@ class NettyTest {
 
     @Test
     fun `server should load session from store`() {
-        sessionStore.write(StoredSessionPair.cid, SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+        sessionStore.write(StoredSessionPair.of(Jna).cid, SessionWithContext(StoredSessionPair.of(Jna).srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
         val storeSessionMock: SessionWriter = mockk(relaxed = true)
-        val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress), srvAddress, storeSessionMock).mapToString()
+        val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(Jna).cliSession, srvAddress), srvAddress, storeSessionMock).mapToString()
 
         client.send("Terve").await()
         assertEquals("ECHO:Terve", client.receive(2.seconds).await())
@@ -214,7 +215,7 @@ class NettyTest {
         // given
         // server's session store is empty
         sessionStore.clear()
-        val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress), srvAddress, SessionWriter.NO_OPS).mapToString()
+        val client = NettyTransportAdapter.reload(clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(Jna).cliSession, srvAddress), srvAddress, SessionWriter.NO_OPS).mapToString()
 
         // when
         client.send("Terve").await()

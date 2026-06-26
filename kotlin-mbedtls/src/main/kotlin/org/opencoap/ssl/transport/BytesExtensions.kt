@@ -16,7 +16,6 @@
 
 package org.opencoap.ssl.transport
 
-import com.sun.jna.Memory
 import java.nio.ByteBuffer
 
 internal fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
@@ -26,16 +25,6 @@ fun ByteBuffer.copy(): ByteBuffer {
     bb.put(this)
     bb.flip()
     return bb
-}
-
-fun ByteBuffer.cloneToMemory(): Memory {
-    this.mark() // saves the original position
-    val remaining = this.remaining()
-    val memory = Memory(remaining.toLong())
-    val intermediateBuffer: ByteBuffer = memory.getByteBuffer(0, remaining.toLong())
-    intermediateBuffer.put(this)
-    this.reset()
-    return memory
 }
 
 fun ByteBuffer.isNotEmpty(): Boolean = this.hasRemaining()

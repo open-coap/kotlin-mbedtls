@@ -1,19 +1,13 @@
-plugins {
-    id("java-test-fixtures")
-    id("me.champeau.jmh") version "0.7.3"
-}
-
 dependencies {
+    api(project(":kotlin-mbedtls"))
+    api(project(":mbedtls-lib"))
+
+    api("net.java.dev.jna:jna:5.18.1")
     api("org.slf4j:slf4j-api:2.0.17")
 
     // TESTS
-    testFixturesApi("org.bouncycastle:bcpkix-jdk15on:1.70")
-
-    // The shared functional suite lives in testFixtures and is parameterised by engine.
-    // Concrete engine runners live in engine modules (e.g. :kotlin-mbedtls-jna).
-    testFixturesApi("org.junit.jupiter:junit-jupiter-api:5.14.1")
-    testFixturesApi("org.awaitility:awaitility-kotlin:4.3.0")
-    testFixturesApi("io.mockk:mockk:1.14.7")
+    // Shared, engine-parameterised functional suite from core test fixtures.
+    testImplementation(testFixtures(project(":kotlin-mbedtls")))
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.1")
@@ -22,9 +16,6 @@ dependencies {
     testImplementation("ch.qos.logback:logback-classic:1.5.23")
     testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
     testImplementation("io.mockk:mockk:1.14.7")
-
-    // Engine for running the JMH benchmarks in this module.
-    jmhImplementation(project(":kotlin-mbedtls-jna"))
 }
 
 tasks.test {
@@ -33,15 +24,5 @@ tasks.test {
     if (System.getProperty("os.name").lowercase().contains("win")) {
         val osArch = "win32-x86-64"
         systemProperty("jna.library.path", file("../mbedtls-lib/bin/$osArch").absolutePath)
-    }
-}
-
-jmh {
-    failOnError.set(true)
-    // Read -PjmhInclude(comma separated)
-    val includeProp = findProperty("jmhIncludes")?.toString()
-
-    if (!includeProp.isNullOrBlank()) {
-        includes.set(includeProp.split(',').map { it.trim() }.filter { it.isNotEmpty() })
     }
 }

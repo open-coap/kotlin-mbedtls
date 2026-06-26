@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,30 @@
  * limitations under the License.
  */
 
-package org.opencoap.ssl
+package org.opencoap.ssl.jna
 
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.Bio
+import org.opencoap.ssl.Mbedtls
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
-import org.opencoap.ssl.util.toMemory
 import java.nio.ByteBuffer
 
-internal class ReceiveCallbackTest {
+internal class BioCallbacksTest {
 
-    private val send = SendCallback
+    private val bio = Bio()
+    private val receive = ReceiveCallback(bio)
+    private val send = SendCallback(bio)
 
     @Test
     fun noDataAvailable() {
         val mem = Memory(100)
-        val ret = ReceiveCallback.callback(Pointer.NULL, mem, 100, 0)
+        val ret = receive.callback(Pointer.NULL, mem, 100, 0)
 
-        assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, ret)
+        assertEquals(Mbedtls.MBEDTLS_ERR_SSL_WANT_READ, ret)
     }
 
     @Test
@@ -44,8 +47,8 @@ internal class ReceiveCallbackTest {
         val mem = Memory(100)
 
         // when
-        val ret = ReceiveCallback.invoke(buf) {
-            ReceiveCallback.callback(Pointer.NULL, mem, 100, 0)
+        val ret = bio.withReceive(buf) {
+            receive.callback(Pointer.NULL, mem, 100, 0)
         }
 
         // then
@@ -63,8 +66,8 @@ internal class ReceiveCallbackTest {
         val mem = Memory(100)
 
         // when
-        val ret = ReceiveCallback.invoke(buf) {
-            ReceiveCallback.callback(Pointer.NULL, mem, 2, 0)
+        val ret = bio.withReceive(buf) {
+            receive.callback(Pointer.NULL, mem, 2, 0)
         }
 
         // then
@@ -72,12 +75,12 @@ internal class ReceiveCallbackTest {
         assertEquals("du", mem.getByteArray(0, ret).decodeToString())
 
         // and
-        assertEquals(MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ, ReceiveCallback.callback(Pointer.NULL, mem, 100, 0))
+        assertEquals(Mbedtls.MBEDTLS_ERR_SSL_WANT_READ, receive.callback(Pointer.NULL, mem, 100, 0))
     }
 
     @Test
     fun `should return sent bytes`() {
-        val sentBuf = send.invoke {
+        val sentBuf = bio.captureSend {
             assertEquals(4, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
         }
 
@@ -87,16 +90,16 @@ internal class ReceiveCallbackTest {
     @Test
     fun `should sent multiple times`() {
         var index = 0
-        send.invoke({ index += 1 }, {
+        bio.withSend({ index += 1 }) {
             assertEquals(4, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
             assertEquals(4, send.callback(Pointer.NULL, "dupa2".toMemory(), 4))
-        })
+        }
 
         assertEquals(2, index)
     }
 
     @Test
     fun `should return failed when called outside invoke scope`() {
-        assertEquals(MbedtlsApi.MBEDTLS_ERR_NET_SEND_FAILED, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
+        assertEquals(Mbedtls.MBEDTLS_ERR_NET_SEND_FAILED, send.callback(Pointer.NULL, "dupa".toMemory(), 4))
     }
 }

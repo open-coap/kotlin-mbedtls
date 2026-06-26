@@ -27,11 +27,17 @@ Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 ```kotlin
 dependencies {
   implementation("io.github.open-coap:kotlin-mbedtls:[VERSION]")
+  // engine implementation (JNA, runs on Java 8+):
+  implementation("io.github.open-coap:kotlin-mbedtls-jna:[VERSION]")
   // optional modules:
   implementation("io.github.open-coap:kotlin-mbedtls-metrics:[VERSION]")
   implementation("io.github.open-coap:kotlin-mbedtls-netty:[VERSION]")
 }
 ```
+
+The `kotlin-mbedtls` core module is engine-agnostic and contains no native types. Pick an engine
+implementation and select it explicitly when building a configuration. Currently `Jna` (from
+`kotlin-mbedtls-jna`) is the available engine and works on Java 8+.
 
 **Maven**
 
@@ -47,8 +53,9 @@ dependencies {
 DTLS client:
 
 ```kotlin
-// create mbedtls SSL configuration with PSK credentials
+// create mbedtls SSL configuration with PSK credentials, selecting the JNA engine explicitly
 val conf: SslConfig = SslConfig.client(
+    Jna,
     PskAuth(
         pskId = "device-007",
         pskSecret = byteArrayOf(0x01, 0x02)

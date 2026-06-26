@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,8 @@
  * limitations under the License.
  */
 
-package org.opencoap.ssl
+package org.opencoap.ssl.transport
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Test
+import org.opencoap.ssl.jna.Jna
 
-class SslExceptionTest {
-
-    @Test
-    fun `should translate error code`() {
-        val sslException = SslException.from(-10240)
-
-        assertEquals("X509 - Input invalid [-0x2800]", sslException.message)
-    }
-}
+class JnaDtlsServerTransportTest : DtlsServerTransportTest(Jna)

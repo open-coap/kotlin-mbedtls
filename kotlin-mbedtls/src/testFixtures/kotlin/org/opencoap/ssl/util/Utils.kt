@@ -16,7 +16,6 @@
 
 package org.opencoap.ssl.util
 
-import com.sun.jna.Memory
 import org.opencoap.ssl.transport.Transport
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
@@ -38,10 +37,6 @@ fun String.decodeHex(): ByteArray {
 }
 
 fun <T> CompletableFuture<T>.await(timeout: Duration = 5.seconds): T = this.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
-
-fun String.toMemory(): Memory = Memory(this.length.toLong()).also {
-    it.write(0, this.encodeToByteArray(), 0, this.length)
-}
 
 fun runGC() {
     System.gc()

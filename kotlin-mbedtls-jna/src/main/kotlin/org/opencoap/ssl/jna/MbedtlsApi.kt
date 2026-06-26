@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 @file:Suppress("FunctionNaming")
 
-package org.opencoap.ssl
+package org.opencoap.ssl.jna
 
 import com.sun.jna.Callback
 import com.sun.jna.Function
@@ -24,6 +24,7 @@ import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
 import com.sun.jna.Pointer
+import org.opencoap.ssl.SslException
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 
@@ -78,22 +79,12 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_get_peer_cert(sslContext: Pointer): Pointer?
     external fun mbedtls_ssl_set_hostname(sslContext: Pointer, hostname: String?): Int
 
-    const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
-    const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
-    const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880
-    const val MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED = -0x6A80
-    const val MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY = -0x7880
     const val MBEDTLS_SSL_IS_CLIENT = 0
     const val MBEDTLS_SSL_IS_SERVER = 1
     const val MBEDTLS_SSL_PRESET_DEFAULT = 0
     const val MBEDTLS_SSL_TRANSPORT_DATAGRAM = 1
     const val MBEDTLS_SSL_VERIFY_NONE = 0
     const val MBEDTLS_SSL_VERIFY_REQUIRED = 2
-    const val MBEDTLS_ERR_SSL_UNEXPECTED_RECORD = -0x6700
-
-    // ----- net_sockets.h -----
-    val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
-    val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
 
     // mbedtls/debug.h
     external fun mbedtls_debug_set_threshold(threshold: Int)

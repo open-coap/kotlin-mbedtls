@@ -31,9 +31,9 @@ import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
 
-class SslContextTest {
-    val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
-    val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+abstract class SslContextTest(protected val engine: Mbedtls) {
+    val serverConf = SslConfig.server(engine, CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val clientConf = SslConfig.client(engine, CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
 
     @AfterEach
     fun tearDown() {
@@ -109,8 +109,8 @@ class SslContextTest {
 
     @Test
     fun `should load sessions and exchange data`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
-        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).srvSession, localAddress(1_5684))
 
         val encryptedDtls = clientSession.encrypt("perse".toByteBuffer())
         assertEquals("perse", serverSession.decrypt(encryptedDtls, noSend).decodeToString())
@@ -125,8 +125,8 @@ class SslContextTest {
 
     @Test
     fun `should check record is valid authentic and decrypt`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
-        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).srvSession, localAddress(1_5684))
 
         val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
 
@@ -137,8 +137,8 @@ class SslContextTest {
 
     @Test
     fun `should check record is invalid when record is unexpected and replayed`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
-        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).srvSession, localAddress(1_5684))
         val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
 
         serverSession.decrypt(encryptedDtls, noSend)
@@ -148,8 +148,8 @@ class SslContextTest {
 
     @Test
     fun `should exchange data with direct byte buffer`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
-        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(engine).srvSession, localAddress(1_5684))
 
         // direct memory with shifted position
         val buf = ByteBuffer.allocateDirect(10)

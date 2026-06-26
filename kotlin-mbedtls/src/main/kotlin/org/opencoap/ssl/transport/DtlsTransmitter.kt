@@ -113,6 +113,7 @@ class DtlsTransmitter private constructor(
                         val timeout = if (newSslContext.readTimeout.isZero) Duration.ofSeconds(1) else newSslContext.readTimeout
                         trans.receive(timeout).thenComposeAsync(::handleReceive, executor)
                     }
+                    else -> error("Unexpected SslContext type: $newSslContext")
                 }
             }
 

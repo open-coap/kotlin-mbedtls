@@ -17,13 +17,15 @@
 package org.opencoap.ssl.util
 
 import org.opencoap.ssl.CertificateAuth
+import org.opencoap.ssl.Mbedtls
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.DatagramChannelAdapter
 import org.opencoap.ssl.transport.DtlsTransmitter
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 
-object StoredSessionPair {
+class StoredSessionPair private constructor(engine: Mbedtls) {
     val cliSession: ByteArray
     val srvSession: ByteArray
     val cid: ByteArray
@@ -31,11 +33,11 @@ object StoredSessionPair {
     init {
         // copied from DtlsTransmitterCertTest.`should successfully handshake with server only cert`
 
-        val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+        val serverConf = SslConfig.server(engine, CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
         val srvTrans = DatagramChannelAdapter.connect(localAddress(7099), 0)
         val server = DtlsTransmitter.connect(localAddress(7099), serverConf, srvTrans)
 
-        val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+        val clientConf = SslConfig.client(engine, CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
         val client = DtlsTransmitter.connect(srvTrans, clientConf, 7099).await()
 
         client.send("dupa")
@@ -44,5 +46,12 @@ object StoredSessionPair {
         cliSession = client.saveSession()
         srvSession = server.await().saveSession()
         cid = server.await().ownCid!!
+    }
+
+    companion object {
+        private val cache = ConcurrentHashMap<Mbedtls, StoredSessionPair>()
+
+        @JvmStatic
+        fun of(engine: Mbedtls): StoredSessionPair = cache.getOrPut(engine) { StoredSessionPair(engine) }
     }
 }

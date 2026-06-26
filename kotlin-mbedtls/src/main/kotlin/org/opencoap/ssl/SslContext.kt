@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,6 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.Memory
-import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_ciphersuite
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cert
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_get_peer_cid
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_handshake
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_read
-import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_write
-import org.opencoap.ssl.MbedtlsApi.verify
-import org.opencoap.ssl.transport.cloneToMemory
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -38,7 +25,7 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.time.Duration
 
-sealed interface SslContext : Closeable {
+interface SslContext : Closeable {
     companion object {
         fun peekCID(size: Int, encBuffer: ByteBuffer): ByteArray? {
             val pos = encBuffer.position()
@@ -63,8 +50,10 @@ sealed interface SslContext : Closeable {
 }
 
 class SslHandshakeContext internal constructor(
+    private val engine: Mbedtls,
     private val conf: SslConfig, // keep in memory to prevent GC
-    private val sslContext: Memory,
+    private val ctx: NativeContext,
+    private val bio: Bio,
     private val cid: ByteArray?,
     private val peerAdr: InetSocketAddress,
 ) : SslContext {
@@ -77,18 +66,18 @@ class SslHandshakeContext internal constructor(
     fun step(receivedBuf: ByteBuffer, send: (ByteBuffer) -> Unit): SslContext = step0(receivedBuf, send)
 
     private fun step0(receivedBuf: ByteBuffer?, send: (ByteBuffer) -> Unit): SslContext {
-        val ret = ReceiveCallback.invoke(receivedBuf) {
-            SendCallback(send) {
-                mbedtls_ssl_handshake(sslContext)
+        val ret = bio.withReceive(receivedBuf) {
+            bio.withSend(send) {
+                engine.handshake(ctx)
             }.also {
-                stepTimeout = Duration.ofMillis(ReceiveCallback.timeout().toLong())
+                stepTimeout = Duration.ofMillis(bio.timeout().toLong())
             }
         }
 
         return when (ret) {
-            MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
-            MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
-            0 -> SslSession(conf, sslContext, cid).also {
+            Mbedtls.MBEDTLS_ERR_SSL_WANT_READ -> this
+            Mbedtls.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
+            0 -> SslSession(engine, conf, ctx, bio, cid).also {
                 finishTimestamp = System.currentTimeMillis()
                 logger.info("[{}] DTLS connected in {}ms {}", peerAdr, finishTimestamp - startTimestamp, it)
             }
@@ -104,42 +93,25 @@ class SslHandshakeContext internal constructor(
         get() = stepTimeout
 
     override fun close() {
-        mbedtls_ssl_free(sslContext)
+        engine.free(ctx)
     }
 }
 
 class SslSession internal constructor(
+    private val engine: Mbedtls,
     private val conf: SslConfig, // keep in memory to prevent GC
-    private val sslContext: Memory,
+    private val ctx: NativeContext,
+    private val bio: Bio,
     private val cid: ByteArray?,
     val reloaded: Boolean = false,
-) : SslContext,
-    Closeable {
+) : SslContext {
 
-    val peerCid: ByteArray? = readPeerCid()
+    val peerCid: ByteArray? = engine.getPeerCid(ctx)
     val ownCid: ByteArray? = if (peerCid != null) cid else null
     val peerCertificateSubject: String? = readPeerCertificateSubject()
 
-    private fun readPeerCid(): ByteArray? {
-        val mem = Memory(16 + 64) // max cid len
-        mbedtls_ssl_get_peer_cid(sslContext, mem, mem.share(16), mem.share(8))
-
-        if (mem.getInt(0) == 0) {
-            return null
-        }
-        val size = mem.getInt(8)
-
-        return mem.getByteArray(16, size)
-    }
-
     private fun readPeerCertificateSubject(): String? {
-        val pointer = mbedtls_ssl_get_peer_cert(sslContext)
-            ?.share(MbedtlsOffsetOf.mbedtls_x509_crt__raw)
-            ?: return null
-
-        val derLen = pointer.getInt(MbedtlsOffsetOf.mbedtls_x509_buf__len)
-        val derPointer = pointer.getPointer(MbedtlsOffsetOf.mbedtls_x509_buf__len + 8)
-        val der = derPointer.getByteArray(0, derLen)
+        val der = engine.getPeerCertDer(ctx) ?: return null
 
         return try {
             val factory = CertificateFactory.getInstance("X.509")
@@ -151,31 +123,26 @@ class SslSession internal constructor(
         }
     }
 
-    val cipherSuite: String get() = mbedtls_ssl_get_ciphersuite(sslContext)
+    val cipherSuite: String get() = engine.getCiphersuite(ctx)
 
-    fun encrypt(data: ByteBuffer): ByteBuffer = SendCallback.invoke {
-        mbedtls_ssl_write(sslContext, data, data.remaining()).verify()
+    fun encrypt(data: ByteBuffer): ByteBuffer = bio.captureSend {
+        engine.write(ctx, data).verify()
     } ?: ByteBuffer.allocate(0)
 
     fun decrypt(encBuffer: ByteBuffer, plainBuffer: ByteBuffer, send: (ByteBuffer) -> Unit) {
-        // note, send function will only be use when there is retransmission
-        val size = SendCallback.invoke(send) {
-            ReceiveCallback(encBuffer) { sslRead(plainBuffer) }
+        // note, send function will only be used when there is retransmission
+        val size = bio.withSend(send) {
+            bio.withReceive(encBuffer) { sslRead(plainBuffer) }
         }
         plainBuffer.limit(size + plainBuffer.position())
     }
 
     fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
-        val memory = encBuffer.cloneToMemory()
-        try {
-            val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
-            return if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
-                VerificationResult.Valid("Success")
-            } else {
-                VerificationResult.Invalid(SslException.from(result).localizedMessage)
-            }
-        } finally {
-            memory.close()
+        val result = engine.checkRecord(ctx, encBuffer)
+        return if (result == 0 || result != Mbedtls.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
+            VerificationResult.Valid("Success")
+        } else {
+            VerificationResult.Invalid(SslException.from(result).localizedMessage)
         }
     }
 
@@ -186,23 +153,19 @@ class SslSession internal constructor(
     }
 
     private fun sslRead(plainBuffer: ByteBuffer): Int {
-        val ret = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.remaining())
+        val ret = engine.read(ctx, plainBuffer)
         return when {
             ret >= 0 -> ret
-            ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> 0
+            ret == Mbedtls.MBEDTLS_ERR_SSL_WANT_READ -> 0
             // ret == MBEDTLS_ERR_SSL_WANT_WRITE -> 0
             else -> throw SslException.from(ret)
         }
     }
 
     fun saveAndClose(): ByteArray {
-        val buffer = ByteArray(1280)
-        val outputLen = ByteArray(4)
-        mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
+        val data = engine.contextSave(ctx)
         close()
-
-        val size = (outputLen[0].toInt() and 0xff) + (outputLen[1].toInt() and 0xff shl 8)
-        return buffer.copyOf(size)
+        return data
     }
 
     override fun toString(): String = when {
@@ -219,12 +182,12 @@ class SslSession internal constructor(
             "[cipher-suite:$cipherSuite]"
     }
 
-    fun closeNotify(): ByteBuffer = SendCallback {
-        mbedtls_ssl_close_notify(sslContext)
+    fun closeNotify(): ByteBuffer = bio.captureSend {
+        engine.closeNotify(ctx)
     } ?: ByteBuffer.allocate(0)
 
     override fun close() {
-        mbedtls_ssl_free(sslContext)
+        engine.free(ctx)
     }
 
     sealed interface VerificationResult {

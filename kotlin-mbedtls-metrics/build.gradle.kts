@@ -5,6 +5,7 @@ dependencies {
 
     // TESTS
     testImplementation(testFixtures(project(":kotlin-mbedtls")))
+    testImplementation(project(":kotlin-mbedtls-jna"))
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")

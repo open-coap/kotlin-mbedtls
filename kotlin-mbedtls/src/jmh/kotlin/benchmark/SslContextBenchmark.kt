@@ -23,6 +23,7 @@ import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.jna.Jna
 import org.opencoap.ssl.transport.asByteBuffer
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
@@ -49,8 +50,8 @@ import kotlin.random.Random
 @Measurement(iterations = 1, time = 20)
 open class SslContextBenchmark {
 
-    val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
-    val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val serverConf = SslConfig.server(Jna, CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false, cidSupplier = RandomCidSupplier(16), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
+    val clientConf = SslConfig.client(Jna, CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     lateinit var serverSession: SslSession
     lateinit var clientSession: SslSession
     lateinit var smallMessage: ByteBuffer
@@ -69,8 +70,8 @@ open class SslContextBenchmark {
         largeMessageDirectBuf.put(Random.nextBytes(1280))
         largeMessageDirectBuf.flip()
 
-        clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
-        serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.of(Jna).cliSession, localAddress(2_5684))
+        serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(Jna).srvSession, localAddress(1_5684))
     }
 
     @TearDown
@@ -151,7 +152,7 @@ open class SslContextBenchmark {
 
     @Benchmark
     fun load_and_save_ssl_session(bh: Blackhole) {
-        val session = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val session = serverConf.loadSession(byteArrayOf(), StoredSessionPair.of(Jna).srvSession, localAddress(1_5684))
         val sessionData = session.saveAndClose()
 
         bh.consume(sessionData)

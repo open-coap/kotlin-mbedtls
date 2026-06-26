@@ -30,6 +30,7 @@ import org.junit.jupiter.api.TestInstance
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.jna.Jna
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.await
@@ -42,8 +43,8 @@ import kotlin.random.Random
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NettyRetransmissionTestTest {
 
-    private val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, cidSupplier = RandomCidSupplier(6), retransmitMin = 100.millis)
-    private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), retransmitMin = 10.millis)
+    private val serverConf = SslConfig.server(Jna, CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, cidSupplier = RandomCidSupplier(6), retransmitMin = 100.millis)
+    private val clientConf = SslConfig.client(Jna, CertificateAuth.trusted(Certs.root.asX509()), retransmitMin = 10.millis)
     private lateinit var udpChannel: DatagramChannel
     private val srvAddress: InetSocketAddress by lazy { localAddress(udpChannel.localAddress().port) }
 

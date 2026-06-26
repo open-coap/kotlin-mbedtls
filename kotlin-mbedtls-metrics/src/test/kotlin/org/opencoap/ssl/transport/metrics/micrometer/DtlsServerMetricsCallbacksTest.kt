@@ -26,6 +26,7 @@ import org.opencoap.ssl.EmptyCidSupplier
 import org.opencoap.ssl.PskAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
+import org.opencoap.ssl.jna.Jna
 import org.opencoap.ssl.transport.ByteBufferPacket
 import org.opencoap.ssl.transport.DatagramChannelAdapter
 import org.opencoap.ssl.transport.DtlsServerTransport
@@ -44,8 +45,8 @@ import kotlin.random.Random
 
 class DtlsServerMetricsCallbacksTest {
     private val psk = PskAuth("dupa", byteArrayOf(1))
-    private val conf: SslConfig = SslConfig.server(psk, cidSupplier = RandomCidSupplier(6))
-    private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
+    private val conf: SslConfig = SslConfig.server(Jna, psk, cidSupplier = RandomCidSupplier(6))
+    private val clientConfig = SslConfig.client(Jna, psk, cidSupplier = EmptyCidSupplier)
     private val meterRegistry = SimpleMeterRegistry()
     private val metricsCallbacks = DtlsServerMetricsCallbacks(meterRegistry)
     private val sessionStore = HashMapSessionStore()
