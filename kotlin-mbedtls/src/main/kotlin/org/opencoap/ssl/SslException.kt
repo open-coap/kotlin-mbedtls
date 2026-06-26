@@ -16,8 +16,8 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_strerror
+import java.lang.foreign.Arena
 import java.util.Locale
 
 open class SslException(message: String) : Exception(message) {
@@ -28,11 +28,13 @@ open class SslException(message: String) : Exception(message) {
             else -> SslException(String.format(Locale.US, "%s [-0x%04X]", translateError(error), -error))
         }
 
-        internal fun translateError(error: Int): String {
-            val buffer = Memory(100)
-            mbedtls_strerror(error, buffer, buffer.size().toInt())
-            return buffer.getString(0).trim()
+        internal fun translateError(error: Int): String = Arena.ofConfined().use { arena ->
+            val buffer = arena.allocate(BUFFER_SIZE)
+            mbedtls_strerror(error, buffer, BUFFER_SIZE.toInt())
+            buffer.getString(0).trim()
         }
+
+        private const val BUFFER_SIZE = 100L
     }
 }
 

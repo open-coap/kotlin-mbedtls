@@ -7,6 +7,17 @@ Kotlin + mbedtls integration
 
 Integration with mbedtls library to provide DTLS protocol into jvm ecosystem.
 
+## Requirements
+
+- **Java 25 or newer is required.** Native access to mbedtls uses the JDK [Foreign Function & Memory API](https://openjdk.org/jeps/454)
+  (Panama) instead of JNA. There is no longer a `net.java.dev.jna` dependency, and no native libraries are extracted via
+  JNA machinery.
+- FFM downcalls/upcalls are "restricted" operations. The library works out of the box, but to silence the JDK runtime
+  warning, launch your application with `--enable-native-access=ALL-UNNAMED` (or add `Enable-Native-Access: ALL-UNNAMED`
+  to your executable jar manifest).
+- **Pre-Java-25 users:** stay on the last JNA-based release (`1.x` line published before this change); it remains usable
+  on Java 8+ but will not receive the FFM-based updates.
+
 ## Features:
 
 - Precompiled mbedtls binaries for

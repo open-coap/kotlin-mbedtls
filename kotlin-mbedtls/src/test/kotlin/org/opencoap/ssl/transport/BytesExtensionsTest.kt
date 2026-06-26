@@ -16,11 +16,13 @@
 
 package org.opencoap.ssl.transport
 
-import com.sun.jna.Memory
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.lang.foreign.Arena
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
 import java.nio.ByteBuffer
 
 class BytesExtensionsTest {
@@ -82,10 +84,10 @@ class BytesExtensionsTest {
         val originalLimit = byteBuffer.limit()
         val originalCapacity = byteBuffer.capacity()
 
-        val memory: Memory = byteBuffer.cloneToMemory()
+        val memory: MemorySegment = byteBuffer.cloneToMemory(Arena.ofAuto())
 
         val clonedData = ByteArray(originalData.size)
-        memory.read(0, clonedData, 0, originalData.size)
+        MemorySegment.copy(memory, ValueLayout.JAVA_BYTE, 0L, clonedData, 0, originalData.size)
         assertArrayEquals(originalData, clonedData)
 
         assertEquals(originalPosition, byteBuffer.position(), "Buffer position should not change")

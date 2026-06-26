@@ -16,10 +16,12 @@
 
 package org.opencoap.ssl.util
 
-import com.sun.jna.Memory
 import org.opencoap.ssl.transport.Transport
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
+import java.lang.foreign.Arena
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -39,8 +41,11 @@ fun String.decodeHex(): ByteArray {
 
 fun <T> CompletableFuture<T>.await(timeout: Duration = 5.seconds): T = this.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
 
-fun String.toMemory(): Memory = Memory(this.length.toLong()).also {
-    it.write(0, this.encodeToByteArray(), 0, this.length)
+fun String.toMemory(): MemorySegment {
+    val bytes = this.encodeToByteArray()
+    val segment = Arena.ofAuto().allocate(bytes.size.toLong())
+    MemorySegment.copy(bytes, 0, segment, ValueLayout.JAVA_BYTE, 0L, bytes.size)
+    return segment
 }
 
 fun runGC() {

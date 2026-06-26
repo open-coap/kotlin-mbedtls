@@ -44,24 +44,35 @@ allprojects {
     project.version = rootProject.version
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(25))
+        }
     }
 
     kotlin {
+        jvmToolchain(25)
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_1_8)
+            jvmTarget.set(JvmTarget.JVM_25)
             allWarningsAsErrors = true
             extraWarnings = true
         }
     }
 
     tasks {
+        // detekt 2.0.0-alpha.1 bundles a Kotlin compiler that caps jvm-target at 24; analysis target only.
         withType<Detekt>().configureEach {
-            jvmTarget = "1.8"
+            jvmTarget = "24"
         }
         withType<DetektCreateBaselineTask>().configureEach {
-            jvmTarget = "1.8"
+            jvmTarget = "24"
+        }
+
+        // FFM downcalls/upcalls invoke restricted native methods; allow them without warnings on Java 25+.
+        withType<Test>().configureEach {
+            jvmArgs("--enable-native-access=ALL-UNNAMED")
+        }
+        withType<JavaExec>().configureEach {
+            jvmArgs("--enable-native-access=ALL-UNNAMED")
         }
 
         withType<DependencyUpdatesTask> {

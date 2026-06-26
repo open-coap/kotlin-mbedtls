@@ -14,8 +14,8 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
-          java-version: 17
-          distribution: 'adopt'
+          java-version: 25
+          distribution: 'corretto'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
       - name: Build
