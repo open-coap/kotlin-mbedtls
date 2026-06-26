@@ -16,7 +16,6 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
@@ -32,6 +31,9 @@ import org.opencoap.ssl.transport.cloneToMemory
 import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.lang.foreign.Arena
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.security.cert.CertificateFactory
@@ -64,7 +66,8 @@ sealed interface SslContext : Closeable {
 
 class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
-    private val sslContext: Memory,
+    private val arena: Arena,
+    private val sslContext: MemorySegment,
     private val cid: ByteArray?,
     private val peerAdr: InetSocketAddress,
 ) : SslContext {
@@ -88,7 +91,8 @@ class SslHandshakeContext internal constructor(
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
             MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
-            0 -> SslSession(conf, sslContext, cid).also {
+            // ownership of arena + sslContext transfers to the session; this handshake context is discarded without close()
+            0 -> SslSession(conf, arena, sslContext, cid).also {
                 finishTimestamp = System.currentTimeMillis()
                 logger.info("[{}] DTLS connected in {}ms {}", peerAdr, finishTimestamp - startTimestamp, it)
             }
@@ -103,14 +107,20 @@ class SslHandshakeContext internal constructor(
     val readTimeout: Duration
         get() = stepTimeout
 
+    private var closed = false
+
     override fun close() {
+        if (closed) return
+        closed = true
         mbedtls_ssl_free(sslContext)
+        arena.close()
     }
 }
 
 class SslSession internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC
-    private val sslContext: Memory,
+    private val arena: Arena,
+    private val sslContext: MemorySegment,
     private val cid: ByteArray?,
     val reloaded: Boolean = false,
 ) : SslContext,
@@ -120,26 +130,29 @@ class SslSession internal constructor(
     val ownCid: ByteArray? = if (peerCid != null) cid else null
     val peerCertificateSubject: String? = readPeerCertificateSubject()
 
-    private fun readPeerCid(): ByteArray? {
-        val mem = Memory(16 + 64) // max cid len
-        mbedtls_ssl_get_peer_cid(sslContext, mem, mem.share(16), mem.share(8))
+    private fun readPeerCid(): ByteArray? = Arena.ofConfined().use { arena ->
+        val mem = arena.allocate(16 + 64L) // max cid len
+        // layout mirrors JNA: enabled (int) at 0, peer_cid_len (size_t) at 8, peer_cid bytes at 16
+        mbedtls_ssl_get_peer_cid(sslContext, mem, mem.asSlice(16L), mem.asSlice(8L))
 
-        if (mem.getInt(0) == 0) {
-            return null
+        if (mem.get(ValueLayout.JAVA_INT, 0L) == 0) {
+            null
+        } else {
+            val size = mem.get(ValueLayout.JAVA_INT, 8L)
+            val cidBytes = ByteArray(size)
+            MemorySegment.copy(mem, ValueLayout.JAVA_BYTE, 16L, cidBytes, 0, size)
+            cidBytes
         }
-        val size = mem.getInt(8)
-
-        return mem.getByteArray(16, size)
     }
 
     private fun readPeerCertificateSubject(): String? {
-        val pointer = mbedtls_ssl_get_peer_cert(sslContext)
-            ?.share(MbedtlsOffsetOf.mbedtls_x509_crt__raw)
-            ?: return null
+        val cert = mbedtls_ssl_get_peer_cert(sslContext) ?: return null
+        val crt = cert.reinterpret(MbedtlsSizeOf.mbedtls_x509_crt)
 
-        val derLen = pointer.getInt(MbedtlsOffsetOf.mbedtls_x509_buf__len)
-        val derPointer = pointer.getPointer(MbedtlsOffsetOf.mbedtls_x509_buf__len + 8)
-        val der = derPointer.getByteArray(0, derLen)
+        val rawOffset = MbedtlsOffsetOf.mbedtls_x509_crt__raw
+        val derLen = crt.get(ValueLayout.JAVA_INT, rawOffset + MbedtlsOffsetOf.mbedtls_x509_buf__len)
+        val derPointer = crt.get(ValueLayout.ADDRESS, rawOffset + MbedtlsOffsetOf.mbedtls_x509_buf__len + 8)
+        val der = derPointer.reinterpret(derLen.toLong()).toArray(ValueLayout.JAVA_BYTE)
 
         return try {
             val factory = CertificateFactory.getInstance("X.509")
@@ -165,17 +178,13 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
-        val memory = encBuffer.cloneToMemory()
-        try {
-            val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
-            return if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
-                VerificationResult.Valid("Success")
-            } else {
-                VerificationResult.Invalid(SslException.from(result).localizedMessage)
-            }
-        } finally {
-            memory.close()
+    fun checkRecord(encBuffer: ByteBuffer): VerificationResult = Arena.ofConfined().use { arena ->
+        val memory = encBuffer.cloneToMemory(arena)
+        val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.byteSize().toInt())
+        if (result == 0 || result != MBEDTLS_ERR_SSL_UNEXPECTED_RECORD) {
+            VerificationResult.Valid("Success")
+        } else {
+            VerificationResult.Invalid(SslException.from(result).localizedMessage)
         }
     }
 
@@ -223,8 +232,13 @@ class SslSession internal constructor(
         mbedtls_ssl_close_notify(sslContext)
     } ?: ByteBuffer.allocate(0)
 
+    private var closed = false
+
     override fun close() {
+        if (closed) return
+        closed = true
         mbedtls_ssl_free(sslContext)
+        arena.close()
     }
 
     sealed interface VerificationResult {

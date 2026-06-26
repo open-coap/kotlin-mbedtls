@@ -16,7 +16,8 @@
 
 package org.opencoap.ssl.transport
 
-import com.sun.jna.Memory
+import java.lang.foreign.Arena
+import java.lang.foreign.MemorySegment
 import java.nio.ByteBuffer
 
 internal fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
@@ -28,14 +29,13 @@ fun ByteBuffer.copy(): ByteBuffer {
     return bb
 }
 
-fun ByteBuffer.cloneToMemory(): Memory {
+fun ByteBuffer.cloneToMemory(arena: Arena): MemorySegment {
     this.mark() // saves the original position
     val remaining = this.remaining()
-    val memory = Memory(remaining.toLong())
-    val intermediateBuffer: ByteBuffer = memory.getByteBuffer(0, remaining.toLong())
-    intermediateBuffer.put(this)
+    val segment = arena.allocate(remaining.toLong())
+    segment.asByteBuffer().put(this)
     this.reset()
-    return memory
+    return segment
 }
 
 fun ByteBuffer.isNotEmpty(): Boolean = this.hasRemaining()

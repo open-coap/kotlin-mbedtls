@@ -7,7 +7,6 @@ dependencies {
     api(project(":mbedtls-lib"))
 
     api("org.slf4j:slf4j-api:2.0.17")
-    api("net.java.dev.jna:jna:5.18.1")
 
     // TESTS
     testFixturesApi("org.bouncycastle:bcpkix-jdk15on:1.70")
@@ -23,15 +22,11 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-    // On Windows, native libraries must be found via PATH or explicitly set, as dynamic linking is used to load them.
-    if (System.getProperty("os.name").lowercase().contains("win")) {
-        val osArch = "win32-x86-64"
-        systemProperty("jna.library.path", file("../mbedtls-lib/bin/$osArch").absolutePath)
-    }
 }
 
 jmh {
     failOnError.set(true)
+    jvmArgsAppend.add("--enable-native-access=ALL-UNNAMED")
     // Read -PjmhInclude(comma separated)
     val includeProp = findProperty("jmhIncludes")?.toString()
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,6 @@
 
 package org.opencoap.ssl
 
-import com.sun.jna.Callback
-import com.sun.jna.Memory
-import com.sun.jna.Pointer
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_free
 import org.opencoap.ssl.MbedtlsApi.Crypto.mbedtls_pk_parse_key
 import org.opencoap.ssl.MbedtlsApi.Crypto.psa_crypto_init
@@ -51,14 +48,25 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
 import org.opencoap.ssl.MbedtlsApi.verify
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.lang.foreign.Arena
+import java.lang.foreign.FunctionDescriptor
+import java.lang.foreign.Linker
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
+import java.lang.invoke.MethodHandles
+import java.lang.invoke.MethodType
 import java.net.InetSocketAddress
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Duration.ofSeconds
 
+private const val STRUCT_ALIGNMENT = 16L
+
+internal fun Arena.allocStruct(size: Long): MemorySegment = allocate(size, STRUCT_ALIGNMENT)
+
 class SslConfig(
-    private val conf: Memory,
+    private val conf: MemorySegment,
     val cidSupplier: CidSupplier?,
     private val mtu: Int,
     private val close: Closeable
@@ -66,10 +74,11 @@ class SslConfig(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun newContext(peerAddress: InetSocketAddress): SslHandshakeContext {
-        val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
+        val arena = Arena.ofShared()
+        val sslContext = arena.allocStruct(MbedtlsSizeOf.mbedtls_ssl_context).also(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
-        mbedtls_ssl_set_timer_cb(sslContext, Pointer.NULL, NoOpsSetDelayCallback, NoOpsGetDelayCallback)
+        mbedtls_ssl_set_timer_cb(sslContext, MemorySegment.NULL, NoOpsSetDelayCallback.stub, NoOpsGetDelayCallback.stub)
 
         val cid = cidSupplier?.next()
         if (cid != null) {
@@ -81,19 +90,20 @@ class SslConfig(
         mbedtls_ssl_set_client_transport_id(sslContext, clientId, clientId.length)
         mbedtls_ssl_set_hostname(sslContext, null).verify()
 
-        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
+        mbedtls_ssl_set_bio(sslContext, MemorySegment.NULL, SendCallback.stub, MemorySegment.NULL, ReceiveCallback.stub)
 
-        return SslHandshakeContext(this, sslContext, cid, peerAddress)
+        return SslHandshakeContext(this, arena, sslContext, cid, peerAddress)
     }
 
     fun loadSession(cid: ByteArray, session: ByteArray, peerAddress: InetSocketAddress): SslSession {
-        val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
+        val arena = Arena.ofShared()
+        val sslContext = arena.allocStruct(MbedtlsSizeOf.mbedtls_ssl_context).also(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
         mbedtls_ssl_context_load(sslContext, session, session.size).verify()
-        mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
+        mbedtls_ssl_set_bio(sslContext, MemorySegment.NULL, SendCallback.stub, MemorySegment.NULL, ReceiveCallback.stub)
 
-        return SslSession(this, sslContext, cid, true).also {
+        return SslSession(this, arena, sslContext, cid, true).also {
             logger.info("[{}] [{}] DTLS session reloaded {}", peerAddress, cid, it)
         }
     }
@@ -108,6 +118,7 @@ class SslConfig(
         @JvmOverloads
         fun server(auth: AuthConfig, cipherSuites: List<String> = emptyList(), reqAuthentication: Boolean = true, cidSupplier: CidSupplier? = EmptyCidSupplier, mtu: Int = 0, retransmitMin: Duration = ofSeconds(1), retransmitMax: Duration = ofSeconds(60)): SslConfig = create(true, auth, cipherSuites, cidSupplier, reqAuthentication, mtu, retransmitMin, retransmitMax)
 
+        @Suppress("LongParameterList")
         private fun create(
             isServer: Boolean,
             authConfig: AuthConfig,
@@ -118,11 +129,11 @@ class SslConfig(
             retransmitMin: Duration,
             retransmitMax: Duration
         ): SslConfig {
-            val sslConfig = Memory(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
-            val ownCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
-            val caCert = Memory(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
-            val pkey = Memory(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi.Crypto::mbedtls_pk_init)
-            var cipherSuiteIds: Memory? = null
+            val arena = Arena.ofShared()
+            val sslConfig = arena.allocStruct(MbedtlsSizeOf.mbedtls_ssl_config).also(MbedtlsApi::mbedtls_ssl_config_init)
+            val ownCert = arena.allocStruct(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
+            val caCert = arena.allocStruct(MbedtlsSizeOf.mbedtls_x509_crt).also(MbedtlsApi.X509::mbedtls_x509_crt_init)
+            val pkey = arena.allocStruct(MbedtlsSizeOf.mbedtls_pk_context).also(MbedtlsApi.Crypto::mbedtls_pk_init)
 
             // Initialize PSA Crypto subsystem (required in MbedTLS 4.0+)
             psa_crypto_init().verify()
@@ -130,19 +141,18 @@ class SslConfig(
             mbedtls_ssl_config_defaults(sslConfig, endpointType, MbedtlsApi.MBEDTLS_SSL_TRANSPORT_DATAGRAM, MbedtlsApi.MBEDTLS_SSL_PRESET_DEFAULT).verify()
 
             // cookies
-            var cookieCtx: Memory? = null
+            var cookieCtx: MemorySegment? = null
             if (!isServer) {
-                mbedtls_ssl_conf_dtls_cookies(sslConfig, null, null, null)
+                mbedtls_ssl_conf_dtls_cookies(sslConfig, MemorySegment.NULL, MemorySegment.NULL, MemorySegment.NULL)
             } else {
-                cookieCtx = Memory(MbedtlsSizeOf.mbedtls_ssl_cookie_ctx).also(MbedtlsApi::mbedtls_ssl_cookie_init)
+                cookieCtx = arena.allocStruct(MbedtlsSizeOf.mbedtls_ssl_cookie_ctx).also(MbedtlsApi::mbedtls_ssl_cookie_init)
                 mbedtls_ssl_cookie_setup(cookieCtx).verify()
                 mbedtls_ssl_conf_dtls_cookies(sslConfig, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, cookieCtx)
             }
 
             mbedtls_ssl_conf_authmode(sslConfig, if (requiredAuthMode) MbedtlsApi.MBEDTLS_SSL_VERIFY_REQUIRED else MbedtlsApi.MBEDTLS_SSL_VERIFY_NONE)
             if (cipherSuites.isNotEmpty()) {
-                cipherSuiteIds = mapCipherSuites(cipherSuites)
-                mbedtls_ssl_conf_ciphersuites(sslConfig, cipherSuiteIds)
+                mbedtls_ssl_conf_ciphersuites(sslConfig, mapCipherSuites(arena, cipherSuites))
             }
 
             if (cidSupplier != null && cidSupplier != EmptyCidSupplier) {
@@ -155,25 +165,27 @@ class SslConfig(
             mbedtls_ssl_conf_handshake_timeout(sslConfig, retransmitMin.toMillis().toInt(), retransmitMax.toMillis().toInt())
 
             // Logging
-            mbedtls_ssl_conf_dbg(sslConfig, LogCallback, Pointer.NULL)
+            mbedtls_ssl_conf_dbg(sslConfig, LogCallback.stub, MemorySegment.NULL)
 
             return SslConfig(sslConfig, cidSupplier, mtu) {
                 mbedtls_ssl_config_free(sslConfig)
                 mbedtls_pk_free(pkey)
                 mbedtls_x509_crt_free(ownCert)
                 mbedtls_x509_crt_free(caCert)
-                cookieCtx?.also(::mbedtls_ssl_cookie_free)
-                cipherSuiteIds?.also { it.clear() }
+                cookieCtx?.also(MbedtlsApi::mbedtls_ssl_cookie_free)
+                arena.close()
             }
         }
 
-        private fun mapCipherSuites(cipherSuites: List<String>): Memory {
+        private fun mapCipherSuites(arena: Arena, cipherSuites: List<String>): MemorySegment {
             val ids = cipherSuites.map(Companion::getCipherSuiteId).toIntArray()
 
-            val cipherSuiteList = Memory(((ids.size + 1) * 4).toLong())
-            cipherSuiteList.write(0, ids, 0, ids.size)
-            cipherSuiteList.setInt(cipherSuiteList.size() - 4, 0)
-            return cipherSuiteList
+            val segment = arena.allocate(((ids.size + 1) * 4).toLong())
+            for (i in ids.indices) {
+                segment.setAtIndex(ValueLayout.JAVA_INT, i.toLong(), ids[i])
+            }
+            segment.setAtIndex(ValueLayout.JAVA_INT, ids.size.toLong(), 0)
+            return segment
         }
 
         private fun getCipherSuiteId(cipherSuite: String): Int {
@@ -183,44 +195,102 @@ class SslConfig(
         }
     }
 
-    private object LogCallback : Callback {
+    private object LogCallback {
         private val logger = LoggerFactory.getLogger(MbedtlsApi::class.java)
-        fun callback(ctx: Pointer?, debugLevel: Int, fileName: String, lineNumber: Int, message: String?) {
-            if (debugLevel == 1) {
-                // Introduced in MbedTLS 4.0.0: this log message should be at trace level, not warning
-                // These should be fixed in the next MbedTLS release of 4.x
-                if (message?.contains("Perform PSA-based ECDH computation") == true) return
-                if (message?.contains("<= mbedtls_ssl_check_record") == true) return
-                if (message?.contains("=> mbedtls_ssl_check_record") == true) return
 
-                // logs when close notify is received
-                if (message?.contains("mbedtls_ssl_handle_message_type() returned -30848 (-0x7880)") == true) return
-                if (message?.contains("mbedtls_ssl_read_record() returned -30848 (-0x7880)") == true) return
-            }
+        // void f_dbg(void *ctx, int level, const char *file, int line, const char *str)
+        val stub: MemorySegment = run {
+            val mh = MethodHandles.lookup().findVirtual(
+                LogCallback::class.java,
+                "callback",
+                MethodType.methodType(
+                    Void.TYPE,
+                    MemorySegment::class.java,
+                    Int::class.javaPrimitiveType,
+                    MemorySegment::class.java,
+                    Int::class.javaPrimitiveType,
+                    MemorySegment::class.java
+                )
+            ).bindTo(this)
+            Linker.nativeLinker().upcallStub(
+                mh,
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS),
+                Arena.global()
+            )
+        }
 
-            when (debugLevel) {
-                1 -> logger.warn("[mbedtls {}:{}] {} ", fileName.substringAfterLast('/'), lineNumber, message?.trim())
-                2 -> logger.debug("[mbedtls {}:{}] {}", fileName.substringAfterLast('/'), lineNumber, message?.trim())
-                else -> logger.trace("[mbedtls {}:{}] {}", fileName.substringAfterLast('/'), lineNumber, message?.trim())
+        @Suppress("UnusedParameter")
+        private fun callback(ctx: MemorySegment, debugLevel: Int, file: MemorySegment, lineNumber: Int, str: MemorySegment) {
+            try {
+                val fileName = file.readCString()
+                val message = str.readCString()
+                if (debugLevel == 1) {
+                    // Introduced in MbedTLS 4.0.0: this log message should be at trace level, not warning
+                    // These should be fixed in the next MbedTLS release of 4.x
+                    if (message.contains("Perform PSA-based ECDH computation")) return
+                    if (message.contains("<= mbedtls_ssl_check_record")) return
+                    if (message.contains("=> mbedtls_ssl_check_record")) return
+
+                    // logs when close notify is received
+                    if (message.contains("mbedtls_ssl_handle_message_type() returned -30848 (-0x7880)")) return
+                    if (message.contains("mbedtls_ssl_read_record() returned -30848 (-0x7880)")) return
+                }
+
+                when (debugLevel) {
+                    1 -> logger.warn("[mbedtls {}:{}] {} ", fileName.substringAfterLast('/'), lineNumber, message.trim())
+                    2 -> logger.debug("[mbedtls {}:{}] {}", fileName.substringAfterLast('/'), lineNumber, message.trim())
+                    else -> logger.trace("[mbedtls {}:{}] {}", fileName.substringAfterLast('/'), lineNumber, message.trim())
+                }
+            } catch (e: Exception) {
+                // never let an exception cross the native boundary
+                logger.error(e.message, e)
             }
         }
     }
 
-    private object NoOpsSetDelayCallback : Callback {
+    private object NoOpsSetDelayCallback {
+        // void f_set_timer(void *ctx, uint32_t int_ms, uint32_t fin_ms)
+        val stub: MemorySegment = run {
+            val mh = MethodHandles.lookup().findVirtual(
+                NoOpsSetDelayCallback::class.java,
+                "callback",
+                MethodType.methodType(Void.TYPE, MemorySegment::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            ).bindTo(this)
+            Linker.nativeLinker().upcallStub(
+                mh,
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT),
+                Arena.global()
+            )
+        }
+
         @Suppress("UnusedParameter")
-        fun callback(data: Pointer?, intermediateMs: Int, finalMs: Int) {
+        private fun callback(data: MemorySegment, intermediateMs: Int, finalMs: Int) {
             // do nothing
         }
     }
 
-    private object NoOpsGetDelayCallback : Callback {
+    private object NoOpsGetDelayCallback {
+        // int f_get_timer(void *ctx)
+        val stub: MemorySegment = run {
+            val mh = MethodHandles.lookup().findVirtual(
+                NoOpsGetDelayCallback::class.java,
+                "callback",
+                MethodType.methodType(Int::class.javaPrimitiveType, MemorySegment::class.java)
+            ).bindTo(this)
+            Linker.nativeLinker().upcallStub(
+                mh,
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS),
+                Arena.global()
+            )
+        }
+
         @Suppress("FunctionOnlyReturningConstant", "UnusedParameter")
-        fun callback(data: Pointer?): Int = 1
+        private fun callback(data: MemorySegment): Int = 1
     }
 }
 
 sealed interface AuthConfig {
-    fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory)
+    fun configure(sslConfig: MemorySegment, caCert: MemorySegment, ownCert: MemorySegment, pkey: MemorySegment)
 }
 
 data class PskAuth(
@@ -230,7 +300,7 @@ data class PskAuth(
 
     constructor(pskId: String, pskSecret: ByteArray) : this(pskId.encodeToByteArray(), pskSecret)
 
-    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory) {
+    override fun configure(sslConfig: MemorySegment, caCert: MemorySegment, ownCert: MemorySegment, pkey: MemorySegment) {
         mbedtls_ssl_conf_psk(sslConfig, pskSecret, pskSecret.size, pskId, pskId.size).verify()
     }
 }
@@ -247,12 +317,12 @@ data class CertificateAuth(
     constructor(ownCertChain: List<X509Certificate>, privateKey: PrivateKey) :
         this(ownCertChain, privateKey, listOf())
 
-    override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory) {
+    override fun configure(sslConfig: MemorySegment, caCert: MemorySegment, ownCert: MemorySegment, pkey: MemorySegment) {
         for (cert in trustedCerts) {
             val certDer = cert.encoded
             mbedtls_x509_crt_parse_der(caCert, certDer, certDer.size).verify()
         }
-        mbedtls_ssl_conf_ca_chain(sslConfig, caCert, Pointer.NULL)
+        mbedtls_ssl_conf_ca_chain(sslConfig, caCert, MemorySegment.NULL)
 
         // Own certificate
         for (cert in ownCertChain) {
@@ -260,7 +330,7 @@ data class CertificateAuth(
             mbedtls_x509_crt_parse_der(ownCert, certDer, certDer.size).verify()
         }
         if (privateKey != null) {
-            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0)
+            mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, MemorySegment.NULL, 0)
             mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
         }
     }
