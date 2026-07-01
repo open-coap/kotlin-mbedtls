@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
@@ -60,7 +60,7 @@ jobs:
     if: github.repository == 'open-coap/kotlin-mbedtls'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
@@ -84,7 +84,7 @@ jobs:
     container:
       image: dockcross/windows-static-x64
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Fix for externally managed libraries
         run: sudo rm /usr/lib/python3.11/EXTERNALLY-MANAGED
       - name: Compile
