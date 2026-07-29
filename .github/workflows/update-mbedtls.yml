@@ -63,6 +63,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:
+          token: ${{ secrets.PAT_GITHUB }}
           branch: update-mbedtls
           delete-branch: true
           commit-message: Update Mbedtls
