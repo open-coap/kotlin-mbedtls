@@ -110,7 +110,11 @@ class DtlsTransmitter private constructor(
                 return when (newSslContext) {
                     is SslSession -> completedFuture(newSslContext)
                     is SslHandshakeContext -> {
-                        val timeout = if (newSslContext.readTimeout.isZero) Duration.ofSeconds(1) else newSslContext.readTimeout
+                        // readTimeout of zero means mbedtls has no active retransmission timer for this
+                        // step (e.g. it's waiting on the peer, not scheduled to retransmit anything itself),
+                        // so it gives us no guidance on how long to wait. This loop still needs a concrete
+                        // duration to poll with, hence this fallback.
+                        val timeout = if (newSslContext.readTimeout.isZero) Duration.ofSeconds(3) else newSslContext.readTimeout
                         trans.receive(timeout).thenComposeAsync(::handleReceive, executor)
                     }
                 }
