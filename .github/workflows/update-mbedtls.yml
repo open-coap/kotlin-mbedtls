@@ -1,9 +1,7 @@
 name: update Mbedtls to the latest version
 
 on:
-  schedule: # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron: '0 1 * * 1' # run every monday at 01:00
-  workflow_dispatch: # allow manual triggering if needed
+  workflow_dispatch: # manually triggered
 
 jobs:
   get-mbedtls-version:
@@ -65,6 +63,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:
+          token: ${{ secrets.PAT_GITHUB }}
           branch: update-mbedtls
           delete-branch: true
           commit-message: Update Mbedtls
