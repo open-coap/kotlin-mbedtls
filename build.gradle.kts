@@ -1,18 +1,19 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+import com.github.benmanes.gradle.versions.updates.resolutionstrategy.ComponentSelectionWithCurrent
 import dev.detekt.gradle.Detekt
 import dev.detekt.gradle.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.3.0"
-    id("pl.allegro.tech.build.axion-release") version "1.21.1"
+    id("org.jetbrains.kotlin.jvm") version "2.4.10"
+    id("pl.allegro.tech.build.axion-release") version "1.21.2"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
-    id("com.github.ben-manes.versions") version "0.53.0"
+    id("io.github.ben-manes.versions") version "0.57.0"
     id("java-library")
     id("maven-publish")
     id("org.gradle.signing")
     id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
-    id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.adarshr.test-logger") version "4.0.0"
     id("dev.detekt") version "2.0.0-alpha.1"
 }
@@ -26,7 +27,7 @@ version = scmVersion.version
 allprojects {
     apply {
         plugin("se.patrikerdes.use-latest-versions")
-        plugin("com.github.ben-manes.versions")
+        plugin("io.github.ben-manes.versions")
         plugin("java-library")
         plugin("maven-publish")
         plugin("org.gradle.signing")
@@ -70,7 +71,10 @@ allprojects {
                 val regex = "^[0-9,.v-]+(-r)?$".toRegex()
                 val isNonStable = !(stableKeyword || regex.matches(candidate.version))
 
-                isNonStable
+                // allow only minor and patch updates to be compatible with JVM 8
+                val isJunitMajorBump = candidate.group.startsWith("org.junit") && isMajorBump
+
+                isNonStable || isJunitMajorBump
             }
         }
 
@@ -154,3 +158,10 @@ nexusPublishing {
         }
     }
 }
+
+val ComponentSelectionWithCurrent.isMajorBump: Boolean
+    get() {
+        val currentMajor = currentVersion.substringBefore(".").toIntOrNull()
+        val candidateMajor = candidate.version.substringBefore(".").toIntOrNull()
+        return currentMajor != null && candidateMajor != null && candidateMajor != currentMajor
+    }
