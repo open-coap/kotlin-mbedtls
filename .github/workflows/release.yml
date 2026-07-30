@@ -2,6 +2,15 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - minor
+          - patch
 
 permissions:
   contents: write
@@ -27,6 +36,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create and push release tag
-        run: ./gradlew release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: |
+          if [ "$RELEASE_TYPE" = "patch" ]; then
+            INCREMENTER=incrementPatch
+          else
+            INCREMENTER=incrementMinor
+          fi
+          ./gradlew release -Prelease.versionIncrementer=$INCREMENTER
