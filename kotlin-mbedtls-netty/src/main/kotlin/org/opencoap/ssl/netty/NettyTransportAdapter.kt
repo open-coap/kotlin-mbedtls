@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslSession
 import org.opencoap.ssl.transport.SessionWriter
 import org.opencoap.ssl.transport.Transport
-import java.io.IOException
 import java.net.InetSocketAddress
+import java.nio.channels.ClosedChannelException
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -49,7 +49,7 @@ class NettyTransportAdapter(
 
     override fun receive(timeout: Duration): CompletableFuture<ByteBuf> {
         if (!channel.isActive) {
-            return CompletableFuture<ByteBuf>().apply { completeExceptionally(IOException("Channel closed")) }
+            return CompletableFuture<ByteBuf>().apply { completeExceptionally(ClosedChannelException()) }
         }
 
         val promise = inboundMessageReceiver.queue.poll()

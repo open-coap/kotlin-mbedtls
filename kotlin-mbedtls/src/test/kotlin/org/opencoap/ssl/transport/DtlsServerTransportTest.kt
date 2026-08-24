@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,12 +42,15 @@ import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedChannelException
 import java.nio.channels.DatagramChannel
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 import kotlin.random.Random
 
@@ -495,6 +498,119 @@ class DtlsServerTransportTest {
         }
 
         client.close()
+    }
+
+    @Test
+    fun `should keep listening after receive fails`() {
+        // given, packet handling blows up for a specific payload
+        server = DtlsServerTransport.create(conf)
+        server.failReceive { it == "poison" }.listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+
+        // when
+        client.send("poison")
+
+        // then the listener kept reading
+        client.send("perse")
+        assertEquals("perse:resp", client.receiveString())
+
+        // and a brand new client can still handshake and echo
+        val client2 = DtlsTransmitter.connect(server, clientConfig).await()
+        client2.send("hi")
+        assertEquals("hi:resp", client2.receiveString())
+
+        client.close()
+        client2.close()
+    }
+
+    @Test
+    fun `should not accumulate pending receives when receive keeps failing`() {
+        // given
+        val poisonCount = 1000
+        val maxInFlight = AtomicInteger(0)
+        server = DtlsServerTransport.create(conf)
+        server.failReceive { it == "poison" }.trackInFlight(maxInFlight).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+
+        // when
+        repeat(poisonCount) { client.send("poison") }
+
+        // then still serving traffic, datagrams may have been dropped by the socket so keep retrying
+        await.atMost(30.seconds).untilAsserted {
+            client.send("perse")
+            assertEquals("perse:resp", client.receive(500.millis).await().decodeToString())
+        }
+
+        // and the loop keeps exactly one receive outstanding, no matter how many of them failed
+        assertEquals(1, maxInFlight.get())
+
+        // and scheduled tasks stay bounded by packets received, not by failures. They do not reach zero: every
+        // decrypted packet makes DtlsSession reschedule its expiry task and the cancelled one lingers in the
+        // queue, which happens for good packets just the same.
+        assertTrue((server.executor() as ScheduledThreadPoolExecutor).queue.size <= poisonCount + 100)
+
+        client.close()
+    }
+
+    @Test
+    fun `should stop listening when transport is gone`() {
+        // given, a transport that stays submittable but fails every receive once closed
+        val receiveCount = AtomicInteger(0)
+        val gone = AtomicBoolean(false)
+        val underlying = DatagramChannelAdapter.open(0)
+        val transport = object : Transport<ByteBufferPacket> by underlying {
+            override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> {
+                receiveCount.incrementAndGet()
+                if (!gone.get()) return underlying.receive(timeout)
+                return CompletableFuture<ByteBufferPacket>().also { it.completeExceptionally(ClosedChannelException()) }
+            }
+        }
+        server = DtlsServerTransport.create(conf, transport = transport).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("hi")
+        assertEquals("hi:resp", client.receiveString())
+
+        // when
+        gone.set(true)
+        client.send("hi") // completes the pending receive, so that the loop reschedules and hits the closed transport
+        Thread.sleep(500)
+
+        // then the loop terminated, it is not spinning on failed receives
+        val stoppedAt = receiveCount.get()
+        Thread.sleep(500)
+        assertEquals(stoppedAt, receiveCount.get())
+
+        client.close()
+    }
+
+    // records the highest number of receives that were outstanding at the same time
+    private fun <T> Transport<T>.trackInFlight(max: AtomicInteger): Transport<T> {
+        val underlying = this
+        val inFlight = AtomicInteger(0)
+
+        return object : Transport<T> by this {
+            override fun receive(timeout: Duration): CompletableFuture<T> {
+                val current = inFlight.incrementAndGet()
+                max.accumulateAndGet(current) { a, b -> maxOf(a, b) }
+                return underlying.receive(timeout).whenComplete { _, _ -> inFlight.decrementAndGet() }
+            }
+        }
+    }
+
+    // fails packet handling for every packet matching [poison], as an unexpected exception in the receive path would
+    private fun DtlsServerTransport.failReceive(poison: (String) -> Boolean): Transport<ByteBufferPacket> {
+        val underlying = this
+
+        return object : Transport<ByteBufferPacket> by this {
+            override fun receive(timeout: Duration): CompletableFuture<ByteBufferPacket> = underlying.receive(timeout)
+                .thenCompose { packet ->
+                    if (poison(packet.buffer.duplicate().decodeToString())) {
+                        CompletableFuture<ByteBufferPacket>().also { it.completeExceptionally(IllegalStateException("packet handling blew up")) }
+                    } else {
+                        completedFuture(packet)
+                    }
+                }
+        }
     }
 
     private fun <T> Transport<T>.dropReceive(drop: (Int) -> Boolean): Transport<T> {
