@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,14 @@ package org.opencoap.ssl.transport
 
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.nio.channels.ClosedChannelException
+import java.nio.channels.ClosedSelectorException
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
+import java.util.concurrent.RejectedExecutionException
 import java.util.function.Consumer
 
 interface Transport<P> :
@@ -44,24 +49,53 @@ fun interface TransportOutbound<P> {
     fun send(packet: P): CompletableFuture<Boolean>
 }
 
+// strips the wrappers that CompletableFuture puts around a failure propagated from an upstream stage
+private fun Throwable.unwrapCompletion(): Throwable = when (this) {
+    is CompletionException, is ExecutionException -> cause ?: this
+    else -> this
+}
+
+/*
+Tells "handling of this packet blew up" (recoverable, keep reading) apart from "the transport is gone"
+(terminal, stop reading). Only a closed channel or a shut down executor mean that no further packet can
+ever arrive. Note that a cancelled receive is deliberately not terminal: some transports cancel the
+pending receive to signal a plain read timeout.
+ */
+private fun Throwable.isTransportGone(): Boolean = when (this) {
+    is ClosedChannelException, // also covers AsynchronousCloseException and ClosedByInterruptException
+    is ClosedSelectorException,
+    is RejectedExecutionException -> true
+
+    else -> false
+}
+
 fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Executor(Runnable::run)): T {
     val logger = LoggerFactory.getLogger(javaClass)
 
     fun handle(packet: P?, err: Throwable?) {
         if (err != null) {
-            logger.warn("Listener stopped: {}", err.message, err)
-            return
-        }
-
-        if (packet != null) {
+            val cause = err.unwrapCompletion()
+            if (cause.isTransportGone()) {
+                logger.info("Listener stopped: {}", cause.toString())
+                return
+            }
+            // transport is still alive, only this packet blew up: log and keep reading
+            logger.error("Listener failed to receive: {}", cause.toString(), cause)
+        } else if (packet != null) {
             try {
                 handler.accept(packet)
             } catch (ex: Exception) {
                 logger.error(ex.toString(), ex)
             }
         }
+
         // continue
-        receive(Duration.ofSeconds(5)).whenCompleteAsync(::handle, executor)
+        try {
+            receive(Duration.ofSeconds(5)).whenCompleteAsync(::handle, executor)
+        } catch (ex: Exception) {
+            // transport got closed underneath us, there is nothing left to read from
+            logger.info("Listener stopped: {}", ex.toString())
+        }
     }
 
     // start loop
