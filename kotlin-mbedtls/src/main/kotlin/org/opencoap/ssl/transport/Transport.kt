@@ -49,26 +49,6 @@ fun interface TransportOutbound<P> {
     fun send(packet: P): CompletableFuture<Boolean>
 }
 
-// strips the wrappers that CompletableFuture puts around a failure propagated from an upstream stage
-private fun Throwable.unwrapCompletion(): Throwable = when (this) {
-    is CompletionException, is ExecutionException -> cause ?: this
-    else -> this
-}
-
-/*
-Tells "handling of this packet blew up" (recoverable, keep reading) apart from "the transport is gone"
-(terminal, stop reading). Only a closed channel or a shut down executor mean that no further packet can
-ever arrive. Note that a cancelled receive is deliberately not terminal: some transports cancel the
-pending receive to signal a plain read timeout.
- */
-private fun Throwable.isTransportGone(): Boolean = when (this) {
-    is ClosedChannelException, // also covers AsynchronousCloseException and ClosedByInterruptException
-    is ClosedSelectorException,
-    is RejectedExecutionException -> true
-
-    else -> false
-}
-
 fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Executor(Runnable::run)): T {
     val logger = LoggerFactory.getLogger(javaClass)
 
@@ -81,14 +61,15 @@ fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Ex
             }
             // transport is still alive, only this packet blew up: log and keep reading
             logger.error("Listener failed to receive: {}", cause.toString(), cause)
-        } else if (packet != null) {
+        }
+
+        if (packet != null) {
             try {
                 handler.accept(packet)
             } catch (ex: Exception) {
                 logger.error(ex.toString(), ex)
             }
         }
-
         // continue
         try {
             receive(Duration.ofSeconds(5)).whenCompleteAsync(::handle, executor)
@@ -101,4 +82,19 @@ fun <P, T : Transport<P>> T.listen(handler: Consumer<P>, executor: Executor = Ex
     // start loop
     receive(Duration.ofSeconds(5)).whenComplete(::handle)
     return this
+}
+
+// strips the wrappers that CompletableFuture puts around a failure propagated from an upstream stage
+private fun Throwable.unwrapCompletion(): Throwable = when (this) {
+    is CompletionException, is ExecutionException -> cause ?: this
+    else -> this
+}
+
+// a cancelled receive is deliberately not here: some transports cancel the pending receive on a plain read timeout
+private fun Throwable.isTransportGone(): Boolean = when (this) {
+    is ClosedChannelException, // also covers AsynchronousCloseException and ClosedByInterruptException
+    is ClosedSelectorException,
+    is RejectedExecutionException -> true
+
+    else -> false
 }
