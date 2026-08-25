@@ -40,6 +40,7 @@ import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.mapToString
 import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
+import org.opencoap.ssl.util.truncatedDtlsHandshakeHeader
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
@@ -246,6 +247,29 @@ class DtlsServerTransportTest {
         verify(exactly = 0) {
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, ofType(HelloVerifyRequired::class))
         }
+    }
+
+    // Any datagram shorter than the 14 bytes that isValidHandshakeRequest reads used to throw
+    // out of DtlsServer.handleReceived(), which reached Transport.listen()'s `handle` callback
+    // as `err != null` and ended the receive loop for good. After the fix the server must drop
+    // every one of them and keep serving legitimate clients.
+    @Test
+    fun `should survive short malformed datagrams and keep serving`() {
+        server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        val cliChannel = DatagramChannel.open().connect(server.localAddress())
+        try {
+            for (len in 0..13) {
+                cliChannel.write(ByteBuffer.wrap(truncatedDtlsHandshakeHeader.copyOf(len)))
+            }
+        } finally {
+            cliChannel.close()
+        }
+
+        // server is still alive: a legitimate client can still handshake and exchange data
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        client.send("ok-after-junk")
+        assertEquals("ok-after-junk:resp", client.receiveString())
+        client.close()
     }
 
     @Test

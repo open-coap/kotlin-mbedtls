@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package org.opencoap.ssl.transport
 
+import io.mockk.clearMocks
+import io.mockk.mockk
+import io.mockk.verify
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
@@ -37,6 +40,7 @@ import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.flip0
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
+import org.opencoap.ssl.util.truncatedDtlsHandshakeHeader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Instant
@@ -53,12 +57,13 @@ class DtlsServerTest {
     val serverConfInvalidCid = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, InvalidCidSupplier(16))
 
     private val sessionStore = HashMapSessionStore()
+    private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
     private lateinit var dtlsServer: DtlsServer
     private val serverOutboundQueue = LinkedList<ByteBuffer>()
 
     @BeforeEach
     fun setUp() {
-        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"))
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"))
     }
 
     private fun outboundTransport(it: ByteBufferPacket): CompletableFuture<Boolean> {
@@ -69,6 +74,7 @@ class DtlsServerTest {
     @AfterEach
     fun tearDown() {
         dtlsServer.closeSessions()
+        clearMocks(lifecycleCallbacks)
     }
 
     @AfterAll
@@ -303,6 +309,36 @@ class DtlsServerTest {
         assertEquals(256, buf.position())
         buf.readShortAndSeek()
         assertEquals(65793, buf.position())
+    }
+
+    // isValidHandshakeRequest reads 8 bytes at offset 0 and one byte at offset 13. Before the
+    // bound check, every length below 14 threw out of handleReceived() rather than being
+    // rejected: 0-7 failed the 8-byte read, 8-13 passed the header check and then failed the
+    // handshake-type read.
+    @Test
+    fun `should drop datagrams shorter than the handshake header`() {
+        val adr = localAddress(2_5684)
+
+        for (len in 0..13) {
+            val result = dtlsServer.handleReceived(adr, ByteBuffer.wrap(truncatedDtlsHandshakeHeader.copyOf(len)))
+            assertTrue(result is ReceiveResult.Handled, "expected Handled for length $len, got $result")
+        }
+
+        assertEquals(0, dtlsServer.numberOfSessions)
+        verify(exactly = 14) { lifecycleCallbacks.messageDropped(adr) }
+    }
+
+    @Test
+    fun `should not throw for randomised datagrams`() {
+        val random = Random(1)
+        val adr = localAddress(2_5684)
+
+        repeat(20_000) {
+            dtlsServer.handleReceived(adr, ByteBuffer.wrap(random.nextBytes(random.nextInt(0, 301))))
+        }
+
+        // nothing random passed as a handshake, so the parse path stayed a pure filter
+        assertEquals(0, dtlsServer.numberOfSessions)
     }
 
     private fun clientHandshake(): SslSession {

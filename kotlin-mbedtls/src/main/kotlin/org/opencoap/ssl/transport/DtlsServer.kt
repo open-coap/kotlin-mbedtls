@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -369,6 +369,12 @@ class DtlsServer(
     }
 
     private fun isValidHandshakeRequest(buf: ByteBuffer): Boolean {
+        // The fixed-offset reads require 14 bytes; a valid ClientHello requires at least 67.
+        if (buf.remaining() < 14) {
+            logger.debug("Datagram too short for a DTLS handshake header")
+            return false
+        }
+
         val workingBuf = buf.slice().order(ByteOrder.BIG_ENDIAN)
 
         // Check if the header is correct:

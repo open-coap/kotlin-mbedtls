@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,3 +64,6 @@ fun ByteBuffer.flip0(): ByteBuffer {
     this.flip()
     return this
 }
+
+// Lengths 0-7 truncate the DTLS header; 8-13 omit the handshake type at offset 13.
+val truncatedDtlsHandshakeHeader = "16FEFD00000000000000000000".decodeHex()
