@@ -55,6 +55,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
         this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, sessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
     }
 
+    override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
+        dtlsServer.closeSessions()
+        ctx.close(promise)
+    }
+
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
         if (msg !is DatagramPacket) {
             ctx.fireChannelRead(msg)
