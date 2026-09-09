@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.opencoap.ssl
 
 import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.X509.mbedtls_strerror
+import org.opencoap.ssl.MbedtlsApi.psaStatusName
 import java.util.Locale
 
 open class SslException(message: String) : Exception(message) {
@@ -30,7 +31,7 @@ open class SslException(message: String) : Exception(message) {
 
         internal fun translateError(error: Int): String {
             // mbedtls_strerror renders PSA statuses as text from unrelated modules, see PSA_STATUS_NAMES
-            MbedtlsApi.psaStatusName(error)?.let { return it }
+            psaStatusName(error)?.let { return it }
 
             val buffer = Memory(100)
             mbedtls_strerror(error, buffer, buffer.size().toInt())
