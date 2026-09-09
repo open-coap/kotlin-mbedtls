@@ -121,15 +121,7 @@ class DtlsServer(
     }
 
     private fun closeSession(addr: InetSocketAddress) {
-        sessions.remove(addr)?.apply {
-            storeAndClose()
-            logger.info(
-                "[{}] [CID:{}] DTLS session was stored",
-                peerAddress,
-                (this as? DtlsSession)?.sessionContext?.cid?.toHex()
-                    ?: "na"
-            )
-        }
+        sessions.remove(addr)?.storeAndClose()
     }
 
     fun handleOutboundDtlsSessionContext(adr: InetSocketAddress, ctx: DtlsSessionContext, writeFuture: CompletableFuture<Boolean>) {
@@ -283,35 +275,49 @@ class DtlsServer(
                 sessionStartTimestamp = sessionStartTimestamp
             )
 
+        // mbedtls_ssl_context_save fails until mbedTLS drops the handshake structure, which it keeps
+        // for retransmission until the first inbound record. A restored session never had one.
+        private var storable: Boolean = ctx.reloaded
+
         init {
             scheduledTask = executor.schedule(::timeout, expireAfter)
             reportSessionStarted()
         }
 
         override fun storeAndClose0() {
-            if (ctx.ownCid != null) {
-                try {
-                    val sessionBlob = try {
-                        ctx.saveAndClose()
-                    } catch (ex: Exception) {
-                        logger.warn("[{}] [CID:{}] Failed to save ssl context: {}", peerAddress, ownCidHex, ex.message)
-                        return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
-                    }
-                    val session = SessionWithContext(
-                        sessionBlob = sessionBlob,
-                        authenticationContext = authenticationContext,
-                        sessionStartTimestamp = sessionStartTimestamp
-                    )
-                    storeSession(ctx.ownCid, session)
-                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.STORED)
-                } catch (ex: Exception) {
-                    logger.error("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
-                    reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
-                }
-            } else {
+            val ownCid = ctx.ownCid
+            if (ownCid == null) {
                 close()
-                reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
+                return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.CLOSED)
             }
+
+            if (!storable) {
+                close()
+                logger.info("[{}] [CID:{}] DTLS session not stored, no record received after handshake", peerAddress, ownCidHex)
+                return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+            }
+
+            val sessionBlob = try {
+                ctx.saveAndClose()
+            } catch (ex: Exception) {
+                logger.warn("[{}] [CID:{}] Failed to save ssl context: {}", peerAddress, ownCidHex, ex.message)
+                return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
+            }
+
+            val session = SessionWithContext(
+                sessionBlob = sessionBlob,
+                authenticationContext = authenticationContext,
+                sessionStartTimestamp = sessionStartTimestamp
+            )
+            try {
+                storeSession(ownCid, session)
+            } catch (ex: Exception) {
+                logger.error("[{}] [CID:{}] DTLS failed to store session: {}", peerAddress, ownCidHex, ex.message)
+                return reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.FAILED, ex)
+            }
+
+            logger.info("[{}] [CID:{}] DTLS session was stored", peerAddress, ownCidHex)
+            reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.STORED)
         }
 
         override fun close() = ctx.close()
@@ -320,6 +326,7 @@ class DtlsServer(
             scheduledTask.cancel(false)
             try {
                 val plainBuf = ctx.decrypt(encPacket, ::send)
+                storable = true
                 scheduledTask = executor.schedule(::timeout, expireAfter)
                 return if (plainBuf.isNotEmpty()) {
                     ReceiveResult.Decrypted(Packet(plainBuf, peerAddress, sessionContext))
@@ -353,8 +360,6 @@ class DtlsServer(
         fun timeout() {
             sessions.remove(peerAddress, this)
             storeAndClose()
-            logger.info("[{}] [CID:{}] DTLS session stored after idle", peerAddress, ownCidHex)
-            reportSessionFinished(DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         private val ownCidHex: String get() = ctx.ownCid?.toHex() ?: "na"

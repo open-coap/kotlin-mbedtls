@@ -385,10 +385,36 @@ class DtlsServerTransportTest {
         }
         client.close()
 
-        verify {
+        verify(exactly = 1) {
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
+        }
+        verify(exactly = 0) {
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
+    }
+
+    @Test
+    fun `should not store session when peer sent no application data`() {
+        // given, mbedTLS holds on to the server handshake structure until the peer sends a record,
+        // and refuses to serialise a context that still has one
+        server = DtlsServerTransport.create(conf, expireAfter = 10.millis, sessionStore = sessionStore, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+
+        // when, the session idles out without ever carrying application data
+        await.atMost(1.seconds).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+        client.close()
+
+        // then, it is reported once, and not as a failure
+        verify(exactly = 1) {
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
+        }
+        verify(exactly = 0) {
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.FAILED, any())
+            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
+        }
+        assertEquals(0, sessionStore.size())
     }
 
     @Test
@@ -426,10 +452,8 @@ class DtlsServerTransportTest {
             sslLifecycleCallbacks.handshakeFinished(any(), any(), any(), DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), false)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
-            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
             sslLifecycleCallbacks.sessionStarted(any(), any(), true)
             sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.STORED)
-            sslLifecycleCallbacks.sessionFinished(any(), DtlsSessionLifecycleCallbacks.Reason.EXPIRED)
         }
 
         // Check no more callbacks are called
