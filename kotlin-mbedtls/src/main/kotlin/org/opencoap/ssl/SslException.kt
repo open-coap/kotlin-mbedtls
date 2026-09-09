@@ -29,6 +29,9 @@ open class SslException(message: String) : Exception(message) {
         }
 
         internal fun translateError(error: Int): String {
+            // mbedtls_strerror renders PSA statuses as text from unrelated modules, see PSA_STATUS_NAMES
+            MbedtlsApi.psaStatusName(error)?.let { return it }
+
             val buffer = Memory(100)
             mbedtls_strerror(error, buffer, buffer.size().toInt())
             return buffer.getString(0).trim()

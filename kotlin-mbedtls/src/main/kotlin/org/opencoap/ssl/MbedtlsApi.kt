@@ -38,8 +38,6 @@ internal object MbedtlsApi {
 
     init {
         Native.register(LIB_MBEDTLS)
-        Native.register(X509::class.java, LIB_MBEDX509)
-        Native.register(Crypto::class.java, LIB_TFPSACRYPTO)
 
         configureLogThreshold()
     }
@@ -95,6 +93,73 @@ internal object MbedtlsApi {
     val MBEDTLS_ERR_NET_RECV_FAILED = -0x004C
     val MBEDTLS_ERR_NET_SEND_FAILED = -0x004E
 
+    // ----- psa/crypto_values.h -----
+    const val PSA_ERROR_GENERIC_ERROR = -132
+    const val PSA_ERROR_NOT_PERMITTED = -133
+    const val PSA_ERROR_NOT_SUPPORTED = -134
+    const val PSA_ERROR_INVALID_ARGUMENT = -135
+    const val PSA_ERROR_INVALID_HANDLE = -136
+    const val PSA_ERROR_BAD_STATE = -137
+    const val PSA_ERROR_BUFFER_TOO_SMALL = -138
+    const val PSA_ERROR_ALREADY_EXISTS = -139
+    const val PSA_ERROR_DOES_NOT_EXIST = -140
+    const val PSA_ERROR_INSUFFICIENT_MEMORY = -141
+    const val PSA_ERROR_INSUFFICIENT_STORAGE = -142
+    const val PSA_ERROR_INSUFFICIENT_DATA = -143
+    const val PSA_ERROR_SERVICE_FAILURE = -144
+    const val PSA_ERROR_COMMUNICATION_FAILURE = -145
+    const val PSA_ERROR_STORAGE_FAILURE = -146
+    const val PSA_ERROR_HARDWARE_FAILURE = -147
+    const val PSA_ERROR_INSUFFICIENT_ENTROPY = -148
+    const val PSA_ERROR_INVALID_SIGNATURE = -149
+    const val PSA_ERROR_INVALID_PADDING = -150
+    const val PSA_ERROR_CORRUPTION_DETECTED = -151
+    const val PSA_ERROR_DATA_CORRUPT = -152
+    const val PSA_ERROR_DATA_INVALID = -153
+
+    // mbedTLS 4.x aliases these three onto PSA statuses, as ssl.h does.
+    const val MBEDTLS_ERR_SSL_BAD_INPUT_DATA = PSA_ERROR_INVALID_ARGUMENT
+    const val MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL = PSA_ERROR_BUFFER_TOO_SMALL
+    const val MBEDTLS_ERR_SSL_ALLOC_FAILED = PSA_ERROR_INSUFFICIENT_MEMORY
+
+    /**
+     * Names for PSA statuses, which mbedtls_strerror cannot render.
+     *
+     * They occupy -132..-153, past the -0x007F ceiling of mbedTLS' own low-level codes, so
+     * mbedtls_strerror has no strings for them. Instead of failing it splits a status into a
+     * high/low error pair and prints whatever it finds there: -135 becomes "UNKNOWN ERROR CODE
+     * (0080) : HMAC_DRBG - Read/write error in file", naming a module that was never involved.
+     * Where ssl.h aliases an MBEDTLS_ERR_SSL_* constant onto a status, both names are given - the
+     * SSL one is what a caller of this library finds in the mbedTLS docs and sources.
+     */
+    private val PSA_STATUS_NAMES = mapOf(
+        PSA_ERROR_GENERIC_ERROR to "PSA_ERROR_GENERIC_ERROR",
+        PSA_ERROR_NOT_PERMITTED to "PSA_ERROR_NOT_PERMITTED",
+        PSA_ERROR_NOT_SUPPORTED to "PSA_ERROR_NOT_SUPPORTED",
+        PSA_ERROR_INVALID_ARGUMENT to "MBEDTLS_ERR_SSL_BAD_INPUT_DATA / PSA_ERROR_INVALID_ARGUMENT",
+        PSA_ERROR_INVALID_HANDLE to "PSA_ERROR_INVALID_HANDLE",
+        PSA_ERROR_BAD_STATE to "PSA_ERROR_BAD_STATE",
+        PSA_ERROR_BUFFER_TOO_SMALL to "MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL / PSA_ERROR_BUFFER_TOO_SMALL",
+        PSA_ERROR_ALREADY_EXISTS to "PSA_ERROR_ALREADY_EXISTS",
+        PSA_ERROR_DOES_NOT_EXIST to "PSA_ERROR_DOES_NOT_EXIST",
+        PSA_ERROR_INSUFFICIENT_MEMORY to "MBEDTLS_ERR_SSL_ALLOC_FAILED / PSA_ERROR_INSUFFICIENT_MEMORY",
+        PSA_ERROR_INSUFFICIENT_STORAGE to "PSA_ERROR_INSUFFICIENT_STORAGE",
+        PSA_ERROR_INSUFFICIENT_DATA to "PSA_ERROR_INSUFFICIENT_DATA",
+        PSA_ERROR_SERVICE_FAILURE to "PSA_ERROR_SERVICE_FAILURE",
+        PSA_ERROR_COMMUNICATION_FAILURE to "PSA_ERROR_COMMUNICATION_FAILURE",
+        PSA_ERROR_STORAGE_FAILURE to "PSA_ERROR_STORAGE_FAILURE",
+        PSA_ERROR_HARDWARE_FAILURE to "PSA_ERROR_HARDWARE_FAILURE",
+        PSA_ERROR_INSUFFICIENT_ENTROPY to "PSA_ERROR_INSUFFICIENT_ENTROPY",
+        PSA_ERROR_INVALID_SIGNATURE to "PSA_ERROR_INVALID_SIGNATURE",
+        PSA_ERROR_INVALID_PADDING to "PSA_ERROR_INVALID_PADDING",
+        PSA_ERROR_CORRUPTION_DETECTED to "PSA_ERROR_CORRUPTION_DETECTED",
+        PSA_ERROR_DATA_CORRUPT to "PSA_ERROR_DATA_CORRUPT",
+        PSA_ERROR_DATA_INVALID to "PSA_ERROR_DATA_INVALID"
+    )
+
+    /** Name of [status], or null when it is not a PSA status and mbedtls_strerror can handle it. */
+    internal fun psaStatusName(status: Int): String? = PSA_STATUS_NAMES[status]
+
     // mbedtls/debug.h
     external fun mbedtls_debug_set_threshold(threshold: Int)
 
@@ -126,7 +191,14 @@ internal object MbedtlsApi {
         }
     }
 
+    // Nested objects register themselves: touching one of them does not initialize the enclosing
+    // MbedtlsApi, so registering them from its init block left the natives unbound whenever a
+    // nested object was reached first (e.g. mbedtls_strerror straight from SslException).
     internal object Crypto {
+        init {
+            Native.register(Crypto::class.java, LIB_TFPSACRYPTO)
+        }
+
         // mbedtls/pk.h
         external fun mbedtls_pk_init(ctx: Pointer)
         external fun mbedtls_pk_free(ctx: Pointer)
@@ -137,6 +209,9 @@ internal object MbedtlsApi {
     }
 
     internal object X509 {
+        init {
+            Native.register(X509::class.java, LIB_MBEDX509)
+        }
 
         // mbedtls/x509_crt.h
         external fun mbedtls_x509_crt_init(cert: Pointer)
