@@ -60,4 +60,7 @@ data class DtlsSessionContext @JvmOverloads constructor(
         result = 31 * result + (sessionSuspensionHint.hashCode())
         return result
     }
+
+    override fun toString(): String = "DtlsSessionContext(authenticationContext=$authenticationContext, peerCertificateSubject=$peerCertificateSubject, " +
+        "cid=${cid?.toHex()}, sessionStartTimestamp=$sessionStartTimestamp, sessionSuspensionHint=$sessionSuspensionHint)"
 }
