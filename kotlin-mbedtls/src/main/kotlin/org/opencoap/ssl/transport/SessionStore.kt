@@ -32,7 +32,31 @@ data class SessionWithContext(
     val sessionBlob: ByteArray,
     val authenticationContext: AuthenticationContext,
     val sessionStartTimestamp: Instant
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as SessionWithContext
+
+        if (!sessionBlob.contentEquals(other.sessionBlob)) return false
+        if (authenticationContext != other.authenticationContext) return false
+        if (sessionStartTimestamp != other.sessionStartTimestamp) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = sessionBlob.contentHashCode()
+        result = 31 * result + authenticationContext.hashCode()
+        result = 31 * result + sessionStartTimestamp.hashCode()
+        return result
+    }
+
+    // sessionBlob carries session keys, only its size is logged
+    override fun toString(): String = "SessionWithContext(sessionBlob=${sessionBlob.size} bytes, authenticationContext=$authenticationContext, " +
+        "sessionStartTimestamp=$sessionStartTimestamp)"
+}
 
 fun interface SessionWriter {
     operator fun invoke(cid: CID, session: ByteArray)

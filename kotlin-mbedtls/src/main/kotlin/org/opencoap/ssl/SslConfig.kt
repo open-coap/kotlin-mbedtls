@@ -49,6 +49,7 @@ import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_mtu
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_set_timer_cb
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_setup
 import org.opencoap.ssl.MbedtlsApi.verify
+import org.opencoap.ssl.transport.toHex
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.net.InetSocketAddress
@@ -94,7 +95,7 @@ class SslConfig(
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
         return SslSession(this, sslContext, cid, true).also {
-            logger.info("[{}] [{}] DTLS session reloaded {}", peerAddress, cid, it)
+            logger.info("[{}] [CID:{}] DTLS session reloaded {}", peerAddress, cid.toHex(), it)
         }
     }
 
@@ -233,6 +234,23 @@ data class PskAuth(
     override fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory) {
         mbedtls_ssl_conf_psk(sslConfig, pskSecret, pskSecret.size, pskId, pskId.size).verify()
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as PskAuth
+
+        if (!pskId.contentEquals(other.pskId)) return false
+        if (!pskSecret.contentEquals(other.pskSecret)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int = 31 * pskId.contentHashCode() + pskSecret.contentHashCode()
+
+    // pskSecret is never rendered
+    override fun toString(): String = "PskAuth(pskId=${pskId.toHex()}, pskSecret=<redacted>)"
 }
 
 data class CertificateAuth(
