@@ -156,6 +156,8 @@ internal object MbedtlsApi {
     }
 
     /** Name of [status], or null when it is not a PSA status and mbedtls_strerror can handle it. */
+    // a flat lookup table over psa/crypto_values.h, not branching logic
+    @Suppress("CyclomaticComplexMethod")
     internal fun psaStatusName(status: Int): String? = when (status) {
         PSA_ERROR_GENERIC_ERROR -> "PSA_ERROR_GENERIC_ERROR"
         PSA_ERROR_NOT_PERMITTED -> "PSA_ERROR_NOT_PERMITTED"
@@ -182,9 +184,6 @@ internal object MbedtlsApi {
         else -> null
     }
 
-    // Nested objects register themselves: touching one of them does not initialize the enclosing
-    // MbedtlsApi, so registering them from its init block left the natives unbound whenever a
-    // nested object was reached first (e.g. mbedtls_strerror straight from SslException).
     internal object Crypto {
         // mbedtls/pk.h
         external fun mbedtls_pk_init(ctx: Pointer)
