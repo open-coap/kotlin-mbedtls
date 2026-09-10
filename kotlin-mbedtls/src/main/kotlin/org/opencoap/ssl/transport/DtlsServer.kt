@@ -267,6 +267,10 @@ class DtlsServer(
         private val sessionStartTimestamp: Instant = Instant.now()
     ) : DtlsState(peerAddress) {
 
+        // mbedtls_ssl_context_save fails until mbedTLS drops the handshake structure, which it keeps
+        // for retransmission until the first inbound record. A restored session never had one.
+        private var storable: Boolean = ctx.reloaded
+
         val sessionContext: DtlsSessionContext
             get() = DtlsSessionContext(
                 peerCertificateSubject = ctx.peerCertificateSubject,
@@ -274,10 +278,6 @@ class DtlsServer(
                 cid = if (ctx.ownCid?.isEmpty() != true) ctx.ownCid else ctx.peerCid,
                 sessionStartTimestamp = sessionStartTimestamp
             )
-
-        // mbedtls_ssl_context_save fails until mbedTLS drops the handshake structure, which it keeps
-        // for retransmission until the first inbound record. A restored session never had one.
-        private var storable: Boolean = ctx.reloaded
 
         init {
             scheduledTask = executor.schedule(::timeout, expireAfter)
