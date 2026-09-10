@@ -83,11 +83,6 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_get_peer_cert(sslContext: Pointer): Pointer?
     external fun mbedtls_ssl_set_hostname(sslContext: Pointer, hostname: String?): Int
 
-    // size_t on every platform this library ships native libraries for: linux-x86-64,
-    // linux-aarch64, darwin and win32-x86-64. Windows is LLP64, so its long is 4 bytes
-    // while size_t is still 8. Pointer.getLong reads it in native byte order.
-    const val SIZE_T_LEN = 8L
-
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
     const val MBEDTLS_ERR_SSL_WANT_WRITE = -0x6880

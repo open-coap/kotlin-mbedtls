@@ -18,7 +18,6 @@ package org.opencoap.ssl
 
 import com.sun.jna.Memory
 import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
-import org.opencoap.ssl.MbedtlsApi.SIZE_T_LEN
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_free
@@ -132,7 +131,7 @@ class SslSession internal constructor(
         if (mem.getInt(0) == 0) {
             return null
         }
-        val size = mem.getLong(8).toInt()
+        val size = mem.getSizeT(8)
 
         return mem.getByteArray(16, size)
     }
@@ -204,7 +203,7 @@ class SslSession internal constructor(
         val buffer = ByteArray(1280)
         Memory(SIZE_T_LEN).use { outputLen ->
             mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
-            buffer.copyOf(outputLen.getLong(0).toInt())
+            buffer.copyOf(outputLen.getSizeT())
         }
     }
 
