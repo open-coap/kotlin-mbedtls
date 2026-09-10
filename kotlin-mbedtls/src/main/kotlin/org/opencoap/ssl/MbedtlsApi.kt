@@ -69,7 +69,12 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_conf_cid(mbedtlsSslConfig: Pointer, len: Int, ignoreOtherCids: Int): Int
     external fun mbedtls_ssl_set_cid(sslContext: Pointer, enable: Int, ownCid: ByteArray, ownCidLen: Int): Int
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
-    external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: ByteArray): Int
+
+    // outputLen is a size_t* out-parameter, so it must point at Native.SIZE_T_SIZE bytes of native memory.
+    // bufLen, like every other length parameter here, is a size_t passed by value: jna widens Int to the
+    // native word, so those stay Int for consistency with the rest of this binding.
+    external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: Pointer): Int
+
     external fun mbedtls_ssl_context_load(sslContext: Pointer, buf: ByteArray, len: Int): Int
     external fun mbedtls_ssl_check_record(sslContext: Pointer, buf: Memory, bufLen: Int): Int
     external fun mbedtls_ssl_conf_ca_chain(sslConfig: Pointer, caChain: Pointer, caCrl: Pointer?)
@@ -141,6 +146,17 @@ internal object MbedtlsApi {
 
         throw SslException.from(this)
     }
+
+    // Reads a size_t that mbedtls wrote through a length out-parameter, at the platform's own
+    // width and byte order rather than assuming a little-endian 64-bit target.
+    internal fun Pointer.getSizeT(offset: Long): Long = when (val width = Native.SIZE_T_SIZE) {
+        8 -> getLong(offset)
+        4 -> getInt(offset).toLong() and 0xFFFFFFFFL
+        else -> throw IllegalStateException("Unsupported native size_t width: $width")
+    }
+
+    // Allocates native memory for a single size_t out-parameter.
+    internal fun allocateSizeT(): Memory = Memory(Native.SIZE_T_SIZE.toLong())
 
     private fun configureLogThreshold() {
         val logger = LoggerFactory.getLogger(javaClass)
