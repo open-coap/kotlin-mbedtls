@@ -69,7 +69,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_conf_cid(mbedtlsSslConfig: Pointer, len: Int, ignoreOtherCids: Int): Int
     external fun mbedtls_ssl_set_cid(sslContext: Pointer, enable: Int, ownCid: ByteArray, ownCidLen: Int): Int
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
-    external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: ByteArray): Int
+    external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: Pointer): Int
     external fun mbedtls_ssl_context_load(sslContext: Pointer, buf: ByteArray, len: Int): Int
     external fun mbedtls_ssl_check_record(sslContext: Pointer, buf: Memory, bufLen: Int): Int
     external fun mbedtls_ssl_conf_ca_chain(sslConfig: Pointer, caChain: Pointer, caCrl: Pointer?)
