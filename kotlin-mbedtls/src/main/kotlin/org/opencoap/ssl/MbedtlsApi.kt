@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,6 +105,35 @@ internal object MbedtlsApi {
     val mbedtls_ssl_cookie_write: Function = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_write")
     val mbedtls_ssl_cookie_check: Function = LIB_MBEDTLS.getFunction("mbedtls_ssl_cookie_check")
 
+    // ----- psa/crypto_values.h -----
+    const val PSA_ERROR_GENERIC_ERROR = -132
+    const val PSA_ERROR_NOT_PERMITTED = -133
+    const val PSA_ERROR_NOT_SUPPORTED = -134
+    const val PSA_ERROR_INVALID_ARGUMENT = -135
+    const val PSA_ERROR_INVALID_HANDLE = -136
+    const val PSA_ERROR_BAD_STATE = -137
+    const val PSA_ERROR_BUFFER_TOO_SMALL = -138
+    const val PSA_ERROR_ALREADY_EXISTS = -139
+    const val PSA_ERROR_DOES_NOT_EXIST = -140
+    const val PSA_ERROR_INSUFFICIENT_MEMORY = -141
+    const val PSA_ERROR_INSUFFICIENT_STORAGE = -142
+    const val PSA_ERROR_INSUFFICIENT_DATA = -143
+    const val PSA_ERROR_SERVICE_FAILURE = -144
+    const val PSA_ERROR_COMMUNICATION_FAILURE = -145
+    const val PSA_ERROR_STORAGE_FAILURE = -146
+    const val PSA_ERROR_HARDWARE_FAILURE = -147
+    const val PSA_ERROR_INSUFFICIENT_ENTROPY = -148
+    const val PSA_ERROR_INVALID_SIGNATURE = -149
+    const val PSA_ERROR_INVALID_PADDING = -150
+    const val PSA_ERROR_CORRUPTION_DETECTED = -151
+    const val PSA_ERROR_DATA_CORRUPT = -152
+    const val PSA_ERROR_DATA_INVALID = -153
+
+    // mbedTLS 4.x aliases these three onto PSA statuses, as ssl.h does.
+    const val MBEDTLS_ERR_SSL_BAD_INPUT_DATA = PSA_ERROR_INVALID_ARGUMENT
+    const val MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL = PSA_ERROR_BUFFER_TOO_SMALL
+    const val MBEDTLS_ERR_SSL_ALLOC_FAILED = PSA_ERROR_INSUFFICIENT_MEMORY
+
     // -------------------------
 
     internal fun Int.verify(): Int {
@@ -124,6 +153,35 @@ internal object MbedtlsApi {
         } else {
             mbedtls_debug_set_threshold(0)
         }
+    }
+
+    /** Name of [status], or null when it is not a PSA status and mbedtls_strerror can handle it. */
+    // a flat lookup table over psa/crypto_values.h, not branching logic
+    @Suppress("CyclomaticComplexMethod")
+    internal fun psaStatusName(status: Int): String? = when (status) {
+        PSA_ERROR_GENERIC_ERROR -> "PSA_ERROR_GENERIC_ERROR"
+        PSA_ERROR_NOT_PERMITTED -> "PSA_ERROR_NOT_PERMITTED"
+        PSA_ERROR_NOT_SUPPORTED -> "PSA_ERROR_NOT_SUPPORTED"
+        PSA_ERROR_INVALID_ARGUMENT -> "MBEDTLS_ERR_SSL_BAD_INPUT_DATA / PSA_ERROR_INVALID_ARGUMENT"
+        PSA_ERROR_INVALID_HANDLE -> "PSA_ERROR_INVALID_HANDLE"
+        PSA_ERROR_BAD_STATE -> "PSA_ERROR_BAD_STATE"
+        PSA_ERROR_BUFFER_TOO_SMALL -> "MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL / PSA_ERROR_BUFFER_TOO_SMALL"
+        PSA_ERROR_ALREADY_EXISTS -> "PSA_ERROR_ALREADY_EXISTS"
+        PSA_ERROR_DOES_NOT_EXIST -> "PSA_ERROR_DOES_NOT_EXIST"
+        PSA_ERROR_INSUFFICIENT_MEMORY -> "MBEDTLS_ERR_SSL_ALLOC_FAILED / PSA_ERROR_INSUFFICIENT_MEMORY"
+        PSA_ERROR_INSUFFICIENT_STORAGE -> "PSA_ERROR_INSUFFICIENT_STORAGE"
+        PSA_ERROR_INSUFFICIENT_DATA -> "PSA_ERROR_INSUFFICIENT_DATA"
+        PSA_ERROR_SERVICE_FAILURE -> "PSA_ERROR_SERVICE_FAILURE"
+        PSA_ERROR_COMMUNICATION_FAILURE -> "PSA_ERROR_COMMUNICATION_FAILURE"
+        PSA_ERROR_STORAGE_FAILURE -> "PSA_ERROR_STORAGE_FAILURE"
+        PSA_ERROR_HARDWARE_FAILURE -> "PSA_ERROR_HARDWARE_FAILURE"
+        PSA_ERROR_INSUFFICIENT_ENTROPY -> "PSA_ERROR_INSUFFICIENT_ENTROPY"
+        PSA_ERROR_INVALID_SIGNATURE -> "PSA_ERROR_INVALID_SIGNATURE"
+        PSA_ERROR_INVALID_PADDING -> "PSA_ERROR_INVALID_PADDING"
+        PSA_ERROR_CORRUPTION_DETECTED -> "PSA_ERROR_CORRUPTION_DETECTED"
+        PSA_ERROR_DATA_CORRUPT -> "PSA_ERROR_DATA_CORRUPT"
+        PSA_ERROR_DATA_INVALID -> "PSA_ERROR_DATA_INVALID"
+        else -> null
     }
 
     internal object Crypto {
