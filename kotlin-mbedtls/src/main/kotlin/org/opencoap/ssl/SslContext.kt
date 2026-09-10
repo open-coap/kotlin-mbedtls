@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -199,18 +199,13 @@ class SslSession internal constructor(
         }
     }
 
-    fun saveAndClose(): ByteArray {
+    fun saveAndClose(): ByteArray = use {
         val buffer = ByteArray(1280)
         val outputLen = ByteArray(4)
-        try {
-            mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
-        } finally {
-            // on failure the context is left unusable and nothing else frees it
-            close()
-        }
+        mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
 
         val size = (outputLen[0].toInt() and 0xff) + (outputLen[1].toInt() and 0xff shl 8)
-        return buffer.copyOf(size)
+        buffer.copyOf(size)
     }
 
     override fun toString(): String = when {
