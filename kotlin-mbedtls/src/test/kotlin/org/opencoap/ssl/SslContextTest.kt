@@ -18,7 +18,9 @@ package org.opencoap.ssl
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.transport.asByteBuffer
@@ -84,6 +86,34 @@ class SslContextTest {
 
     @Test
     fun `should handshake with certificate`() {
+        handshakeServerSession().close()
+    }
+
+    @Test
+    fun `should close ssl context when save fails`() {
+        // given, a server session that has not read a record yet, so mbedTLS still holds its
+        // handshake structure and refuses to serialise the context
+        val serverSslSession = handshakeServerSession()
+        assertFalse(serverSslSession.isClosed)
+
+        // when
+        assertThrows(SslException::class.java) { serverSslSession.saveAndClose() }
+
+        // then, the native context is released regardless
+        assertTrue(serverSslSession.isClosed)
+    }
+
+    @Test
+    fun `should close ssl context only once`() {
+        val serverSslSession = handshakeServerSession()
+
+        serverSslSession.close()
+        serverSslSession.close()
+
+        assertTrue(serverSslSession.isClosed)
+    }
+
+    private fun handshakeServerSession(): SslSession {
         lateinit var sendingBuffer: ByteBuffer
         val send: (ByteBuffer) -> Unit = { sendingBuffer = it }
         var srvHandshake = serverConf.newContext(localAddress(1_5684))
@@ -104,7 +134,7 @@ class SslContextTest {
         }
 
         assertTrue(serverSslSession is SslSession)
-        serverSslSession.close()
+        return serverSslSession as SslSession
     }
 
     @Test

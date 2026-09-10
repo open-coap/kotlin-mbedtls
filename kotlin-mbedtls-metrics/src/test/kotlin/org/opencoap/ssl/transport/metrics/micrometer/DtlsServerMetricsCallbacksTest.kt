@@ -112,8 +112,26 @@ class DtlsServerMetricsCallbacksTest {
         assertEquals(2, meterRegistry.find("dtls.server.handshakes.initiated").counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.handshakes.succeeded").timer()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.sessions.started").tag("suite") { it.isNotEmpty() }.counter()?.count()?.toInt())
-        assertEquals(1, meterRegistry.find("dtls.server.sessions.expired").counter()?.count()?.toInt())
+        assertEquals(1, meterRegistry.find("dtls.server.sessions.stored").counter()?.count()?.toInt())
+        assertEquals(0, meterRegistry.find("dtls.server.sessions.expired").counter()?.count()?.toInt())
         assertEquals(1, meterRegistry.find("dtls.server.sessions.reloaded").counter()?.count()?.toInt())
+    }
+
+    @Test
+    fun `should report DTLS server metrics for sessions that carried no application data`() {
+        server = DtlsServerTransport.create(conf, sessionStore = sessionStore, lifecycleCallbacks = metricsCallbacks, expireAfter = Duration.ofMillis(200)).listen(echoHandler)
+
+        // when, a session handshakes and stays silent until it idles out
+        val client = DtlsTransmitter.connect(server, clientConfig).await()
+        await.atMost(Duration.ofSeconds(1)).untilAsserted {
+            assertEquals(0, server.numberOfSessions())
+        }
+        client.close()
+
+        // then it counts as expired, leaving the failure count untouched
+        assertEquals(1, meterRegistry.find("dtls.server.sessions.expired").counter()?.count()?.toInt())
+        assertEquals(0, meterRegistry.find("dtls.server.sessions.stored").counter()?.count()?.toInt())
+        assertEquals(null, meterRegistry.find("dtls.server.sessions.failed").counter()?.count()?.toInt())
     }
 
     @Test

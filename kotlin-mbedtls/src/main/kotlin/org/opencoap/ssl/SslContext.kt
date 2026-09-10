@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,6 +120,10 @@ class SslSession internal constructor(
     val ownCid: ByteArray? = if (peerCid != null) cid else null
     val peerCertificateSubject: String? = readPeerCertificateSubject()
 
+    // mbedtls_ssl_free must run exactly once, a second call would free the same buffers twice
+    internal var isClosed: Boolean = false
+        private set
+
     private fun readPeerCid(): ByteArray? {
         val mem = Memory(16 + 64) // max cid len
         mbedtls_ssl_get_peer_cid(sslContext, mem, mem.share(16), mem.share(8))
@@ -195,14 +199,13 @@ class SslSession internal constructor(
         }
     }
 
-    fun saveAndClose(): ByteArray {
+    fun saveAndClose(): ByteArray = use {
         val buffer = ByteArray(1280)
         val outputLen = ByteArray(4)
         mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
-        close()
 
         val size = (outputLen[0].toInt() and 0xff) + (outputLen[1].toInt() and 0xff shl 8)
-        return buffer.copyOf(size)
+        buffer.copyOf(size)
     }
 
     override fun toString(): String = when {
@@ -224,6 +227,8 @@ class SslSession internal constructor(
     } ?: ByteBuffer.allocate(0)
 
     override fun close() {
+        if (isClosed) return
+        isClosed = true
         mbedtls_ssl_free(sslContext)
     }
 
