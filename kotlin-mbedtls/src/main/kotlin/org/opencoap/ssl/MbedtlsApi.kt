@@ -70,7 +70,7 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_set_cid(sslContext: Pointer, enable: Int, ownCid: ByteArray, ownCidLen: Int): Int
     external fun mbedtls_ssl_get_peer_cid(sslContext: Pointer, enabled: Pointer, peerCid: Pointer, peerCidLen: Pointer): Int
 
-    // outputLen is a size_t* out-parameter, so it must point at Native.SIZE_T_SIZE bytes of native memory.
+    // outputLen is a size_t* out-parameter, so it must point at SIZE_T_LEN bytes of native memory.
     // bufLen, like every other length parameter here, is a size_t passed by value: jna widens Int to the
     // native word, so those stay Int for consistency with the rest of this binding.
     external fun mbedtls_ssl_context_save(sslContext: Pointer, buf: ByteArray, bufLen: Int, outputLen: Pointer): Int
@@ -82,6 +82,11 @@ internal object MbedtlsApi {
     external fun mbedtls_ssl_set_mtu(sslContext: Pointer, mtu: Int)
     external fun mbedtls_ssl_get_peer_cert(sslContext: Pointer): Pointer?
     external fun mbedtls_ssl_set_hostname(sslContext: Pointer, hostname: String?): Int
+
+    // size_t on every platform this library ships native libraries for: linux-x86-64,
+    // linux-aarch64, darwin and win32-x86-64. Windows is LLP64, so its long is 4 bytes
+    // while size_t is still 8. Pointer.getLong reads it in native byte order.
+    const val SIZE_T_LEN = 8L
 
     const val MBEDTLS_ERR_SSL_TIMEOUT = -0x6800
     const val MBEDTLS_ERR_SSL_WANT_READ = -0x6900
@@ -146,17 +151,6 @@ internal object MbedtlsApi {
 
         throw SslException.from(this)
     }
-
-    // Reads a size_t that mbedtls wrote through a length out-parameter, at the platform's own
-    // width and byte order rather than assuming a little-endian 64-bit target.
-    internal fun Pointer.getSizeT(offset: Long): Long = when (val width = Native.SIZE_T_SIZE) {
-        8 -> getLong(offset)
-        4 -> getInt(offset).toLong() and 0xFFFFFFFFL
-        else -> throw IllegalStateException("Unsupported native size_t width: $width")
-    }
-
-    // Allocates native memory for a single size_t out-parameter.
-    internal fun allocateSizeT(): Memory = Memory(Native.SIZE_T_SIZE.toLong())
 
     private fun configureLogThreshold() {
         val logger = LoggerFactory.getLogger(javaClass)
