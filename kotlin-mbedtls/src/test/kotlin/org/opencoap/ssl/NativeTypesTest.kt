@@ -28,12 +28,12 @@ class NativeTypesTest {
     @Test
     fun `should match the platform size_t width`() {
         // fails loudly if this library ever ships a native library for a 32 bit target
-        assertEquals(Native.SIZE_T_SIZE.toLong(), SIZE_T_LEN)
+        assertEquals(8, Native.SIZE_T_SIZE)
     }
 
     @Test
     fun `should read size_t out-parameter`() {
-        Memory(SIZE_T_LEN).use { mem ->
+        Memory(8).use { mem ->
             mem.setLong(0, 1280)
 
             assertEquals(1280, mem.getSizeT())
@@ -42,7 +42,7 @@ class NativeTypesTest {
 
     @Test
     fun `should read size_t larger than the old two byte parse allowed`() {
-        Memory(SIZE_T_LEN).use { mem ->
+        Memory(8).use { mem ->
             mem.setLong(0, 70_000)
 
             assertEquals(70_000, mem.getSizeT())
@@ -63,12 +63,12 @@ class NativeTypesTest {
     @Test
     fun `should read size_t in native byte order`() {
         // the byte layout mbedtls writes for a size_t on this platform
-        val nativeBytes = ByteBuffer.allocate(SIZE_T_LEN.toInt())
+        val nativeBytes = ByteBuffer.allocate(8)
             .order(ByteOrder.nativeOrder())
             .putLong(1280)
             .array()
 
-        Memory(SIZE_T_LEN).use { mem ->
+        Memory(8).use { mem ->
             mem.write(0, nativeBytes, 0, nativeBytes.size)
 
             assertEquals(1280, mem.getSizeT())

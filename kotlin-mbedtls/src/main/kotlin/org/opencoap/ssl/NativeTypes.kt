@@ -18,16 +18,4 @@ package org.opencoap.ssl
 
 import com.sun.jna.Pointer
 
-/*
-Mapping for C types that jna has no direct equivalent for.
- */
-
-// size_t is 8 bytes on every platform this library ships native libraries for: linux-x86-64,
-// linux-aarch64, darwin and win32-x86-64. Windows is LLP64, so its long is 4 bytes while size_t
-// is still 8. NativeTypesTest guards this against a future 32-bit target.
-internal const val SIZE_T_LEN = 8L
-
-// Reads a size_t that mbedtls wrote through a length out-parameter. Pointer.getLong reads native
-// memory in native byte order, so there is no endianness to handle here. Narrowed to Int like
-// every other length in this binding: mbedtls only writes buffer sizes through these.
 internal fun Pointer.getSizeT(offset: Long = 0): Int = getLong(offset).toInt()

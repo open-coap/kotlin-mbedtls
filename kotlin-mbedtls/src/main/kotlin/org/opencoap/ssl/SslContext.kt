@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import com.sun.jna.Memory
+import com.sun.jna.Native.SIZE_T_SIZE
 import org.opencoap.ssl.MbedtlsApi.MBEDTLS_ERR_SSL_UNEXPECTED_RECORD
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_close_notify
 import org.opencoap.ssl.MbedtlsApi.mbedtls_ssl_context_save
@@ -201,7 +202,7 @@ class SslSession internal constructor(
 
     fun saveAndClose(): ByteArray = use {
         val buffer = ByteArray(1280)
-        Memory(SIZE_T_LEN).use { outputLen ->
+        Memory(SIZE_T_SIZE.toLong()).use { outputLen ->
             mbedtls_ssl_context_save(sslContext, buffer, buffer.size, outputLen).verify()
             buffer.copyOf(outputLen.getSizeT())
         }
