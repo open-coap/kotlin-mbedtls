@@ -26,7 +26,6 @@ import org.opencoap.ssl.SslSession
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
@@ -374,101 +373,33 @@ class DtlsServer(
     }
 
     private fun isValidHandshakeRequest(buf: ByteBuffer): Boolean {
-        // The fixed-offset reads require 14 bytes; a valid ClientHello requires at least 67.
-        if (buf.remaining() < 14) {
-            logger.debug("Datagram too short for a DTLS handshake header")
-            return false
-        }
+        when (DtlsParser.checkClientHello(buf)) {
+            DtlsParser.ClientHelloCheck.TOO_SHORT -> {
+                logger.debug("Datagram too short for a DTLS handshake header")
+                return false
+            }
 
-        val workingBuf = buf.slice().order(ByteOrder.BIG_ENDIAN)
+            DtlsParser.ClientHelloCheck.BAD_HEADER -> {
+                logger.debug("Bad DTLS header")
+                return false
+            }
 
-        // Check if the header is correct:
-        // - Content Type is Handshake(0x16),
-        // - Major version is 1 (0xFE),
-        // - Minor version is any,
-        // - Epoch is 0
-        val header = (workingBuf.getLong(0) or 0x0000FF0000000000) ushr 24
-        if (header != 0x16FEFF0000L) {
-            logger.debug("Bad DTLS header")
-            return false
-        }
+            DtlsParser.ClientHelloCheck.BAD_HANDSHAKE_TYPE -> {
+                logger.debug("Bad handshake type")
+                return false
+            }
 
-        // Check if it is a ClientHello handshake
-        val handshakeType = workingBuf.get(13).toInt()
-        if (handshakeType != 1) {
-            logger.debug("Bad handshake type")
-            return false
+            DtlsParser.ClientHelloCheck.VALID -> Unit
         }
 
         // Check if CID is supported by the client in case if CID support is mandatory
-        if (cidRequired && !supportsCid(workingBuf)) {
+        if (cidRequired && !DtlsParser.supportsCidExtension(buf)) {
             logger.debug("No CID support")
             return false
         }
 
         return true
     }
-
-    // Lengths here are attacker-controlled, so every step is bound-checked: a field reaching
-    // past the end of the datagram answers false instead of throwing.
-    private fun supportsCid(buf: ByteBuffer): Boolean {
-        val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
-
-        // Go to the start of extensions
-        // Skip DTLSHeader(13) + HandshakeHeader(12) + SessionIDLengthOffset(34)
-        if (!workingBuffer.trySeek(59)) return false
-        // Skip variable-length Session ID
-        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
-        // Skip variable-length Cookie
-        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
-        // Skip variable-length CipherSuites
-        if (!workingBuffer.trySkipShortLengthPrefixed()) return false
-        // Skip variable-length CompressionMethods
-        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
-        // Limit buffer to the length of the Extensions block
-        if (!workingBuffer.tryLimitShortLengthPrefixed()) return false
-
-        // Search for CID extension
-        while (workingBuffer.remaining() >= 4) {
-            val type = workingBuffer.getShort()
-            if (type == 0x36.toShort()) {
-                return true
-            }
-
-            // Skip to the next extension
-            if (!workingBuffer.trySkipShortLengthPrefixed()) return false
-        }
-
-        return false
-    }
-}
-
-// Bound-checked seeks. Each returns false, buffer untouched, when the field does not fit.
-private fun ByteBuffer.trySeek(offset: Int): Boolean {
-    if (remaining() < offset) return false
-    position(position() + offset)
-    return true
-}
-
-private fun ByteBuffer.trySkipByteLengthPrefixed(): Boolean {
-    if (remaining() < Byte.SIZE_BYTES) return false
-    val length = get(position()).toUByte().toInt()
-    return trySeek(Byte.SIZE_BYTES + length)
-}
-
-private fun ByteBuffer.trySkipShortLengthPrefixed(): Boolean {
-    if (remaining() < Short.SIZE_BYTES) return false
-    val length = getShort(position()).toUShort().toInt()
-    return trySeek(Short.SIZE_BYTES + length)
-}
-
-private fun ByteBuffer.tryLimitShortLengthPrefixed(): Boolean {
-    if (remaining() < Short.SIZE_BYTES) return false
-    val length = getShort(position()).toUShort().toInt()
-    if (remaining() - Short.SIZE_BYTES < length) return false
-    position(position() + Short.SIZE_BYTES)
-    limit(position() + length)
-    return true
 }
 
 fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer

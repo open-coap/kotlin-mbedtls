@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Reads fields of a DTLS 1.2 record header without consuming the record.
@@ -30,9 +31,15 @@ import java.nio.ByteBuffer
  * 11..   connection id, `tls12_cid` records only
  * ```
  *
- * Every read is bound-checked and yields null for a datagram too short to hold the field, so a
- * truncated or malformed datagram is filtered rather than thrown out of the receive path. All
- * reads are absolute, leaving the buffer's position undisturbed.
+ * It also recognises a ClientHello and the `connection_id` extension inside it.
+ *
+ * Every read is bound-checked and yields null or false for a datagram too short to hold the
+ * field, so a truncated or malformed datagram is filtered rather than thrown out of the receive
+ * path. The caller's buffer is never modified: the record-header readers are absolute, and the
+ * ClientHello walk advances a private slice.
+ *
+ * Nothing here decides policy or logs -- the readers answer what the bytes say, and the caller
+ * decides what that means.
  */
 object DtlsParser {
     // Content type `tls12_cid`(0x19) followed by the DTLS 1.2 version (0xFEFD).
@@ -97,4 +104,113 @@ object DtlsParser {
         }
         return sequenceNumber
     }
+
+    /**
+     * Why a datagram is not a DTLS ClientHello, or [VALID] when it is.
+     *
+     * The caller owns the diagnostics; this only reports which check failed.
+     */
+    enum class ClientHelloCheck { VALID, TOO_SHORT, BAD_HEADER, BAD_HANDSHAKE_TYPE }
+
+    fun checkClientHello(buf: ByteBuffer): ClientHelloCheck {
+        // The fixed-offset reads require 14 bytes; a valid ClientHello requires at least 67.
+        if (buf.remaining() < CLIENT_HELLO_HEADER_SIZE) {
+            return ClientHelloCheck.TOO_SHORT
+        }
+
+        val workingBuf = buf.slice().order(ByteOrder.BIG_ENDIAN)
+
+        // Check if the header is correct:
+        // - Content Type is Handshake(0x16),
+        // - Major version is 1 (0xFE),
+        // - Minor version is any,
+        // - Epoch is 0
+        val header = (workingBuf.getLong(0) or 0x0000FF0000000000) ushr 24
+        if (header != 0x16FEFF0000L) {
+            return ClientHelloCheck.BAD_HEADER
+        }
+
+        // Check if it is a ClientHello handshake
+        val handshakeType = workingBuf.get(HANDSHAKE_TYPE_OFFSET).toInt()
+        if (handshakeType != HANDSHAKE_TYPE_CLIENT_HELLO) {
+            return ClientHelloCheck.BAD_HANDSHAKE_TYPE
+        }
+
+        return ClientHelloCheck.VALID
+    }
+
+    /**
+     * Walks a ClientHello looking for the `connection_id` extension.
+     *
+     * Every length here is attacker-controlled, so each step is bound-checked and a field
+     * running past the end of the datagram answers false rather than throwing out of the
+     * receive path. Inputs that parsed before the checks were added are unaffected: each check
+     * triggers exactly where a read used to throw.
+     *
+     * Expects a buffer positioned at the start of the record, as [checkClientHello] accepted.
+     */
+    fun supportsCidExtension(buf: ByteBuffer): Boolean {
+        val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
+
+        // Go to the start of extensions
+        // Skip DTLSHeader(13) + HandshakeHeader(12) + SessionIDLengthOffset(34)
+        if (!workingBuffer.trySeek(59)) return false
+        // Skip variable-length Session ID
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Skip variable-length Cookie
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Skip variable-length CipherSuites
+        if (!workingBuffer.trySkipShortLengthPrefixed()) return false
+        // Skip variable-length CompressionMethods
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Limit buffer to the length of the Extensions block
+        if (!workingBuffer.tryLimitShortLengthPrefixed()) return false
+
+        // Search for CID extension
+        while (workingBuffer.remaining() >= 4) {
+            val type = workingBuffer.getShort()
+            if (type == CID_EXTENSION_TYPE) {
+                return true
+            }
+
+            // Skip to the next extension
+            if (!workingBuffer.trySkipShortLengthPrefixed()) return false
+        }
+
+        return false
+    }
+
+    private const val CLIENT_HELLO_HEADER_SIZE = 14
+    private const val HANDSHAKE_TYPE_OFFSET = 13
+    private const val HANDSHAKE_TYPE_CLIENT_HELLO = 1
+    private val CID_EXTENSION_TYPE = 0x36.toShort()
+}
+
+// Bound-checked seek helpers for parsing attacker-controlled lengths. Each returns false and
+// leaves the buffer untouched when the field it describes does not fit within the buffer's limit.
+private fun ByteBuffer.trySeek(offset: Int): Boolean {
+    if (remaining() < offset) return false
+    position(position() + offset)
+    return true
+}
+
+private fun ByteBuffer.trySkipByteLengthPrefixed(): Boolean {
+    if (remaining() < Byte.SIZE_BYTES) return false
+    val length = get(position()).toUByte().toInt()
+    return trySeek(Byte.SIZE_BYTES + length)
+}
+
+private fun ByteBuffer.trySkipShortLengthPrefixed(): Boolean {
+    if (remaining() < Short.SIZE_BYTES) return false
+    val length = getShort(position()).toUShort().toInt()
+    return trySeek(Short.SIZE_BYTES + length)
+}
+
+private fun ByteBuffer.tryLimitShortLengthPrefixed(): Boolean {
+    if (remaining() < Short.SIZE_BYTES) return false
+    val length = getShort(position()).toUShort().toInt()
+    if (remaining() - Short.SIZE_BYTES < length) return false
+    position(position() + Short.SIZE_BYTES)
+    limit(position() + length)
+    return true
 }
