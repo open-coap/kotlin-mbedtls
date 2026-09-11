@@ -409,23 +409,24 @@ class DtlsServer(
         return true
     }
 
+    // Lengths here are attacker-controlled, so every step is bound-checked: a field reaching
+    // past the end of the datagram answers false instead of throwing.
     private fun supportsCid(buf: ByteBuffer): Boolean {
         val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
 
         // Go to the start of extensions
-        workingBuffer
-            // Skip DTLSHeader(13) + HandshakeHeader(12) + SessionIDLengthOffset(34)
-            .seek(59)
-            // Skip variable-length Session ID
-            .readByteAndSeek()
-            // Skip variable-length Cookie
-            .readByteAndSeek()
-            // Skip variable-length CipherSuites
-            .readShortAndSeek()
-            // Skip variable-length CompressionMethods
-            .readByteAndSeek()
-            // Limit buffer to the length of the Extensions block
-            .readShortAndLimit()
+        // Skip DTLSHeader(13) + HandshakeHeader(12) + SessionIDLengthOffset(34)
+        if (!workingBuffer.trySeek(59)) return false
+        // Skip variable-length Session ID
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Skip variable-length Cookie
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Skip variable-length CipherSuites
+        if (!workingBuffer.trySkipShortLengthPrefixed()) return false
+        // Skip variable-length CompressionMethods
+        if (!workingBuffer.trySkipByteLengthPrefixed()) return false
+        // Limit buffer to the length of the Extensions block
+        if (!workingBuffer.tryLimitShortLengthPrefixed()) return false
 
         // Search for CID extension
         while (workingBuffer.remaining() >= 4) {
@@ -435,11 +436,39 @@ class DtlsServer(
             }
 
             // Skip to the next extension
-            workingBuffer.readShortAndSeek()
+            if (!workingBuffer.trySkipShortLengthPrefixed()) return false
         }
 
         return false
     }
+}
+
+// Bound-checked seeks. Each returns false, buffer untouched, when the field does not fit.
+private fun ByteBuffer.trySeek(offset: Int): Boolean {
+    if (remaining() < offset) return false
+    position(position() + offset)
+    return true
+}
+
+private fun ByteBuffer.trySkipByteLengthPrefixed(): Boolean {
+    if (remaining() < Byte.SIZE_BYTES) return false
+    val length = get(position()).toUByte().toInt()
+    return trySeek(Byte.SIZE_BYTES + length)
+}
+
+private fun ByteBuffer.trySkipShortLengthPrefixed(): Boolean {
+    if (remaining() < Short.SIZE_BYTES) return false
+    val length = getShort(position()).toUShort().toInt()
+    return trySeek(Short.SIZE_BYTES + length)
+}
+
+private fun ByteBuffer.tryLimitShortLengthPrefixed(): Boolean {
+    if (remaining() < Short.SIZE_BYTES) return false
+    val length = getShort(position()).toUShort().toInt()
+    if (remaining() - Short.SIZE_BYTES < length) return false
+    position(position() + Short.SIZE_BYTES)
+    limit(position() + length)
+    return true
 }
 
 fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer

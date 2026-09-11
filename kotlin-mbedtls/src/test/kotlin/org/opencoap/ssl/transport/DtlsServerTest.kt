@@ -341,6 +341,43 @@ class DtlsServerTest {
         assertEquals(0, dtlsServer.numberOfSessions)
     }
 
+    // supportsCid() walks from offset 59, but isValidHandshakeRequest only guards 14 bytes.
+    // Before the bound checks, every length in 14..65 that passed the sniff threw out of
+    // handleReceived(). The 0f73c72 fuzz test runs with cidRequired = false, so it never hit this.
+    @Test
+    fun `should drop short datagrams when CID is required`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
+        val adr = localAddress(2_5684)
+
+        // passes the sniff: Handshake(0x16), DTLS 1.2, epoch 0, ClientHello(1) at offset 13
+        val clientHelloHeader = "16fefd0000000000000000000001".decodeHex()
+
+        for (len in 0..120) {
+            val bytes = clientHelloHeader.copyOf(len.coerceAtMost(clientHelloHeader.size)) +
+                ByteArray((len - clientHelloHeader.size).coerceAtLeast(0))
+            val result = dtlsServer.handleReceived(adr, ByteBuffer.wrap(bytes))
+            assertTrue(result is ReceiveResult.Handled, "expected Handled for length $len, got $result")
+        }
+
+        assertEquals(0, dtlsServer.numberOfSessions)
+    }
+
+    @Test
+    fun `should not throw for randomised datagrams when CID is required`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
+        val random = Random(1)
+        val adr = localAddress(2_5684)
+
+        repeat(20_000) {
+            // half get a valid-looking header, so the fuzz reaches the walk instead of the sniff
+            val body = random.nextBytes(random.nextInt(0, 301))
+            val bytes = if (random.nextBoolean()) "16fefd0000000000000000000001".decodeHex() + body else body
+            dtlsServer.handleReceived(adr, ByteBuffer.wrap(bytes))
+        }
+
+        assertEquals(0, dtlsServer.numberOfSessions)
+    }
+
     private fun clientHandshake(): SslSession {
         val send: (ByteBuffer) -> Unit = { dtlsServer.handleReceived(localAddress(2_5684), it) }
         val cliHandshake = clientConf.newContext(localAddress(5684))
