@@ -132,23 +132,23 @@ class DtlsServer(
         updateSessionAuthenticationContext(adr, ctx.authenticationContext)
     }
 
-    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer): Boolean {
-        return try {
-            if (sessBuf == null) {
-                logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
-                reportMessageDrop(adr)
-                return false
-            }
+    fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer): SessionLoadResult {
+        if (sessBuf == null) {
+            logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
+            reportMessageDrop(adr)
+            return SessionLoadResult.NotFound
+        }
 
+        return try {
             val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
             val verificationResult = sslSession.checkRecord(dtlsPacket)
             if (verificationResult is SslSession.VerificationResult.Invalid) {
                 logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
                 reportMessageDrop(adr)
-                return false
+                return SessionLoadResult.RecordVerificationFailed
             }
             sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
-            true
+            SessionLoadResult.Loaded
         } catch (ex: Exception) {
             if (ex.message?.contains("-0x5F00") == true || ex.message?.contains("unexpected version") == true) {
                 logger.warn("[{}] [CID:{}] DTLS session not loaded due to version mismatch: {}", adr, cid.toHex(), ex.message)
@@ -156,7 +156,7 @@ class DtlsServer(
                 logger.error("[{}] [CID:{}] DTLS failed to load session: {}", adr, cid.toHex(), ex.message)
             }
             reportMessageDrop(adr)
-            false
+            SessionLoadResult.NotReadable
         }
     }
 
@@ -174,6 +174,21 @@ class DtlsServer(
         object DecryptFailed : ReceiveResult
         class Decrypted(val packet: Packet<ByteBuffer>) : ReceiveResult
         class CidSessionMissing(val cid: ByteArray) : ReceiveResult
+    }
+
+    // The three failures are kept apart on purpose: only NotFound means the connection state is
+    // genuinely gone. Reacting to the other two would answer records the server cannot verify.
+    sealed interface SessionLoadResult {
+        object Loaded : SessionLoadResult
+
+        // the session store had no entry for that CID
+        object NotFound : SessionLoadResult
+
+        // the session loaded, but the record that triggered the load failed verification
+        object RecordVerificationFailed : SessionLoadResult
+
+        // the stored session blob could not be deserialised, eg. after an mbedTLS upgrade
+        object NotReadable : SessionLoadResult
     }
 
     private abstract inner class DtlsState(val peerAddress: InetSocketAddress) {
