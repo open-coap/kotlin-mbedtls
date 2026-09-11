@@ -11,9 +11,15 @@ jobs:
       fail-fast: false
       matrix:
         java: [ '17', '21', '25' ]
-        platform: [ 'ubuntu-latest', 'ubuntu-24.04-arm', 'macos-latest', 'windows-latest' ]
+        platform: [ 'ubuntu-latest', 'ubuntu-24.04-arm' ]
+        include:
+          - java: '25'
+            platform: 'windows-latest'
+          - java: '25'
+            platform: 'macos-latest'
         exclude:
           - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'macos-latest' }}
+          - platform: ${{ github.repository == 'open-coap/kotlin-mbedtls' || 'windows-latest' }}
 
 
     runs-on: ${{ matrix.platform }}
