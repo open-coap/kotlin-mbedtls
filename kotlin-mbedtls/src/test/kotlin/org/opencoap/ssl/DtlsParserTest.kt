@@ -28,8 +28,7 @@ import java.nio.ByteBuffer
 import kotlin.random.Random
 
 class DtlsParserTest {
-    // A `tls12_cid` record: 0x19 FEFD, epoch 0x0001, sequence number 0x000000000001,
-    // followed by a 16 byte connection id.
+    // tls12_cid record: 0x19 FEFD, epoch 1, seq 1, then a 16 byte connection id.
     private val cidRecord =
         "19fefd0001000000000001db04684e33424e42801f0e38023d243800280001000000000001a7eddd3aa34f5164499ca1fcaede85f9e77036ad66c2affb2ae9c97c5a78adb9"
 
@@ -120,7 +119,7 @@ class DtlsParserTest {
 
     @Test
     fun `should read relative to buffer position and leave it undisturbed`() {
-        // the record is prefixed with junk, so absolute-from-zero reads would return wrong values
+        // junk prefix: absolute-from-zero reads would return wrong values
         val buf = ("ffffff" + cidRecord).decodeHex().asByteBuffer()
         buf.position(3)
 
@@ -168,8 +167,7 @@ class DtlsParserTest {
         assertEquals(0, buf.position())
     }
 
-    // Builds a ClientHello whose extension block holds [extensions], laid out so the
-    // session id length lands at offset 59 where the walk expects it:
+    // ClientHello holding [extensions], laid out so the session id length lands at offset 59:
     // DTLSHeader(13) + HandshakeHeader(12) + client_version(2) + random(32) = 59
     private fun clientHello(extensions: ByteArray): ByteArray {
         val recordHeader = "16fefd000000000000000000".decodeHex() // type, version, epoch, seq, len(1 of 2)
@@ -247,7 +245,7 @@ class DtlsParserTest {
     @Test
     fun `should reject an extensions block longer than the datagram`() {
         val bytes = clientHello(cidExtension)
-        // overstate the extensions length: declared block runs past the end of the datagram
+        // declared extensions block runs past the end of the datagram
         bytes[67] = 0xff.toByte()
         bytes[68] = 0xff.toByte()
 

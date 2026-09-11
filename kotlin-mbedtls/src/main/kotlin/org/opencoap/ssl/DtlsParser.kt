@@ -31,15 +31,10 @@ import java.nio.ByteOrder
  * 11..   connection id, `tls12_cid` records only
  * ```
  *
- * It also recognises a ClientHello and the `connection_id` extension inside it.
+ * Also recognises a ClientHello and the `connection_id` extension inside it.
  *
- * Every read is bound-checked and yields null or false for a datagram too short to hold the
- * field, so a truncated or malformed datagram is filtered rather than thrown out of the receive
- * path. The caller's buffer is never modified: the record-header readers are absolute, and the
- * ClientHello walk advances a private slice.
- *
- * Nothing here decides policy or logs -- the readers answer what the bytes say, and the caller
- * decides what that means.
+ * Every read is bound-checked: too short a datagram yields null or false, never a throw.
+ * The caller's buffer is never modified.
  */
 object DtlsParser {
     // Content type `tls12_cid`(0x19) followed by the DTLS 1.2 version (0xFEFD).
@@ -51,10 +46,7 @@ object DtlsParser {
     private const val SEQUENCE_NUMBER_SIZE = 6
     private const val CID_OFFSET = 11
 
-    /**
-     * Reads the connection id of a `tls12_cid` record, or null when the buffer does not hold a
-     * DTLS 1.2 CID record carrying at least [cidSize] connection id bytes.
-     */
+    /** Connection id of a `tls12_cid` record, or null when there are not [cidSize] bytes of it. */
     fun readCid(cidSize: Int, buf: ByteBuffer): ByteArray? {
         val pos = buf.position()
         if (buf.remaining() < CID_OFFSET + cidSize) {
@@ -74,10 +66,9 @@ object DtlsParser {
     }
 
     /**
-     * Reads the record epoch, or null when the buffer is too short to hold it.
+     * Record epoch, or null when the buffer is too short.
      *
-     * The epoch sits at the same offset in every DTLS record, so the content type is not
-     * checked here; callers that need a CID record should pair this with [readCid].
+     * Same offset in every DTLS record, so the content type is not checked -- pair with [readCid].
      */
     fun readEpoch(buf: ByteBuffer): Int? {
         if (buf.remaining() < EPOCH_OFFSET + EPOCH_SIZE) {
@@ -87,11 +78,7 @@ object DtlsParser {
         return buf.getShort(buf.position() + EPOCH_OFFSET).toInt() and 0xffff
     }
 
-    /**
-     * Reads the 48-bit record sequence number, or null when the buffer is too short to hold it.
-     *
-     * As with [readEpoch], the content type is not checked.
-     */
+    /** 48-bit record sequence number, or null when the buffer is too short. See [readEpoch]. */
     fun readSequenceNumber(buf: ByteBuffer): Long? {
         if (buf.remaining() < SEQUENCE_NUMBER_OFFSET + SEQUENCE_NUMBER_SIZE) {
             return null
@@ -105,11 +92,7 @@ object DtlsParser {
         return sequenceNumber
     }
 
-    /**
-     * Why a datagram is not a DTLS ClientHello, or [VALID] when it is.
-     *
-     * The caller owns the diagnostics; this only reports which check failed.
-     */
+    /** Why a datagram is not a DTLS ClientHello, or [VALID] when it is. */
     enum class ClientHelloCheck { VALID, TOO_SHORT, BAD_HEADER, BAD_HANDSHAKE_TYPE }
 
     fun checkClientHello(buf: ByteBuffer): ClientHelloCheck {
@@ -142,12 +125,8 @@ object DtlsParser {
     /**
      * Walks a ClientHello looking for the `connection_id` extension.
      *
-     * Every length here is attacker-controlled, so each step is bound-checked and a field
-     * running past the end of the datagram answers false rather than throwing out of the
-     * receive path. Inputs that parsed before the checks were added are unaffected: each check
-     * triggers exactly where a read used to throw.
-     *
-     * Expects a buffer positioned at the start of the record, as [checkClientHello] accepted.
+     * Lengths here are attacker-controlled, so every step is bound-checked. Expects a buffer
+     * positioned at the start of the record, as [checkClientHello] accepted.
      */
     fun supportsCidExtension(buf: ByteBuffer): Boolean {
         val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
@@ -186,8 +165,7 @@ object DtlsParser {
     private val CID_EXTENSION_TYPE = 0x36.toShort()
 }
 
-// Bound-checked seek helpers for parsing attacker-controlled lengths. Each returns false and
-// leaves the buffer untouched when the field it describes does not fit within the buffer's limit.
+// Bound-checked seeks. Each returns false, buffer untouched, when the field does not fit.
 private fun ByteBuffer.trySeek(offset: Int): Boolean {
     if (remaining() < offset) return false
     position(position() + offset)
