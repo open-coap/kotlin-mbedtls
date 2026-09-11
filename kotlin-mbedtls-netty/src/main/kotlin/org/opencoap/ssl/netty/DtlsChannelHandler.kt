@@ -83,11 +83,14 @@ class DtlsChannelHandler @JvmOverloads constructor(
     private fun loadSession(result: DtlsServer.ReceiveResult.CidSessionMissing, msg: DatagramPacket, ctx: ChannelHandlerContext) {
         sessionStore.read(result.cid)
             .thenApplyAsync({ sessBuf -> dtlsServer.loadSession(sessBuf, msg.sender(), result.cid, msg.content().nioBuffer()) }, ctx.executor())
-            .whenComplete { isLoaded: Boolean?, _ ->
-                if (isLoaded == true) {
-                    channelRead(ctx, msg)
-                } else {
-                    msg.release()
+            .whenComplete { loadResult: DtlsServer.SessionLoadResult?, _ ->
+                when (loadResult) {
+                    is DtlsServer.SessionLoadResult.Loaded -> channelRead(ctx, msg)
+                    is DtlsServer.SessionLoadResult.NotFound -> msg.release()
+                    is DtlsServer.SessionLoadResult.RecordVerificationFailed -> msg.release()
+                    is DtlsServer.SessionLoadResult.NotReadable -> msg.release()
+                    // the session store read itself failed
+                    null -> msg.release()
                 }
             }
     }

@@ -79,11 +79,12 @@ class DtlsServerTransport private constructor(
                 sessionStore.read(result.cid).thenApplyAsync(
                     { sessBuf -> dtlsServer.loadSession(sessBuf, adr, result.cid, copyBuf) },
                     executor
-                ).thenCompose { isLoaded ->
-                    if (isLoaded) {
-                        receive0(adr, copyBuf, timeout)
-                    } else {
-                        receive(timeout)
+                ).thenCompose { loadResult ->
+                    when (loadResult) {
+                        is DtlsServer.SessionLoadResult.Loaded -> receive0(adr, copyBuf, timeout)
+                        is DtlsServer.SessionLoadResult.NotFound -> receive(timeout)
+                        is DtlsServer.SessionLoadResult.RecordVerificationFailed -> receive(timeout)
+                        is DtlsServer.SessionLoadResult.NotReadable -> receive(timeout)
                     }
                 }
             }
