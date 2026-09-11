@@ -401,8 +401,3 @@ class DtlsServer(
         return true
     }
 }
-
-fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
-fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().toUShort().let { this.seek(it.toInt()) }
-fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().toUByte().let { this.seek(it.toInt()) }
-fun ByteBuffer.readShortAndLimit(): ByteBuffer = this.getShort().toUShort().let { this.limit(this.position() + it.toInt()) } as ByteBuffer

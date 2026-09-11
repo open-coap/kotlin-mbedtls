@@ -40,6 +40,9 @@ import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.flip0
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.millis
+import org.opencoap.ssl.util.readByteAndSeek
+import org.opencoap.ssl.util.readShortAndSeek
+import org.opencoap.ssl.util.seek
 import org.opencoap.ssl.util.truncatedDtlsHandshakeHeader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
