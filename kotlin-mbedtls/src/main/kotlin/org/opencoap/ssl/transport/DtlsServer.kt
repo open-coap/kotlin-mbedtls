@@ -409,10 +409,8 @@ class DtlsServer(
         return true
     }
 
-    // Walks a ClientHello looking for the connection_id extension. Every length here is
-    // attacker-controlled, so each step is bound-checked and a field running past the end of
-    // the datagram answers false rather than throwing out of the receive path. Inputs that
-    // parsed before are unaffected: each check triggers exactly where a read used to throw.
+    // Lengths here are attacker-controlled, so every step is bound-checked: a field reaching
+    // past the end of the datagram answers false instead of throwing.
     private fun supportsCid(buf: ByteBuffer): Boolean {
         val workingBuffer = buf.slice().order(ByteOrder.BIG_ENDIAN)
 
@@ -445,9 +443,7 @@ class DtlsServer(
     }
 }
 
-// Bound-checked counterparts of the seek helpers below, for parsing attacker-controlled
-// lengths. Each returns false and leaves the buffer untouched when the field it describes
-// does not fit within the buffer's limit.
+// Bound-checked seeks. Each returns false, buffer untouched, when the field does not fit.
 private fun ByteBuffer.trySeek(offset: Int): Boolean {
     if (remaining() < offset) return false
     position(position() + offset)

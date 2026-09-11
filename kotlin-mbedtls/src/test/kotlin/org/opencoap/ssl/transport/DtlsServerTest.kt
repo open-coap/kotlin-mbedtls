@@ -341,18 +341,15 @@ class DtlsServerTest {
         assertEquals(0, dtlsServer.numberOfSessions)
     }
 
-    // supportsCid() walks a ClientHello from offset 59 through four attacker-controlled
-    // variable-length fields. The 14-byte guard in isValidHandshakeRequest is not enough to
-    // cover it, so before the bound checks every length in 14..65 that passed the header sniff
-    // threw out of handleReceived(): 14..58 on the seek to offset 59, 59..65 on the
-    // variable-length walk running off the end. The 0f73c72 fuzz test never caught this
-    // because it runs with cidRequired = false, which never reaches supportsCid.
+    // supportsCid() walks from offset 59, but isValidHandshakeRequest only guards 14 bytes.
+    // Before the bound checks, every length in 14..65 that passed the sniff threw out of
+    // handleReceived(). The 0f73c72 fuzz test runs with cidRequired = false, so it never hit this.
     @Test
     fun `should drop short datagrams when CID is required`() {
         dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
         val adr = localAddress(2_5684)
 
-        // passes the header sniff: Handshake(0x16), DTLS 1.2, epoch 0, ClientHello(1) at offset 13
+        // passes the sniff: Handshake(0x16), DTLS 1.2, epoch 0, ClientHello(1) at offset 13
         val clientHelloHeader = "16fefd0000000000000000000001".decodeHex()
 
         for (len in 0..120) {
@@ -372,8 +369,7 @@ class DtlsServerTest {
         val adr = localAddress(2_5684)
 
         repeat(20_000) {
-            // prefix half the datagrams with a valid-looking ClientHello header so the fuzz
-            // actually reaches the extension walk instead of being rejected by the sniff
+            // half get a valid-looking header, so the fuzz reaches the walk instead of the sniff
             val body = random.nextBytes(random.nextInt(0, 301))
             val bytes = if (random.nextBoolean()) "16fefd0000000000000000000001".decodeHex() + body else body
             dtlsServer.handleReceived(adr, ByteBuffer.wrap(bytes))
