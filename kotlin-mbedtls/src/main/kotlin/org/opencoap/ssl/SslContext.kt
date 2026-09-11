@@ -39,29 +39,7 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.time.Duration
 
-sealed interface SslContext : Closeable {
-    companion object {
-        fun peekCID(size: Int, encBuffer: ByteBuffer): ByteArray? {
-            val pos = encBuffer.position()
-            if (encBuffer.remaining() < 11 + size) {
-                // too short
-                return null
-            }
-            if ((encBuffer.int shr 8) != 0x19fefd) {
-                // not a dtls+cid packet
-                encBuffer.position(pos)
-                return null
-            }
-
-            val cid = ByteArray(size)
-
-            encBuffer.position(pos + 11)
-            encBuffer.get(cid)
-            encBuffer.position(pos)
-            return cid
-        }
-    }
-}
+sealed interface SslContext : Closeable
 
 class SslHandshakeContext internal constructor(
     private val conf: SslConfig, // keep in memory to prevent GC

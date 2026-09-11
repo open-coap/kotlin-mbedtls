@@ -17,9 +17,9 @@
 package org.opencoap.ssl.transport
 
 import org.opencoap.ssl.CloseNotifyException
+import org.opencoap.ssl.DtlsParser
 import org.opencoap.ssl.HelloVerifyRequired
 import org.opencoap.ssl.SslConfig
-import org.opencoap.ssl.SslContext
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
@@ -55,7 +55,7 @@ class DtlsServer(
     val numberOfSessions get() = sessions.size
 
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
-        val cid by lazy { SslContext.peekCID(cidSize, buf) }
+        val cid by lazy { DtlsParser.readCid(cidSize, buf) }
         val isValidHandshake by lazy { isValidHandshakeRequest(buf) }
         val dtlsState = sessions[adr]
 
