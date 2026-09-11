@@ -65,5 +65,9 @@ fun ByteBuffer.flip0(): ByteBuffer {
     return this
 }
 
+fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
+fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().toUShort().let { this.seek(it.toInt()) }
+fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().toUByte().let { this.seek(it.toInt()) }
+
 // Lengths 0-7 truncate the DTLS header; 8-13 omit the handshake type at offset 13.
 val truncatedDtlsHandshakeHeader = "16FEFD00000000000000000000".decodeHex()

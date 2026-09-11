@@ -19,17 +19,13 @@ package org.opencoap.ssl
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.opencoap.ssl.transport.asByteBuffer
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
-import org.opencoap.ssl.transport.toHex
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
-import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
 import java.nio.ByteBuffer
 
@@ -41,47 +37,6 @@ class SslContextTest {
     fun tearDown() {
         serverConf.close()
         clientConf.close()
-    }
-
-    @Test
-    fun `should peek CID from DTLS Packet`() {
-        val dtlsPacket =
-            "19fefd0001000000000001db04684e33424e42801f0e38023d243800280001000000000001a7eddd3aa34f5164499ca1fcaede85f9e77036ad66c2affb2ae9c97c5a78adb9"
-                .decodeHex().asByteBuffer()
-
-        val cid = SslContext.peekCID(16, dtlsPacket)
-
-        assertEquals("db04684e33424e42801f0e38023d2438", cid?.toHex())
-        assertEquals(0, dtlsPacket.position())
-    }
-
-    @Test
-    fun `should peek CID from DTLS Packet with different sizes`() {
-        assertEquals(
-            "db",
-            SslContext.peekCID(1, "19fefd0301000000000003db04684e3342".decodeHex().asByteBuffer())?.toHex()
-        )
-        assertEquals(
-            "db04684e",
-            SslContext.peekCID(4, "19fefdf001000000000001db04684e3342".decodeHex().asByteBuffer())?.toHex()
-        )
-    }
-
-    @Test
-    fun `should return null when not DTLS Packet`() {
-        assertNull(SslContext.peekCID(4, "17fefd0001000000000001db04684e3342".decodeHex().asByteBuffer()))
-        assertNull(SslContext.peekCID(4, "19f0fd0001000000000001db04684e3342".decodeHex().asByteBuffer()))
-        assertNull(SslContext.peekCID(4, "19fef00001000000000001db04684e3342".decodeHex().asByteBuffer()))
-    }
-
-    @Test
-    fun `should return null when too short DTLS Packet`() {
-        assertNull(
-            SslContext.peekCID(7, "19fefdf001000000000001db04684e3342".decodeHex().asByteBuffer())?.toHex()
-        )
-        assertNull(
-            SslContext.peekCID(2, "19fefd".decodeHex().asByteBuffer())?.toHex()
-        )
     }
 
     @Test
