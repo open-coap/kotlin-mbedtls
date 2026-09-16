@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,16 @@
 
 package org.opencoap.ssl
 
-import java.security.SecureRandom
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Test
 
-fun interface CidSupplier {
-    fun next(): ByteArray
-    fun isValidCid(cid: ByteArray): Boolean = true
-}
+class CidSupplierTest {
 
-object EmptyCidSupplier : CidSupplier {
-    override fun next(): ByteArray = byteArrayOf()
-}
+    @Test
+    fun `separately constructed suppliers produce different CIDs`() {
+        val a = RandomCidSupplier(16).next()
+        val b = RandomCidSupplier(16).next()
 
-class RandomCidSupplier(private val size: Int) : CidSupplier {
-
-    private val random = SecureRandom()
-
-    override fun next(): ByteArray = ByteArray(size).also(random::nextBytes)
+        assertFalse(a.contentEquals(b), "CIDs from two separate suppliers must differ")
+    }
 }
