@@ -256,13 +256,10 @@ class DtlsServerTransportTest {
     @Test
     fun `should survive short malformed datagrams and keep serving`() {
         server = DtlsServerTransport.create(conf, lifecycleCallbacks = sslLifecycleCallbacks).listen(echoHandler)
-        val cliChannel = DatagramChannel.open().connect(server.localAddress())
-        try {
+        DatagramChannel.open().connect(server.localAddress()).use { cliChannel ->
             for (len in 0..13) {
                 cliChannel.write(ByteBuffer.wrap(truncatedDtlsHandshakeHeader.copyOf(len)))
             }
-        } finally {
-            cliChannel.close()
         }
 
         // server is still alive: a legitimate client can still handshake and exchange data

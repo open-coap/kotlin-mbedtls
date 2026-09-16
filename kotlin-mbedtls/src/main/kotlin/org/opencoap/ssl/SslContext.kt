@@ -148,17 +148,12 @@ class SslSession internal constructor(
         plainBuffer.limit(size + plainBuffer.position())
     }
 
-    fun checkRecord(encBuffer: ByteBuffer): VerificationResult {
-        val memory = encBuffer.cloneToMemory()
-        try {
-            val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
-            return when (result) {
-                0 -> VerificationResult.Valid
-                MBEDTLS_ERR_SSL_UNEXPECTED_RECORD -> VerificationResult.Replayed
-                else -> VerificationResult.Invalid(SslException.from(result).localizedMessage)
-            }
-        } finally {
-            memory.close()
+    fun checkRecord(encBuffer: ByteBuffer): VerificationResult = encBuffer.cloneToMemory().use { memory ->
+        val result = MbedtlsApi.mbedtls_ssl_check_record(sslContext, memory, memory.size().toInt())
+        when (result) {
+            0 -> VerificationResult.Valid
+            MBEDTLS_ERR_SSL_UNEXPECTED_RECORD -> VerificationResult.Replayed
+            else -> VerificationResult.Invalid(SslException.from(result).localizedMessage)
         }
     }
 
