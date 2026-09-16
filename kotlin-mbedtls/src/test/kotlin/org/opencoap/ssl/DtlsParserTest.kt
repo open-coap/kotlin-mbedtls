@@ -19,6 +19,7 @@ package org.opencoap.ssl
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.transport.asByteBuffer
@@ -52,6 +53,62 @@ class DtlsParserTest {
             "db04684e",
             DtlsParser.readCid(4, "19fefdf001000000000001db04684e3342".decodeHex().asByteBuffer())?.toHex()
         )
+    }
+
+    @Test
+    fun `should peek the largest CID mbedtls negotiates`() {
+        val record = "19fefd0001000000000001".decodeHex() + ByteArray(DtlsParser.MAX_CID_SIZE) { (it + 1).toByte() }
+
+        val cid = DtlsParser.readCid(DtlsParser.MAX_CID_SIZE, record.asByteBuffer())
+
+        assertEquals(DtlsParser.MAX_CID_SIZE, cid?.size)
+        assertEquals("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20", cid?.toHex())
+    }
+
+    @Test
+    fun `should reject CID sizes outside the protocol range`() {
+        val buf = cidRecord.decodeHex().asByteBuffer()
+
+        // negatives used to reach ByteArray(-n); sizes near Int.MAX_VALUE overflowed the
+        // `remaining() < 11 + cidSize` guard and then allocated
+        for (cidSize in listOf(-1, -11, -1024, Int.MIN_VALUE, DtlsParser.MAX_CID_SIZE + 1, 1024, Int.MAX_VALUE)) {
+            val ex = assertThrows(IllegalArgumentException::class.java) { DtlsParser.readCid(cidSize, buf) }
+            assertEquals("invalid CID size: $cidSize", ex.message)
+        }
+
+        assertEquals(0, buf.position())
+    }
+
+    @Test
+    fun `should not peek a CID when CID is disabled`() {
+        assertNull(DtlsParser.readCid(0, cidRecord.decodeHex().asByteBuffer()))
+        assertNull(DtlsParser.readCid(0, ByteArray(64).asByteBuffer()))
+        assertNull(DtlsParser.readCid(0, ByteArray(0).asByteBuffer()))
+    }
+
+    @Test
+    fun `should not throw for randomised CID sizes`() {
+        val random = Random(1)
+
+        repeat(50_000) {
+            val buf = random.nextBytes(random.nextInt(0, 64)).asByteBuffer()
+            val cidSize = when (random.nextInt(4)) {
+                // in range, then either side of each bound, then anything at all
+                0 -> random.nextInt(0, DtlsParser.MAX_CID_SIZE + 1)
+                1 -> random.nextInt(-64, 64)
+                2 -> random.nextInt(DtlsParser.MAX_CID_SIZE - 8, Int.MAX_VALUE)
+                else -> random.nextInt()
+            }
+
+            // only an argument error is acceptable; OutOfMemoryError and
+            // NegativeArraySizeException escaping fails the test
+            try {
+                DtlsParser.readCid(cidSize, buf)
+            } catch (ex: IllegalArgumentException) {
+                assertFalse(cidSize in 0..DtlsParser.MAX_CID_SIZE, "rejected valid CID size $cidSize")
+            }
+            assertEquals(0, buf.position())
+        }
     }
 
     @Test

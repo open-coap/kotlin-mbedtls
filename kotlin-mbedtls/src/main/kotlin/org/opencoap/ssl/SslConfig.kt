@@ -147,7 +147,7 @@ class SslConfig(
             }
 
             if (cidSupplier != null && cidSupplier != EmptyCidSupplier) {
-                mbedtls_ssl_conf_cid(sslConfig, cidSupplier.next().size, 0)
+                mbedtls_ssl_conf_cid(sslConfig, cidSupplier.next().size, 0).verify()
             }
 
             authConfig.configure(sslConfig, caCert, ownCert, pkey)
