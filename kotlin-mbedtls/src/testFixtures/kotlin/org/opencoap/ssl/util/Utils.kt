@@ -65,6 +65,14 @@ fun ByteBuffer.flip0(): ByteBuffer {
     return this
 }
 
+// Copy with one bit flipped. Inside the ciphertext or the tag, this fails the MAC.
+fun ByteBuffer.withFlippedBitAt(index: Int): ByteBuffer {
+    val bytes = ByteArray(remaining())
+    duplicate().get(bytes)
+    bytes[index] = (bytes[index].toInt() xor 0x01).toByte()
+    return ByteBuffer.wrap(bytes)
+}
+
 fun ByteBuffer.seek(offset: Int): ByteBuffer = this.position(this.position() + offset) as ByteBuffer
 fun ByteBuffer.readShortAndSeek(): ByteBuffer = this.getShort().toUShort().let { this.seek(it.toInt()) }
 fun ByteBuffer.readByteAndSeek(): ByteBuffer = this.get().toUByte().let { this.seek(it.toInt()) }
