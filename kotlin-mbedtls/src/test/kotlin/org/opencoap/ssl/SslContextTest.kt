@@ -131,6 +131,43 @@ class SslContextTest {
         assertTrue(result is SslSession.VerificationResult.Invalid)
     }
 
+    // Only a zero return is authentic. INVALID_MAC and INVALID_RECORD must map to Invalid too,
+    // or a forged datagram with an observed CID passes the gate in DtlsServer.loadSession.
+    @Test
+    fun `should check record is invalid when the authentication tag is tampered`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
+
+        // the last byte of an AES-GCM record falls inside the authentication tag
+        val result = serverSession.checkRecord(encryptedDtls.withFlippedBitAt(encryptedDtls.remaining() - 1))
+
+        assertTrue(result is SslSession.VerificationResult.Invalid, "expected Invalid for a tampered tag, got $result")
+    }
+
+    @Test
+    fun `should check record is invalid when the ciphertext body is tampered`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        // long enough for a body midpoint clear of the header and the tag
+        val plainText = "auto".repeat(8)
+        val encryptedDtls = clientSession.encrypt(plainText.toByteBuffer())
+
+        // skipping the 16 byte tag lands this in the ciphertext rather than in the tag
+        val gcmTagSize = 16
+        val bodyMidpoint = encryptedDtls.remaining() - gcmTagSize - plainText.length / 2
+        val result = serverSession.checkRecord(encryptedDtls.withFlippedBitAt(bodyMidpoint))
+
+        assertTrue(result is SslSession.VerificationResult.Invalid, "expected Invalid for a tampered body, got $result")
+    }
+
+    private fun ByteBuffer.withFlippedBitAt(index: Int): ByteBuffer {
+        val bytes = ByteArray(remaining())
+        duplicate().get(bytes)
+        bytes[index] = (bytes[index].toInt() xor 0x01).toByte()
+        return ByteBuffer.wrap(bytes)
+    }
+
     @Test
     fun `should exchange data with direct byte buffer`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
