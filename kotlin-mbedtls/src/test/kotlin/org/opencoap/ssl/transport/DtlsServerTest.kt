@@ -44,6 +44,7 @@ import org.opencoap.ssl.util.readByteAndSeek
 import org.opencoap.ssl.util.readShortAndSeek
 import org.opencoap.ssl.util.seek
 import org.opencoap.ssl.util.truncatedDtlsHandshakeHeader
+import org.opencoap.ssl.util.withFlippedBitAt
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Instant
@@ -54,11 +55,17 @@ import kotlin.random.Random
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DtlsServerTest {
+    companion object {
+        // CID of the stored session pair
+        private val SRV_CID = "f935adc57425e1b214f8640d56e0c733".decodeHex()
+    }
+
     val serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, RandomCidSupplier(16))
     val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     val clientConfNoCid = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), cidSupplier = null)
     val serverConfInvalidCid = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, InvalidCidSupplier(16))
 
+    private val adr = localAddress(2_5684)
     private val sessionStore = HashMapSessionStore()
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
     private lateinit var dtlsServer: DtlsServer
@@ -66,6 +73,8 @@ class DtlsServerTest {
 
     @BeforeEach
     fun setUp() {
+        // PER_CLASS shares the store, and tearDown stores any session still live
+        sessionStore.clear()
         dtlsServer = DtlsServer(::outboundTransport, serverConf, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"))
     }
 
@@ -102,6 +111,67 @@ class DtlsServerTest {
         assertEquals(Instant.ofEpochSecond(123456789), dtlsPacketIn.sessionContext.sessionStartTimestamp)
         val dtlsPacketOut = dtlsServer.encrypt("hello2".toByteBuffer(), localAddress(2_5684))!!.order(ByteOrder.BIG_ENDIAN)
         assertEquals("hello2", clientSession.decrypt(dtlsPacketOut, noSend).decodeToString())
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should keep reloaded session when the record that triggered the load is replayed`() {
+        // given, a session that was reloaded, used and then stored back
+        val (clientSession, replayedRecord) = reloadedAndStoredBackSession()
+        clearMocks(lifecycleCallbacks)
+
+        // when, the already seen record arrives again and drives another reload
+        val result = dtlsServer.loadSession(sessionStore.read(SRV_CID).join(), adr, SRV_CID, replayedRecord.duplicate())
+
+        // then, the record is dropped but the session survives
+        assertTrue(result is DtlsServer.SessionLoadResult.RecordVerificationFailed)
+        assertEquals(1, dtlsServer.numberOfSessions)
+        verify(exactly = 1) { lifecycleCallbacks.messageDropped(adr) }
+
+        // and, the next genuine record from the same peer is served normally
+        val next = clientSession.encrypt("recovered".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        assertEquals("recovered", dtlsServer.handleAndDecrypt(next))
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should store retained session back through idle expiry only`() {
+        // given, a reloaded session retained after rejecting a replayed record
+        val (clientSession, replayedRecord) = reloadedAndStoredBackSession()
+        dtlsServer.loadSession(sessionStore.read(SRV_CID).join(), adr, SRV_CID, replayedRecord.duplicate())
+        assertEquals(1, dtlsServer.numberOfSessions)
+
+        // then, nothing is written back on the rejection path itself
+        assertEquals(0, sessionStore.size())
+
+        // when, the session goes idle
+        await.untilAsserted {
+            assertEquals(0, dtlsServer.numberOfSessions)
+        }
+
+        // then, the normal idle-expiry path stored it
+        assertEquals(1, sessionStore.size())
+        assertNotNull(sessionStore.read(SRV_CID).join())
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should discard reloaded session when the record that triggered the load is tampered`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(5684))
+        val record = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN).copy()
+        // a fresh record fails the MAC rather than the replay window
+        val tampered = record.withFlippedBitAt(record.remaining() - 1).order(ByteOrder.BIG_ENDIAN)
+
+        // when
+        val result = dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.now()), adr, SRV_CID, tampered)
+
+        // then, the record is dropped and no session is left behind
+        assertTrue(result is DtlsServer.SessionLoadResult.RecordVerificationFailed)
+        assertEquals(0, dtlsServer.numberOfSessions)
+        verify(exactly = 1) { lifecycleCallbacks.messageDropped(adr) }
 
         clientSession.close()
     }
@@ -392,6 +462,19 @@ class DtlsServerTest {
     }
 
     private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
+
+    // Reloads the stored session pair and feeds it one record, so that record is now inside the
+    // replay window, then stores the session back. Returns the record ready to be replayed.
+    private fun reloadedAndStoredBackSession(): Pair<SslSession, ByteBuffer> {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(5684))
+        // encrypt returns a view over a reused native buffer, so copy to survive the next one
+        val record = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN).copy()
+        dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.now()), adr, SRV_CID, record.duplicate())
+        assertEquals("hello", dtlsServer.handleAndDecrypt(record.duplicate()))
+        dtlsServer.closeSessions()
+        assertEquals(1, sessionStore.size())
+        return clientSession to record
+    }
 
     private fun DtlsServer.handleAndDecrypt(dtlsPacket: ByteBuffer): String {
         val receiveResult = this.handleReceived(localAddress(2_5684), dtlsPacket)

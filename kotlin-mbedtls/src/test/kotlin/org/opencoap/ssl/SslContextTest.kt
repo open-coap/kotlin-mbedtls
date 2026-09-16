@@ -22,11 +22,13 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.opencoap.ssl.transport.copy
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.withFlippedBitAt
 import java.nio.ByteBuffer
 
 class SslContextTest {
@@ -121,14 +123,48 @@ class SslContextTest {
     }
 
     @Test
-    fun `should check record is invalid when record is unexpected and replayed`() {
+    fun `should check record is replayed when record is unexpected and replayed`() {
         val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
         val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
         val encryptedDtls = clientSession.encrypt("auto".toByteBuffer())
 
         serverSession.decrypt(encryptedDtls, noSend)
         val result = serverSession.checkRecord(encryptedDtls.rewind() as ByteBuffer)
-        assertTrue(result is SslSession.VerificationResult.Invalid)
+        assertTrue(result is SslSession.VerificationResult.Replayed)
+    }
+
+    @Test
+    fun `should classify a replayed record apart from a tampered one`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        // encrypt returns a view over a reused native buffer, so copy to survive the next one
+        val record = clientSession.encrypt("auto".toByteBuffer()).copy()
+        serverSession.decrypt(record.duplicate(), noSend)
+        val fresh = clientSession.encrypt("auto".toByteBuffer()).copy()
+
+        val replayed = serverSession.checkRecord(record.duplicate())
+        val tampered = serverSession.checkRecord(fresh.withFlippedBitAt(fresh.remaining() - 1))
+
+        assertTrue(replayed is SslSession.VerificationResult.Replayed, "expected Replayed, got $replayed")
+        assertTrue(tampered is SslSession.VerificationResult.Invalid, "expected Invalid, got $tampered")
+    }
+
+    // Only the record is lost, not the context. DtlsServer.loadSession relies on this to keep a
+    // reloaded session instead of discarding it.
+    @Test
+    fun `should keep a reloaded session usable after it rejects a replayed record`() {
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), StoredSessionPair.srvSession, localAddress(1_5684))
+        val record = clientSession.encrypt("auto".toByteBuffer())
+        assertEquals("auto", serverSession.decrypt(record.duplicate(), noSend).decodeToString())
+
+        // when, the very same record arrives again
+        assertTrue(serverSession.checkRecord(record.duplicate()) is SslSession.VerificationResult.Replayed)
+
+        // then, the session still serves the next genuine record
+        val next = clientSession.encrypt("recovered".toByteBuffer())
+        assertTrue(serverSession.checkRecord(next.duplicate()) is SslSession.VerificationResult.Valid)
+        assertEquals("recovered", serverSession.decrypt(next, noSend).decodeToString())
     }
 
     // Only a zero return is authentic. INVALID_MAC and INVALID_RECORD must map to Invalid too,
@@ -159,13 +195,6 @@ class SslContextTest {
         val result = serverSession.checkRecord(encryptedDtls.withFlippedBitAt(bodyMidpoint))
 
         assertTrue(result is SslSession.VerificationResult.Invalid, "expected Invalid for a tampered body, got $result")
-    }
-
-    private fun ByteBuffer.withFlippedBitAt(index: Int): ByteBuffer {
-        val bytes = ByteArray(remaining())
-        duplicate().get(bytes)
-        bytes[index] = (bytes[index].toInt() xor 0x01).toByte()
-        return ByteBuffer.wrap(bytes)
     }
 
     @Test

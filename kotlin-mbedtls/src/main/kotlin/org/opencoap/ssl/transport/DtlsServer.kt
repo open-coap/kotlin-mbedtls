@@ -23,6 +23,7 @@ import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.SslHandshakeContext
 import org.opencoap.ssl.SslSession
+import org.opencoap.ssl.SslSession.VerificationResult
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -140,15 +141,7 @@ class DtlsServer(
         }
 
         return try {
-            val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
-            val verificationResult = sslSession.checkRecord(dtlsPacket)
-            if (verificationResult is SslSession.VerificationResult.Invalid) {
-                logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
-                reportMessageDrop(adr)
-                return SessionLoadResult.RecordVerificationFailed
-            }
-            sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
-            SessionLoadResult.Loaded
+            loadSession0(sessBuf, adr, cid, dtlsPacket)
         } catch (ex: Exception) {
             if (ex.message?.contains("-0x5F00") == true || ex.message?.contains("unexpected version") == true) {
                 logger.warn("[{}] [CID:{}] DTLS session not loaded due to version mismatch: {}", adr, cid.toHex(), ex.message)
@@ -158,6 +151,36 @@ class DtlsServer(
             reportMessageDrop(adr)
             SessionLoadResult.NotReadable
         }
+    }
+
+    private fun loadSession0(sessBuf: SessionWithContext, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer): SessionLoadResult {
+        val sslSession = sslConfig.loadSession(cid, sessBuf.sessionBlob, adr)
+        val verificationResult = sslSession.checkRecord(dtlsPacket)
+        return when (verificationResult) {
+            is VerificationResult.Valid -> {
+                registerSession(sslSession, adr, sessBuf)
+                SessionLoadResult.Loaded
+            }
+
+            is VerificationResult.Replayed -> {
+                logger.info("[{}] [CID:{}] Replayed record, dropped", adr, cid.toHex())
+                reportMessageDrop(adr)
+                // keep it as there might be a valid record later
+                registerSession(sslSession, adr, sessBuf)
+                SessionLoadResult.RecordVerificationFailed
+            }
+
+            is VerificationResult.Invalid -> {
+                logger.warn("[{}] [CID:{}] Record verification failed: {}", adr, cid.toHex(), verificationResult.message)
+                reportMessageDrop(adr)
+                sslSession.close()
+                SessionLoadResult.RecordVerificationFailed
+            }
+        }
+    }
+
+    private fun registerSession(sslSession: SslSession, adr: InetSocketAddress, sessBuf: SessionWithContext) {
+        sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
     }
 
     private fun reportMessageDrop(adr: InetSocketAddress) {
@@ -184,7 +207,8 @@ class DtlsServer(
         // the session store had no entry for that CID
         object NotFound : SessionLoadResult
 
-        // the session loaded, but the record that triggered the load failed verification
+        // the record failed verification and must not be processed; the session survives a
+        // replayed record and is discarded for any other failure
         object RecordVerificationFailed : SessionLoadResult
 
         // the stored session blob could not be deserialised, eg. after an mbedTLS upgrade
