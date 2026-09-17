@@ -17,6 +17,7 @@
 package org.opencoap.ssl
 
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.util.Certs
 import java.security.PrivateKey
@@ -41,5 +42,30 @@ class SslConfigTest {
     fun `should create config with valid private key`() {
         val conf = SslConfig.client(CertificateAuth(Certs.serverChain, Certs.server.privateKey))
         conf.close()
+    }
+
+    // mbedtls keeps a native copy, so an un-wiped array only serves up every PSK in a heap dump
+    @Test
+    fun `should zero psk secret when config is closed`() {
+        val secret = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
+        val psk = PskAuth("device-007", secret)
+        val conf = SslConfig.client(psk)
+
+        assertTrue(secret.any { it != 0.toByte() }, "secret was already zeroed before close()")
+
+        conf.close()
+
+        assertTrue(secret.all { it == 0.toByte() }, "caller's array was not zeroed, bytes=${secret.toList()}")
+        assertTrue(psk.pskSecret.all { it == 0.toByte() }, "PskAuth.pskSecret was not zeroed, bytes=${psk.pskSecret.toList()}")
+    }
+
+    @Test
+    fun `should not touch certificate credentials when config is closed`() {
+        val conf = SslConfig.client(CertificateAuth(Certs.serverChain, Certs.server.privateKey))
+
+        conf.close()
+
+        // Wiping a JCE PrivateKey is out of scope, so the key stays usable after close
+        assertTrue(Certs.server.privateKey.encoded.any { it != 0.toByte() })
     }
 }

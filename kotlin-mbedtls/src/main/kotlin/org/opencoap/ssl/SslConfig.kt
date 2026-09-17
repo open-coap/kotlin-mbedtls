@@ -165,6 +165,8 @@ class SslConfig(
                 mbedtls_x509_crt_free(caCert)
                 cookieCtx?.also(::mbedtls_ssl_cookie_free)
                 cipherSuiteIds?.also { it.clear() }
+                // mbedtls has its own native copy by now, so the JVM-side secret can go
+                if (authConfig is PskAuth) authConfig.pskSecret.fill(0)
             }
         }
 
