@@ -57,11 +57,11 @@ class DtlsParserTest {
 
     @Test
     fun `should peek the largest CID mbedtls negotiates`() {
-        val record = "19fefd0001000000000001".decodeHex() + ByteArray(DtlsParser.MAX_CID_SIZE) { (it + 1).toByte() }
+        val record = "19fefd0001000000000001".decodeHex() + ByteArray(32) { (it + 1).toByte() }
 
-        val cid = DtlsParser.readCid(DtlsParser.MAX_CID_SIZE, record.asByteBuffer())
+        val cid = DtlsParser.readCid(32, record.asByteBuffer())
 
-        assertEquals(DtlsParser.MAX_CID_SIZE, cid?.size)
+        assertEquals(32, cid?.size)
         assertEquals("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20", cid?.toHex())
     }
 
@@ -71,7 +71,7 @@ class DtlsParserTest {
 
         // negatives used to reach ByteArray(-n); sizes near Int.MAX_VALUE overflowed the
         // `remaining() < 11 + cidSize` guard and then allocated
-        for (cidSize in listOf(-1, -11, -1024, Int.MIN_VALUE, DtlsParser.MAX_CID_SIZE + 1, 1024, Int.MAX_VALUE)) {
+        for (cidSize in listOf(-1, -11, -1024, Int.MIN_VALUE, 33, 1024, Int.MAX_VALUE)) {
             val ex = assertThrows(IllegalArgumentException::class.java) { DtlsParser.readCid(cidSize, buf) }
             assertEquals("invalid CID size: $cidSize", ex.message)
         }
@@ -94,9 +94,9 @@ class DtlsParserTest {
             val buf = random.nextBytes(random.nextInt(0, 64)).asByteBuffer()
             val cidSize = when (random.nextInt(4)) {
                 // in range, then either side of each bound, then anything at all
-                0 -> random.nextInt(0, DtlsParser.MAX_CID_SIZE + 1)
+                0 -> random.nextInt(0, 33)
                 1 -> random.nextInt(-64, 64)
-                2 -> random.nextInt(DtlsParser.MAX_CID_SIZE - 8, Int.MAX_VALUE)
+                2 -> random.nextInt(24, Int.MAX_VALUE)
                 else -> random.nextInt()
             }
 
@@ -104,8 +104,8 @@ class DtlsParserTest {
             // NegativeArraySizeException escaping fails the test
             try {
                 DtlsParser.readCid(cidSize, buf)
-            } catch (ex: IllegalArgumentException) {
-                assertFalse(cidSize in 0..DtlsParser.MAX_CID_SIZE, "rejected valid CID size $cidSize")
+            } catch (_: IllegalArgumentException) {
+                assertFalse(cidSize in 0..32, "rejected valid CID size $cidSize")
             }
             assertEquals(0, buf.position())
         }
