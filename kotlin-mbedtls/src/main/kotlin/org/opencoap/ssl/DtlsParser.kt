@@ -45,9 +45,13 @@ object DtlsParser {
     private const val SEQUENCE_NUMBER_OFFSET = 5
     private const val SEQUENCE_NUMBER_SIZE = 6
     private const val CID_OFFSET = 11
+    private const val MAX_CID_SIZE = 32 // largest connection id mbedtls will negotiate
 
     /** Connection id of a `tls12_cid` record, or null when there are not [cidSize] bytes of it. */
     fun readCid(cidSize: Int, buf: ByteBuffer): ByteArray? {
+        if (cidSize == 0) return null // cid disabled
+        require(cidSize in 0..MAX_CID_SIZE) { "invalid CID size: $cidSize" }
+
         val pos = buf.position()
         if (buf.remaining() < CID_OFFSET + cidSize) {
             // too short

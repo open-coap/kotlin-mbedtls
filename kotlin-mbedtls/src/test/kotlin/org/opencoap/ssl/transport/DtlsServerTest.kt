@@ -65,6 +65,9 @@ class DtlsServerTest {
     val clientConfNoCid = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), cidSupplier = null)
     val serverConfInvalidCid = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, InvalidCidSupplier(16))
 
+    // EmptyCidSupplier by default, so the configured CID size is 0
+    val serverConfNoCid = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false)
+
     private val adr = localAddress(2_5684)
     private val sessionStore = HashMapSessionStore()
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
@@ -93,6 +96,7 @@ class DtlsServerTest {
     fun afterAll() {
         serverConf.close()
         clientConf.close()
+        serverConfNoCid.close()
     }
 
     @Test
@@ -191,6 +195,37 @@ class DtlsServerTest {
         dtlsServer = DtlsServer(::outboundTransport, serverConfInvalidCid, 100.millis, sessionStore::write, executor = SingleThreadExecutor.create("dtls-srv-"), cidRequired = true)
         val dtlsPacket = "19fefd0001000000000002 bad0bad0bad0bad0bad0bad0bad0bad0 00280001000000000002c113fbaee67f6ce621628812750f3d0f3cb5f0d43bb358f1b502a91404098252".replace(" ", "").decodeHex().asByteBuffer()
         assertTrue(dtlsServer.handleReceived(localAddress(2_5684), dtlsPacket) is ReceiveResult.Handled)
+    }
+
+    // Peeking a zero-length CID used to return an empty but non-null array for any
+    // tls12_cid-prefixed datagram, so every one of them answered CidSessionMissing and drove a
+    // session-store read -- on a server with CID turned off entirely.
+    @Test
+    fun `should drop CID records when CID is disabled`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConfNoCid, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"))
+        val dtlsPacket = "19fefd0001000000000002 f935adc57425e1b214f8640d56e0c733 00280001000000000002c113fbaee67f6ce621628812750f3d0f3cb5f0d43bb358f1b502a91404098252".replace(" ", "").decodeHex().asByteBuffer()
+
+        val result = dtlsServer.handleReceived(adr, dtlsPacket)
+
+        // dropped as an invalid handshake instead
+        assertTrue(result is ReceiveResult.Handled, "expected Handled, got $result")
+        assertEquals(0, dtlsServer.numberOfSessions)
+        verify(exactly = 1) { lifecycleCallbacks.messageDropped(adr) }
+    }
+
+    @Test
+    fun `should drop the shortest CID-prefixed datagrams when CID is disabled`() {
+        dtlsServer = DtlsServer(::outboundTransport, serverConfNoCid, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"))
+        val prefix = "19fefd0001000000000002".decodeHex()
+
+        // 11 bytes was the old threshold for an empty CID to come back non-null
+        for (len in 0..32) {
+            val bytes = prefix.copyOf(len.coerceAtMost(prefix.size)) + ByteArray((len - prefix.size).coerceAtLeast(0))
+            val result = dtlsServer.handleReceived(adr, bytes.asByteBuffer())
+            assertTrue(result is ReceiveResult.Handled, "expected Handled for length $len, got $result")
+        }
+
+        assertEquals(0, dtlsServer.numberOfSessions)
     }
 
     @Test
