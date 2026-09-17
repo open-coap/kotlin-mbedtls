@@ -226,13 +226,6 @@ sealed interface AuthConfig {
     fun configure(sslConfig: Memory, caCert: Memory, ownCert: Memory, pkey: Memory)
 }
 
-/**
- * Pre-shared key credentials.
- *
- * [pskSecret] is consumed: closing the [SslConfig] built from it zeros the array in place, clearing
- * the caller's own reference too. So don't share one array (or one `PskAuth`) between two configs,
- * and don't read [pskSecret], [equals] or [hashCode] afterwards — pass a fresh copy instead.
- */
 data class PskAuth(
     val pskId: ByteArray,
     val pskSecret: ByteArray
@@ -290,7 +283,6 @@ data class CertificateAuth(
             mbedtls_pk_parse_key(pkey, privateKey.encoded, privateKey.encoded.size, Pointer.NULL, 0).verify()
             mbedtls_ssl_conf_own_cert(sslConfig, ownCert, pkey)
         }
-        // Note: no equivalent wipe on close, a JCE PrivateKey does not reliably expose its key material
     }
 
     companion object {
