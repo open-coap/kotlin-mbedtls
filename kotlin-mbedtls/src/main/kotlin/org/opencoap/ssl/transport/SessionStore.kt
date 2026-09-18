@@ -41,9 +41,11 @@ typealias CID = ByteArray
  *   from an intact one. Measured on an exhaustive single-bit sweep of a 235-byte session blob,
  *   623 of 1880 flips (33%) were accepted by the load path and produced a fully working session
  *   carrying correct plaintext; the tampering was absorbed silently. Anyone who can write to the
- *   store can therefore alter live session state. The store must authenticate what it returns —
- *   for example with an AEAD envelope under a key the store's clients hold — and must not be
- *   writable by anything other than the servers that own these sessions.
+ *   store can therefore alter live session state. The store must authenticate what it returns, and
+ *   must not be writable by anything other than the servers that own these sessions.
+ *
+ * [DtlsSessionEncryptionEngine] provides both properties: it seals the blob in an AES-GCM envelope
+ * under an application-held key, so a modified blob fails the tag check instead of being opened.
  *
  * [read] is expected to remove the entry it returns: a session is either live in a server or
  * parked in the store, never both.
