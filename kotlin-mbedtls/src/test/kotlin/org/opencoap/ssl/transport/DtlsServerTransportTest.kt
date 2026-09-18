@@ -631,7 +631,6 @@ class DtlsServerTransportTest {
     }
 
     // records the highest number of receives that were outstanding at the same time
-    // Scenario 3: resumption through an AES-GCM envelope, the way a real store uses it
     @Test
     fun `should resume a psk session stored through an encryption envelope`() {
         val encryptedStore = EnvelopeSessionStore()
@@ -649,10 +648,8 @@ class DtlsServerTransportTest {
         assertEquals(1, encryptedStore.size())
         assertTrue(encryptedStore.isSealed(), "blob must not be stored in the clear")
 
-        // when the sealed session is read back and opened
         client.send("hi5")
 
-        // then resumption is unaffected, authentication context included
         assertEquals("hi5:resp:dev-007", client.receiveString())
         assertEquals(1, server.numberOfSessions())
         client.close()
@@ -694,17 +691,15 @@ class DtlsServerTransportTest {
             assertEquals(0, server.numberOfSessions())
         }
 
-        // when the stored bytes are modified by something other than the library
         encryptedStore.flipBitInStoredBlob()
 
-        // then the envelope refuses to open it, so no session can be promoted
         assertThrows(DtlsSessionEncryptionException::class.java) { encryptedStore.openStoredBlob() }
         assertEquals(0, server.numberOfSessions())
         client.close()
     }
 
-    // Mirrors how coap-connector's DynamoDB store uses the engine: the ciphertext and its
-    // EncryptionContext are persisted side by side, and the context drives the read.
+    // Like coap-connector's DynamoDB store: ciphertext and its EncryptionContext sit side by side,
+    // and the stored context drives the read.
     private class EnvelopeSessionStore : SessionStore {
         private val engine = DtlsSessionEncryptionEngine(
             DtlsSessionEncryptionConfig(

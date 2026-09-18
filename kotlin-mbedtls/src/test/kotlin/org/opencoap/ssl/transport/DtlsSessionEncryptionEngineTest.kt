@@ -56,8 +56,7 @@ class DtlsSessionEncryptionEngineTest {
         val engine = aesEngine()
         val (sealed, ctx) = engine.activeEncryptionStrategy().encrypt(StoredSessionPair.srvSession)
 
-        // the bit-flip technique from the review, now applied to the sealed blob: the GCM tag must
-        // catch every one of them, where the bare mbedTLS blob accepted a third
+        // the bare mbedTLS blob accepted a third of these; the tag must catch all of them
         var rejected = 0
         for (byteIdx in sealed.indices) {
             for (bitIdx in 0 until 8) {
@@ -97,7 +96,6 @@ class DtlsSessionEncryptionEngineTest {
 
     @Test
     fun `should open a blob sealed under a rotated-out key`() {
-        // key1 sealed it; the fleet has since moved on to key2 but still holds key1
         val (sealed, ctx) = aesEngine("key1").activeEncryptionStrategy().encrypt(StoredSessionPair.srvSession)
 
         val afterRotation = aesEngine("key2")
@@ -120,7 +118,6 @@ class DtlsSessionEncryptionEngineTest {
     fun `should pass the blob through when no encryption is configured`() {
         val data = "test".encodeToByteArray()
 
-        // migration: a store still holding unsealed blobs reads them back unchanged
         assertSame(data, aesEngine().encryptionStrategy(null).decrypt(data))
         assertSame(data, aesEngine().encryptionStrategy(EncryptionContext(Version.NO_ENCRYPTION)).decrypt(data))
 
@@ -166,7 +163,6 @@ class DtlsSessionEncryptionEngineTest {
     fun `should not leak the blob into the ciphertext length pattern`() {
         val (sealed, _) = aesEngine().activeEncryptionStrategy().encrypt(StoredSessionPair.srvSession)
 
-        // GCM is a stream cipher plus a tag, so the only growth is the tag itself
         assertEquals(StoredSessionPair.srvSession.size + AesEncryptionStrategy.GCM_TAG_LENGTH_BITS / 8, sealed.size)
         assertNotEquals(StoredSessionPair.srvSession.first(), sealed.first())
     }

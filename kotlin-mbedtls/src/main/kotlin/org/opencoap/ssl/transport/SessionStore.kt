@@ -24,41 +24,27 @@ import java.util.concurrent.ConcurrentHashMap
 typealias CID = ByteArray
 
 /**
- * Holds DTLS sessions that are not currently live, so that a record arriving for a known CID can
- * resume a session instead of forcing a new handshake. Implementations are typically backed by
- * shared infrastructure such as Redis or DynamoDB.
+ * Holds DTLS sessions that are not currently live, so a record arriving for a known CID can resume
+ * one instead of forcing a new handshake. Typically backed by Redis, DynamoDB or similar.
  *
- * **The store is a trust boundary.** [SessionWithContext.sessionBlob] is produced by mbedTLS'
- * context-save format, which provides neither confidentiality nor integrity of its own, so both
- * are the store's responsibility:
+ * **The store is a trust boundary.** [SessionWithContext.sessionBlob] comes from mbedTLS'
+ * context-save format, which has neither confidentiality nor integrity of its own:
  *
- * - **Confidentiality.** The blob carries the session's key material, including the master secret.
- *   Anyone who can read it can decrypt the session's traffic. Treat it as you would a private key:
- *   encrypt it at rest and in transit, and keep it out of logs, backups and crash dumps that are
- *   not protected to the same standard.
+ * - It carries the session master secret, so whoever can read it can decrypt the session's traffic.
+ * - It has no authentication tag, and the library cannot tell a modified blob from an intact one.
+ *   A third of single-bit flips load and yield a fully working session, silently.
  *
- * - **Integrity.** The blob has no authentication tag, and the library cannot tell a modified blob
- *   from an intact one. Measured on an exhaustive single-bit sweep of a 235-byte session blob,
- *   623 of 1880 flips (33%) were accepted by the load path and produced a fully working session
- *   carrying correct plaintext; the tampering was absorbed silently. Anyone who can write to the
- *   store can therefore alter live session state. The store must authenticate what it returns, and
- *   must not be writable by anything other than the servers that own these sessions.
+ * Both are therefore the store's to provide. [DtlsSessionEncryptionEngine] supplies them.
  *
- * [DtlsSessionEncryptionEngine] provides both properties: it seals the blob in an AES-GCM envelope
- * under an application-held key, so a modified blob fails the tag check instead of being opened.
- *
- * [read] is expected to remove the entry it returns: a session is either live in a server or
- * parked in the store, never both.
+ * [read] is expected to remove the entry it returns: a session is either live in a server or parked
+ * in the store, never both.
  */
 interface SessionStore {
     fun read(cid: CID): CompletableFuture<SessionWithContext?>
     fun write(cid: CID, session: SessionWithContext)
 }
 
-/**
- * A parked DTLS session. [sessionBlob] contains key material — see [SessionStore] for the
- * confidentiality and integrity properties a store must provide.
- */
+/** A parked DTLS session. [sessionBlob] contains key material — see [SessionStore]. */
 data class SessionWithContext(
     val sessionBlob: ByteArray,
     val authenticationContext: AuthenticationContext,

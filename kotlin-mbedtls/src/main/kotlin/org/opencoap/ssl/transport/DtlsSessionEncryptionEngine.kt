@@ -19,37 +19,23 @@ package org.opencoap.ssl.transport
 typealias KeyStore = Map<String, ByteArray>
 
 /**
- * Seals and opens [SessionWithContext.sessionBlob] so that a [SessionStore] can satisfy the
- * confidentiality and integrity properties its contract requires. The blob carries the session
- * master secret and has no authentication tag of its own; an AES-GCM envelope supplies both.
+ * Seals and opens [SessionWithContext.sessionBlob] so a [SessionStore] can provide the
+ * confidentiality and integrity its contract requires.
  *
- * A store seals on write and opens on read:
+ * A store seals on write with [activeEncryptionStrategy] and opens on read with
+ * [encryptionStrategy], passing back the [EncryptionContext] it persisted next to the ciphertext.
+ * That context names the key and carries the nonce, which is what makes rotation work: writes use
+ * [DtlsSessionEncryptionConfig.aesGcmActiveKeyId], reads follow each session's recorded key id, so
+ * a fleet sharing one store can roll forward while older sessions stay readable.
  *
- * ```
- * // write
- * val (sealed, encCtx) = engine.activeEncryptionStrategy().encrypt(session.sessionBlob)
- * // persist `sealed` together with `encCtx.version` and `encCtx.properties`
+ * Two properties are left to the caller, because only the caller can enforce them:
  *
- * // read
- * val blob = engine.encryptionStrategy(storedEncryptionContext).decrypt(sealed)
- * ```
- *
- * The [EncryptionContext] must be stored alongside the ciphertext: it names the key the blob was
- * sealed with and carries the nonce, so it is what makes key rotation possible. Rotation is by key
- * id — [DtlsSessionEncryptionConfig.aesGcmActiveKeyId] selects the key new sessions are sealed
- * with, while reads follow the key id recorded in each stored context, so a fleet sharing one store
- * can roll forward while old sessions remain readable.
- *
- * Two properties are deliberately left to the caller, because only the caller can enforce them:
- *
- * - **Version pinning.** [encryptionStrategy] honours the version it is given, and
- *   [EncryptionContext.Version.NO_ENCRYPTION] returns the bytes unchanged — that is what allows a
- *   store holding unsealed blobs to be migrated in place. If the stored version is itself
- *   attacker-writable, an attacker can therefore downgrade a row to `NO_ENCRYPTION` and bypass the
- *   tag check entirely. Once migration is complete, a store should require the version it expects
- *   rather than trusting what it read back.
+ * - **Version pinning.** [EncryptionContext.Version.NO_ENCRYPTION] returns bytes unchanged so a
+ *   store holding unsealed blobs can migrate in place. If the stored version is itself
+ *   attacker-writable that is a downgrade past the tag check, so once migrated, require the version
+ *   you expect rather than trusting what you read back.
  * - **Binding to the CID.** The envelope authenticates the blob's bytes, not which CID they belong
- *   to, so a store must not let a sealed row be moved between CIDs.
+ *   to, so a store must not let a sealed row move between CIDs.
  */
 class DtlsSessionEncryptionEngine(private val config: DtlsSessionEncryptionConfig) {
     private val activeEncryptionContext = when (config.activeEncryptionVersion) {
@@ -61,23 +47,20 @@ class DtlsSessionEncryptionEngine(private val config: DtlsSessionEncryptionConfi
         )
     }
 
-    /** Strategy for opening a blob sealed under [ctx], as recorded next to it in the store. */
+    /** Opens a blob sealed under [ctx], as recorded next to it in the store. */
     fun encryptionStrategy(ctx: EncryptionContext?): EncryptionStrategy = when {
         ctx == null || ctx.version == EncryptionContext.Version.NO_ENCRYPTION -> NoEncryptionStrategy
         ctx.version == EncryptionContext.Version.AES_GCM -> AesEncryptionStrategy(ctx, config.aesGcmKeyStore)
         else -> throw DtlsSessionEncryptionException("Requested encryption type ${ctx.version} is not supported")
     }
 
-    /** Strategy for sealing a new blob, under the configured active version and key. */
+    /** Seals a new blob, under the configured active version and key. */
     fun activeEncryptionStrategy(): EncryptionStrategy = encryptionStrategy(activeEncryptionContext)
 }
 
 /**
- * Which version seals new blobs, and the keys available to open existing ones.
- *
- * [aesGcmKeyStore] maps key id to raw AES key bytes; loading those keys — from files, environment
- * or a secret manager — is the application's concern, not the library's. Keys should be 16, 24 or
- * 32 bytes.
+ * [aesGcmKeyStore] maps key id to raw AES key bytes, 16, 24 or 32 of them. Loading those keys, from
+ * files, environment or a secret manager, is the application's concern.
  */
 data class DtlsSessionEncryptionConfig(
     val activeEncryptionVersion: EncryptionContext.Version,
@@ -91,10 +74,7 @@ data class DtlsSessionEncryptionConfig(
     }
 }
 
-/**
- * Names the key a blob was sealed with and carries the nonce. Stored next to the ciphertext, and
- * passed back to [DtlsSessionEncryptionEngine.encryptionStrategy] to open it.
- */
+/** Names the key a blob was sealed with and carries the nonce. Stored next to the ciphertext. */
 data class EncryptionContext(val version: Version, val properties: Map<String, String> = mapOf()) {
     constructor(version: String?, properties: Map<String, String>?) : this(
         version?.let { Version.valueOf(it) } ?: Version.NO_ENCRYPTION,
@@ -102,7 +82,6 @@ data class EncryptionContext(val version: Version, val properties: Map<String, S
     )
 
     enum class Version {
-        /** Blob is stored as-is. Only for migrating a store that already holds unsealed blobs. */
         NO_ENCRYPTION,
         AES_GCM
     }
@@ -115,6 +94,5 @@ data class EncryptionContext(val version: Version, val properties: Map<String, S
     operator fun get(propKey: String): String? = properties[propKey]
 }
 
-// Extends Exception rather than Throwable on purpose: a store rejecting a tampered blob is an
-// ordinary failure, and callers guard their read path with `catch (e: Exception)`.
+// Exception, not Throwable: callers guard their read path with `catch (e: Exception)`.
 class DtlsSessionEncryptionException(msg: String? = null, cause: Throwable? = null) : Exception(msg, cause)
