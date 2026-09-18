@@ -19,6 +19,7 @@ package org.opencoap.ssl.transport
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.PskAuth
@@ -71,6 +72,22 @@ class DtlsTransmitterTest {
         assertTrue(client.receive(Duration.ofMillis(1)).join().isEmpty())
 
         assertNotNull(client.cipherSuite)
+        client.close()
+        conf.close()
+        server.await().close()
+    }
+
+    @Test
+    fun `should successfully handshake with psk when an expected hostname is set`() {
+        // PSK has no certificate, so an expected hostname must not affect the handshake
+        val server = newServerDtlsTransmitter(6006)
+        val conf = SslConfig.client(PskAuth("device-007", byteArrayOf(0x01, 0x02)), hostname = "server")
+
+        val client = DtlsTransmitter.connect(localAddress(1_5684), conf, 6006).await()
+
+        client.send("dupa")
+        assertEquals("dupa", server.await().receiveString())
+        assertNull(client.peerCertificateSubject)
         client.close()
         conf.close()
         server.await().close()
