@@ -19,23 +19,16 @@ package org.opencoap.ssl.transport
 typealias KeyStore = Map<String, ByteArray>
 
 /**
- * Seals and opens [SessionWithContext.sessionBlob] so a [SessionStore] can provide the
- * confidentiality and integrity its contract requires.
+ * Seals and opens [SessionWithContext.sessionBlob], giving a [SessionStore] the confidentiality and
+ * integrity its contract requires. Rotation is by key id: writes use the configured active key,
+ * reads follow the key id in each session's stored [EncryptionContext].
  *
- * A store seals on write with [activeEncryptionStrategy] and opens on read with
- * [encryptionStrategy], passing back the [EncryptionContext] it persisted next to the ciphertext.
- * That context names the key and carries the nonce, which is what makes rotation work: writes use
- * [DtlsSessionEncryptionConfig.aesGcmActiveKeyId], reads follow each session's recorded key id, so
- * a fleet sharing one store can roll forward while older sessions stay readable.
- *
- * Two properties are left to the caller, because only the caller can enforce them:
- *
- * - **Version pinning.** [EncryptionContext.Version.NO_ENCRYPTION] returns bytes unchanged so a
- *   store holding unsealed blobs can migrate in place. If the stored version is itself
- *   attacker-writable that is a downgrade past the tag check, so once migrated, require the version
- *   you expect rather than trusting what you read back.
- * - **Binding to the CID.** The envelope authenticates the blob's bytes, not which CID they belong
- *   to, so a store must not let a sealed row move between CIDs.
+ * Two things only the caller can enforce:
+ * - [EncryptionContext.Version.NO_ENCRYPTION] returns bytes unchanged, for migrating a store of
+ *   unsealed blobs. Taking the version from an attacker-writable field is a downgrade past the tag
+ *   check, so pin the version you expect once migrated.
+ * - The envelope authenticates the blob's bytes, not which CID they belong to, so a store must not
+ *   let a sealed row move between CIDs.
  */
 class DtlsSessionEncryptionEngine(private val config: DtlsSessionEncryptionConfig) {
     private val activeEncryptionContext = when (config.activeEncryptionVersion) {
@@ -47,21 +40,15 @@ class DtlsSessionEncryptionEngine(private val config: DtlsSessionEncryptionConfi
         )
     }
 
-    /** Opens a blob sealed under [ctx], as recorded next to it in the store. */
     fun encryptionStrategy(ctx: EncryptionContext?): EncryptionStrategy = when {
         ctx == null || ctx.version == EncryptionContext.Version.NO_ENCRYPTION -> NoEncryptionStrategy
         ctx.version == EncryptionContext.Version.AES_GCM -> AesEncryptionStrategy(ctx, config.aesGcmKeyStore)
         else -> throw DtlsSessionEncryptionException("Requested encryption type ${ctx.version} is not supported")
     }
 
-    /** Seals a new blob, under the configured active version and key. */
     fun activeEncryptionStrategy(): EncryptionStrategy = encryptionStrategy(activeEncryptionContext)
 }
 
-/**
- * [aesGcmKeyStore] maps key id to raw AES key bytes, 16, 24 or 32 of them. Loading those keys, from
- * files, environment or a secret manager, is the application's concern.
- */
 data class DtlsSessionEncryptionConfig(
     val activeEncryptionVersion: EncryptionContext.Version,
     val aesGcmKeyStore: KeyStore = mapOf(),
@@ -74,7 +61,6 @@ data class DtlsSessionEncryptionConfig(
     }
 }
 
-/** Names the key a blob was sealed with and carries the nonce. Stored next to the ciphertext. */
 data class EncryptionContext(val version: Version, val properties: Map<String, String> = mapOf()) {
     constructor(version: String?, properties: Map<String, String>?) : this(
         version?.let { Version.valueOf(it) } ?: Version.NO_ENCRYPTION,

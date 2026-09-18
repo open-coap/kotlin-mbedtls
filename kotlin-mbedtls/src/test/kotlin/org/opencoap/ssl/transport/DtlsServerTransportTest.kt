@@ -698,8 +698,7 @@ class DtlsServerTransportTest {
         client.close()
     }
 
-    // Like coap-connector's DynamoDB store: ciphertext and its EncryptionContext sit side by side,
-    // and the stored context drives the read.
+    // Like coap-connector's DynamoDB store: the stored EncryptionContext drives the read.
     private class EnvelopeSessionStore : SessionStore {
         private val engine = DtlsSessionEncryptionEngine(
             DtlsSessionEncryptionConfig(

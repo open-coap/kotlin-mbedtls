@@ -24,14 +24,12 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 sealed interface EncryptionStrategy {
-    /** Seals [bytes], returning the ciphertext and the context needed to open it again. */
     fun encrypt(bytes: ByteArray): Pair<ByteArray, EncryptionContext>
 
-    /** Opens [bytes]. Throws [DtlsSessionEncryptionException] if they are not authentic. */
     fun decrypt(bytes: ByteArray): ByteArray
 }
 
-/** Passes the blob through untouched, so a store holding unsealed blobs can migrate in place. */
+/** Passes the blob through, for migrating a store that still holds unsealed blobs. */
 object NoEncryptionStrategy : EncryptionStrategy {
     override fun encrypt(bytes: ByteArray): Pair<ByteArray, EncryptionContext> = Pair(bytes, EncryptionContext(EncryptionContext.Version.NO_ENCRYPTION))
 
@@ -39,11 +37,8 @@ object NoEncryptionStrategy : EncryptionStrategy {
 }
 
 /**
- * AES-GCM with a 128-bit tag, so a modified blob fails the tag check and [decrypt] throws rather
- * than returning bytes mbedTLS would load.
- *
- * The nonce is fresh per [encrypt] and recorded in the returned context. Reuse under one key leaks
- * the XOR of the plaintexts and permits tag forgery, so it comes from [SecureRandom].
+ * AES-GCM with a 128-bit tag, so a modified blob fails the tag check instead of being opened. The
+ * nonce is fresh per [encrypt]; reuse under one key permits tag forgery, hence [SecureRandom].
  */
 class AesEncryptionStrategy(private val ctx: EncryptionContext, keyStore: KeyStore) : EncryptionStrategy {
     private val keyId: String = ctx[EncryptionContext.KEY_ID_PROP] ?: throw DtlsSessionEncryptionException("Provided encryption context is missing active key id")
