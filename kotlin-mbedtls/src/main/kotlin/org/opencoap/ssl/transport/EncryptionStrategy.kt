@@ -71,10 +71,11 @@ class AesEncryptionStrategy(private val ctx: EncryptionContext, keyStore: KeySto
     }
 
     override fun decrypt(bytes: ByteArray): ByteArray {
-        val iv = ctx[EncryptionContext.IV_PROP]?.let(Base64.getDecoder()::decode) ?: throw DtlsSessionEncryptionException("IV is missing from the context")
+        val nonce = ctx[EncryptionContext.IV_PROP] ?: throw DtlsSessionEncryptionException("IV is missing from the context")
         try {
+            // decoding is inside the try: a tampered nonce is not valid base64
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, Base64.getDecoder().decode(nonce)))
             return cipher.doFinal(bytes)
         } catch (e: Throwable) {
             throw DtlsSessionEncryptionException("Failed to decrypt", e)

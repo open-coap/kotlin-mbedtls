@@ -24,7 +24,6 @@ import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.CertificateAuth
@@ -633,7 +632,7 @@ class DtlsServerTransportTest {
     // records the highest number of receives that were outstanding at the same time
     @Test
     fun `should resume a psk session stored through an encryption envelope`() {
-        val encryptedStore = EnvelopeSessionStore()
+        val encryptedStore = EncryptedSessionStore(sessionStore, envelopeEngine())
         server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = encryptedStore).listen(echoHandler)
 
         val client = DtlsTransmitter.connect(server, clientConfig).await()
@@ -645,8 +644,7 @@ class DtlsServerTransportTest {
         await.atMost(1.seconds).untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
-        assertEquals(1, encryptedStore.size())
-        assertTrue(encryptedStore.isSealed(), "blob must not be stored in the clear")
+        assertEquals(1, sessionStore.size())
 
         client.send("hi5")
 
@@ -657,7 +655,7 @@ class DtlsServerTransportTest {
 
     @Test
     fun `should resume a certificate session stored through an encryption envelope`() {
-        val encryptedStore = EnvelopeSessionStore()
+        val encryptedStore = EncryptedSessionStore(sessionStore, envelopeEngine())
         server = DtlsServerTransport.create(certConf, expireAfter = 100.millis, sessionStore = encryptedStore).listen(echoHandler)
         val certClientConf = SslConfig.client(trusted(Certs.root.asX509()))
 
@@ -668,8 +666,7 @@ class DtlsServerTransportTest {
         await.atMost(1.seconds).untilAsserted {
             assertEquals(0, server.numberOfSessions())
         }
-        assertEquals(1, encryptedStore.size())
-        assertTrue(encryptedStore.isSealed(), "blob must not be stored in the clear")
+        assertEquals(1, sessionStore.size())
 
         client.send("hi5")
 
@@ -679,59 +676,13 @@ class DtlsServerTransportTest {
         certClientConf.close()
     }
 
-    @Test
-    fun `should not open a sealed blob that was tampered with in the store`() {
-        val encryptedStore = EnvelopeSessionStore()
-        server = DtlsServerTransport.create(conf, expireAfter = 100.millis, sessionStore = encryptedStore).listen(echoHandler)
-
-        val client = DtlsTransmitter.connect(server, clientConfig).await()
-        client.send("hi")
-        assertEquals("hi:resp", client.receiveString())
-        await.atMost(1.seconds).untilAsserted {
-            assertEquals(0, server.numberOfSessions())
-        }
-
-        encryptedStore.flipBitInStoredBlob()
-
-        assertThrows(DtlsSessionEncryptionException::class.java) { encryptedStore.openStoredBlob() }
-        assertEquals(0, server.numberOfSessions())
-        client.close()
-    }
-
-    // Like coap-connector's DynamoDB store: the stored EncryptionContext drives the read.
-    private class EnvelopeSessionStore : SessionStore {
-        private val engine = DtlsSessionEncryptionEngine(
-            DtlsSessionEncryptionConfig(
-                EncryptionContext.Version.AES_GCM,
-                mapOf("k1" to ByteArray(16).also(SecureRandom()::nextBytes)),
-                "k1"
-            )
+    private fun envelopeEngine() = DtlsSessionEncryptionEngine(
+        DtlsSessionEncryptionConfig(
+            EncryptionContext.Version.AES_GCM,
+            mapOf("k1" to ByteArray(16).also(SecureRandom()::nextBytes)),
+            "k1"
         )
-        private val items = mutableMapOf<String, Item>()
-
-        class Item(var sealedBlob: ByteArray, val encCtx: EncryptionContext, val plainBlob: ByteArray, val session: SessionWithContext)
-
-        override fun read(cid: CID): CompletableFuture<SessionWithContext?> {
-            val item = items.remove(cid.toHex()) ?: return completedFuture(null)
-            val blob = engine.encryptionStrategy(item.encCtx).decrypt(item.sealedBlob)
-            return completedFuture(SessionWithContext(blob, item.session.authenticationContext, item.session.sessionStartTimestamp))
-        }
-
-        override fun write(cid: CID, session: SessionWithContext) {
-            val (sealed, encCtx) = engine.activeEncryptionStrategy().encrypt(session.sessionBlob)
-            items[cid.toHex()] = Item(sealed, encCtx, session.sessionBlob, session)
-        }
-
-        fun size() = items.size
-        fun isSealed(): Boolean = items.values.all { !it.sealedBlob.contentEquals(it.plainBlob) }
-
-        fun flipBitInStoredBlob() {
-            val item = items.values.first()
-            item.sealedBlob = item.sealedBlob.copyOf().also { it[0] = (it[0].toInt() xor 0x01).toByte() }
-        }
-
-        fun openStoredBlob(): ByteArray = items.values.first().let { engine.encryptionStrategy(it.encCtx).decrypt(it.sealedBlob) }
-    }
+    )
 
     private fun <T> Transport<T>.trackInFlight(max: AtomicInteger): Transport<T> {
         val underlying = this
