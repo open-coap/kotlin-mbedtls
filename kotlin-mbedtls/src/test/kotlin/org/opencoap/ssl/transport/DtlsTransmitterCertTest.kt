@@ -169,6 +169,62 @@ class DtlsTransmitterCertTest {
     }
 
     @Test
+    fun `should fail handshake when server cert does not match expected hostname`() {
+        serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false)
+        val server = newServerDtlsTransmitter(7009)
+
+        val clientConf = SslConfig.client(trusted(Certs.root.asX509()), hostname = "impostor.example.org")
+        val client = DtlsTransmitter.connect(srvTrans, clientConf, 7009)
+
+        assertTrue(
+            runCatching { client.await() }
+                .exceptionOrNull()?.cause?.message?.startsWith("X509 - Certificate verification failed, e.g. CRL, CA or signature check failed") == true
+        )
+        await.untilAsserted { assertTrue(server.isCompletedExceptionally) }
+        clientConf.close()
+    }
+
+    @Test
+    fun `should successfully handshake when server cert matches expected hostname`() {
+        serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false)
+        val server = newServerDtlsTransmitter(7010)
+
+        val clientConf = SslConfig.client(trusted(Certs.root.asX509()), hostname = "server")
+        val client = DtlsTransmitter.connect(srvTrans, clientConf, 7010).await()
+
+        client.send("dupa")
+        assertEquals("dupa", server.await().receiveString())
+        clientConf.close()
+    }
+
+    @Test
+    fun `should skip name check and expose peer subject when no hostname expected`() {
+        serverConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), reqAuthentication = false)
+        val server = newServerDtlsTransmitter(7011)
+
+        val clientConf = SslConfig.client(trusted(Certs.root.asX509()))
+        val client = DtlsTransmitter.connect(srvTrans, clientConf, 7011).await()
+
+        client.send("dupa")
+        assertEquals("dupa", server.await().receiveString())
+        assertEquals("C=FI,O=Acme,CN=server", client.peerCertificateSubject)
+        clientConf.close()
+    }
+
+    @Test
+    fun `should not check client cert name on the server side`() {
+        val server = newServerDtlsTransmitter(7012)
+
+        val clientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()))
+        val client = DtlsTransmitter.connect(srvTrans, clientConf, 7012).await()
+
+        client.send("dupa")
+        assertEquals("dupa", server.await().receiveString())
+        assertEquals("C=FI,O=Acme,CN=device01", server.await().peerCertificateSubject)
+        clientConf.close()
+    }
+
+    @Test
     fun `should timout handshake`() {
         newServerDtlsTransmitter(7008)
 
