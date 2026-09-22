@@ -1,7 +1,7 @@
 dependencies {
     api(project(":kotlin-mbedtls"))
 
-    implementation("io.micrometer:micrometer-core:1.17.0")
+    implementation("io.micrometer:micrometer-core:1.17.1")
 
     // TESTS
     testImplementation(testFixtures(project(":kotlin-mbedtls")))
@@ -9,7 +9,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
-    testImplementation("ch.qos.logback:logback-classic:1.6.1")
+    testImplementation("ch.qos.logback:logback-classic:1.6.3")
 }
 
 tasks.test {

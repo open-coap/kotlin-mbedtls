@@ -5,10 +5,10 @@ import dev.detekt.gradle.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.10"
-    id("pl.allegro.tech.build.axion-release") version "1.21.2"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20"
+    id("pl.allegro.tech.build.axion-release") version "1.21.4"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
-    id("io.github.ben-manes.versions") version "0.57.0"
+    id("io.github.ben-manes.versions") version "0.64.0"
     id("java-library")
     id("maven-publish")
     id("org.gradle.signing")
