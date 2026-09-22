@@ -53,11 +53,7 @@ allprojects {
     }
 
     tasks {
-        // Only the source sets that get published have to stay on JVM 8: main, and
-        // the test fixtures, which the java component publishes as well. Setting the
-        // target for the remaining ones makes Gradle stamp "JVM runtime 8" on their
-        // configurations too, and it then refuses to resolve any test-only dependency
-        // that has moved to a newer baseline - junit 6 needs 17.
+        // Only published source sets target JVM 8, so test-only dependencies can require newer
         withType<JavaCompile> {
             if (name in setOf("compileJava", "compileTestFixturesJava")) {
                 options.release.set(8)
