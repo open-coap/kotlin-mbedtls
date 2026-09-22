@@ -30,8 +30,8 @@ python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_
 python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 # Enable threading support
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_THREADING_C
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_THREADING_PTHREAD
+python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/tf-psa-crypto/include/psa/crypto_config.h" set MBEDTLS_THREADING_C
+python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/tf-psa-crypto/include/psa/crypto_config.h" set MBEDTLS_THREADING_PTHREAD
 
 echo "Configuring CMake..."
 cmake \
