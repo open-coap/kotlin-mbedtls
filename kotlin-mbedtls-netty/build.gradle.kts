@@ -12,7 +12,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("ch.qos.logback:logback-classic:1.6.3")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
     testImplementation("io.netty:netty-all:4.2.18.Final")
