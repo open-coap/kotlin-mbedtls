@@ -22,6 +22,8 @@ jobs:
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
+          CFLAGS: "-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+          LDFLAGS: "-Wl,-z,relro,-z,now"
         run: ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
@@ -46,6 +48,8 @@ jobs:
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
           OSARCH: linux-aarch64
+          CFLAGS: "-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+          LDFLAGS: "-Wl,-z,relro,-z,now"
         run: ./compileMbedtls.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
@@ -64,6 +68,7 @@ jobs:
       - name: Compile
         env:
           MBEDTLS_VERSION: ${{ inputs.mbedtlsVersion }}
+          CFLAGS: "-fstack-protector-strong -D_FORTIFY_SOURCE=2"
         run: |
           # use virtual environment for Python packages
           VENV_DIR=$(mktemp -d)
