@@ -3,6 +3,7 @@ import com.github.benmanes.gradle.versions.updates.resolutionstrategy.ComponentS
 import dev.detekt.gradle.Detekt
 import dev.detekt.gradle.DetektCreateBaselineTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
@@ -44,20 +45,30 @@ allprojects {
     group = "io.github.open-coap"
     project.version = rootProject.version
 
-    java {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-
     kotlin {
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_1_8)
             allWarningsAsErrors = true
             extraWarnings = true
         }
     }
 
     tasks {
+        // Only the source sets that get published have to stay on JVM 8: main, and
+        // the test fixtures, which the java component publishes as well. Setting the
+        // target for the remaining ones makes Gradle stamp "JVM runtime 8" on their
+        // configurations too, and it then refuses to resolve any test-only dependency
+        // that has moved to a newer baseline - junit 6 needs 17.
+        withType<JavaCompile> {
+            if (name in setOf("compileJava", "compileTestFixturesJava")) {
+                options.release.set(8)
+            }
+        }
+        withType<KotlinCompile> {
+            if (name in setOf("compileKotlin", "compileTestFixturesKotlin")) {
+                compilerOptions.jvmTarget.set(JvmTarget.JVM_1_8)
+            }
+        }
+
         withType<Detekt>().configureEach {
             jvmTarget = "1.8"
         }
@@ -69,12 +80,7 @@ allprojects {
             rejectVersionIf {
                 val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { candidate.version.uppercase().contains(it) }
                 val regex = "^[0-9,.v-]+(-r)?$".toRegex()
-                val isNonStable = !(stableKeyword || regex.matches(candidate.version))
-
-                // allow only minor and patch updates to be compatible with JVM 8
-                val isJunitMajorBump = candidate.group.startsWith("org.junit") && isMajorBump
-
-                isNonStable || isJunitMajorBump
+                !(stableKeyword || regex.matches(candidate.version))
             }
         }
 
