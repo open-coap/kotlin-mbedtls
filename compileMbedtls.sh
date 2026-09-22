@@ -26,12 +26,33 @@ if [ -d "${BUILD_DIR}/framework" ]; then
 fi
 
 # configure
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_SSL_DTLS_CONNECTION_ID
+MBEDTLS_CFG="${BUILD_DIR}/include/mbedtls/mbedtls_config.h"
+CRYPTO_CFG="${BUILD_DIR}/tf-psa-crypto/include/psa/crypto_config.h"
+
+python3 "${BUILD_DIR}/scripts/config.py" -f "$MBEDTLS_CFG" unset MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
+if grep -q '^#define MBEDTLS_SSL_MAX_FRAGMENT_LENGTH' "$MBEDTLS_CFG"; then
+    echo "Configuration failed: MBEDTLS_SSL_MAX_FRAGMENT_LENGTH was not unset in $MBEDTLS_CFG"
+    exit 1
+fi
+
+python3 "${BUILD_DIR}/scripts/config.py" -f "$MBEDTLS_CFG" set MBEDTLS_SSL_DTLS_CONNECTION_ID
+if ! grep -q '^#define MBEDTLS_SSL_DTLS_CONNECTION_ID' "$MBEDTLS_CFG"; then
+    echo "Configuration failed: MBEDTLS_SSL_DTLS_CONNECTION_ID was not set in $MBEDTLS_CFG"
+    exit 1
+fi
 
 # Enable threading support
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_THREADING_C
-python3 ${BUILD_DIR}/scripts/config.py -f "${BUILD_DIR}/include/mbedtls/mbedtls_config.h" set MBEDTLS_THREADING_PTHREAD
+python3 "${BUILD_DIR}/scripts/config.py" -f "$CRYPTO_CFG" set MBEDTLS_THREADING_C
+if ! grep -q '^#define MBEDTLS_THREADING_C' "$CRYPTO_CFG"; then
+    echo "Configuration failed: MBEDTLS_THREADING_C was not set in $CRYPTO_CFG"
+    exit 1
+fi
+
+python3 "${BUILD_DIR}/scripts/config.py" -f "$CRYPTO_CFG" set MBEDTLS_THREADING_PTHREAD
+if ! grep -q '^#define MBEDTLS_THREADING_PTHREAD' "$CRYPTO_CFG"; then
+    echo "Configuration failed: MBEDTLS_THREADING_PTHREAD was not set in $CRYPTO_CFG"
+    exit 1
+fi
 
 echo "Configuring CMake..."
 cmake \
