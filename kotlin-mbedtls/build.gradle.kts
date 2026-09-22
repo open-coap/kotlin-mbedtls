@@ -10,14 +10,13 @@ dependencies {
     api("net.java.dev.jna:jna:5.19.1")
 
     // TESTS
-    testFixturesApi("org.bouncycastle:bcpkix-jdk15on:1.70")
+    testFixturesApi("org.bouncycastle:bcpkix-jdk18on:1.86")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
     testImplementation("ch.qos.logback:logback-classic:1.6.1")
-    testImplementation("org.bouncycastle:bcpkix-jdk15on:1.70")
     testImplementation("io.mockk:mockk:1.14.11")
 }
 
