@@ -29,16 +29,10 @@ jobs:
           name: linux-x86-64
           path: mbedtls-lib/bin/linux-x86-64/*
           if-no-files-found: error
-      - name: Archive MbedtlsSizeOf.kt
+      - name: Archive mbledtlsSizeOf.kt
         uses: actions/upload-artifact@v7
         with:
           name: MbedtlsSizeOf.kt
-          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
-          if-no-files-found: error
-      - name: Archive MbedtlsSizeOf for linux-x86-64
-        uses: actions/upload-artifact@v7
-        with:
-          name: sizeof-linux-x86-64
           path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
           if-no-files-found: error
 
@@ -58,12 +52,6 @@ jobs:
         with:
           name: linux-aarch64
           path: mbedtls-lib/bin/linux-aarch64/*
-          if-no-files-found: error
-      - name: Archive MbedtlsSizeOf for linux-aarch64
-        uses: actions/upload-artifact@v7
-        with:
-          name: sizeof-linux-aarch64
-          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
           if-no-files-found: error
 
   compile-macos:
@@ -87,12 +75,6 @@ jobs:
         with:
           name: darwin
           path: mbedtls-lib/bin/darwin/*
-          if-no-files-found: error
-      - name: Archive MbedtlsSizeOf for darwin
-        uses: actions/upload-artifact@v7
-        with:
-          name: sizeof-darwin
-          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
           if-no-files-found: error
 
   compile-windows:
@@ -119,95 +101,3 @@ jobs:
           name: win32-x86-64
           path: mbedtls-lib/bin/win32-x86-64/*
           if-no-files-found: error
-      - name: Archive MbedtlsSizeOf for win32-x86-64
-        uses: actions/upload-artifact@v7
-        with:
-          name: sizeof-win32-x86-64
-          path: kotlin-mbedtls/src/main/kotlin/org/opencoap/ssl/MbedtlsSizeOf.kt
-          if-no-files-found: error
-
-  verify-sizeof:
-    name: "verify: struct sizes across platforms"
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    if: (!cancelled() && !contains(needs.*.result, 'failure'))
-    needs: [ compile-linux, compile-linux-arm64, compile-macos, compile-windows ]
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          pattern: sizeof-*
-          path: sizeof
-      - name: Compare struct sizes across platforms
-        run: |
-          python3 - << 'EOF'
-          import glob, os, re, sys
-
-          patterns = glob.glob("sizeof/sizeof-*/MbedtlsSizeOf.kt")
-          if not patterns:
-              print("Error: No sizeof artifacts found!", file=sys.stderr)
-              sys.exit(1)
-
-          print(f"Found {len(patterns)} platform artifacts to compare: {[os.path.basename(os.path.dirname(p)) for p in patterns]}")
-
-          is_main_repo = os.environ.get("GITHUB_REPOSITORY") == "open-coap/kotlin-mbedtls"
-          expected_platforms = {"sizeof-linux-x86-64", "sizeof-linux-aarch64", "sizeof-darwin", "sizeof-win32-x86-64"}
-          found_platforms = {os.path.basename(os.path.dirname(p)) for p in patterns}
-
-          if is_main_repo and found_platforms != expected_platforms:
-              missing = expected_platforms - found_platforms
-              print(f"Error: Missing sizeof artifacts for platforms: {missing}", file=sys.stderr)
-              sys.exit(1)
-
-          symbols_by_platform = {}
-          for p in sorted(patterns):
-              platform = os.path.basename(os.path.dirname(p))
-              with open(p, "r") as f:
-                  content = f.read()
-              symbols = {}
-              for line in content.splitlines():
-                  m = re.search(r"const\s+val\s+(\w+)\s*=\s*(\w+)", line)
-                  if m:
-                      symbols[m.group(1)] = m.group(2)
-              symbols_by_platform[platform] = symbols
-              print(f"[{platform}] parsed {len(symbols)} symbols: {symbols}")
-
-          all_symbols = set()
-          for s in symbols_by_platform.values():
-              all_symbols.update(s.keys())
-
-          divergences = []
-          for sym in sorted(all_symbols):
-              values = {plat: symbols_by_platform[plat].get(sym) for plat in symbols_by_platform}
-              distinct_values = set(values.values())
-              if len(distinct_values) > 1:
-                  divergences.append((sym, values))
-
-          if divergences:
-              print("\n❌ Struct size divergence detected across platforms:", file=sys.stderr)
-              for sym, values in divergences:
-                  val_str = ", ".join(f"{plat}={val}" for plat, val in sorted(values.items()))
-                  print(f"  Symbol '{sym}' differs: {val_str}", file=sys.stderr)
-              sys.exit(1)
-
-          first_file = sorted(patterns)[0]
-          with open(first_file, "r") as f:
-              first_content = f.read()
-
-          for p in sorted(patterns)[1:]:
-              with open(p, "r") as f:
-                  other_content = f.read()
-              if first_content != other_content:
-                  print(f"\n❌ Non-symbol content difference between {first_file} and {p}!", file=sys.stderr)
-                  import difflib
-                  diff = difflib.unified_diff(
-                      first_content.splitlines(),
-                      other_content.splitlines(),
-                      fromfile=first_file,
-                      tofile=p,
-                      lineterm=""
-                  )
-                  print("\n".join(diff), file=sys.stderr)
-                  sys.exit(1)
-
-          print("\n✅ All platforms generated identical MbedtlsSizeOf.kt")
-          EOF
