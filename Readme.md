@@ -127,8 +127,9 @@ Cross compiling for linux (x86_64):
 ### Versioning of mbedtls binaries
 
 `mbedtls-lib` is versioned independently from the Kotlin modules via `mbedtlsLibVersion` in
-`gradle.properties`, using `<mbedtls-version>.<packaging-revision>`. Publishing changed binaries
-under an existing version fails because Maven Central artifacts are immutable.
+`gradle.properties`, using `<mbedtls-version>.<packaging-revision>`.
+Independent versioning also lets users provide their own `mbedtls-lib` artifact with ABI-compatible binaries.
+Publishing changed binaries under an existing version fails because Maven Central artifacts are immutable.
 
 - Updating mbedtls: bump the upstream version, e.g. `4.2.0.0` -> `4.3.0.0`.
 - Rebuilding the same mbedtls version: bump the packaging revision, e.g. `4.2.0.0` -> `4.2.0.1`.
