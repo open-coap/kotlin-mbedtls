@@ -126,17 +126,9 @@ Cross compiling for linux (x86_64):
 
 ### Versioning of mbedtls binaries
 
-The `mbedtls-lib` artifact, holding the precompiled binaries, is versioned independently from the
-kotlin modules with `mbedtlsLibVersion` in `gradle.properties`, using the
-`<mbedtls-version>.<packaging-revision>` format. It is published only when its version is not yet
-released, so a release of the kotlin modules does not republish unchanged binaries.
+`mbedtls-lib` is versioned independently from the Kotlin modules via `mbedtlsLibVersion` in
+`gradle.properties`, using `<mbedtls-version>.<packaging-revision>`. Publishing changed binaries
+under an existing version fails because Maven Central artifacts are immutable.
 
-After recompiling binaries, bump `mbedtlsLibVersion`:
-
-- `4.2.0.0` -> `4.3.0.0` when mbedtls itself is updated (automated by the `update Mbedtls` workflow)
-- `4.2.0.0` -> `4.2.0.1` when the same mbedtls version is rebuilt, e.g. with a different
-  compilation flag
-
-Releasing binaries that differ from an already released version fails the build, since artifacts on
-Maven Central are immutable. The check is based on Maven Central, which is updated with a delay, it
-can be overridden with `-PpublishMbedtlsLib=true|false`.
+- Updating mbedtls: bump the upstream version, e.g. `4.2.0.0` -> `4.3.0.0`.
+- Rebuilding the same mbedtls version: bump the packaging revision, e.g. `4.2.0.0` -> `4.2.0.1`.
