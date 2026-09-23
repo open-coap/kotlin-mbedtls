@@ -96,7 +96,9 @@ allprojects {
         config.setFrom("$rootDir/detekt.yml")
         buildUponDefaultConfig = true
     }
+}
 
+subprojects {
     publishing {
         repositories {
             maven {
