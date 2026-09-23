@@ -2,7 +2,13 @@
 set -euo pipefail
 
 DEFAULT_MBEDTLS_VERSION=4.2.0
+DEFAULT_MBEDTLS_COMMIT=ece41aa84d7879d7e55c59e955a5884b541f7f3b
 MBEDTLS_VERSION=${MBEDTLS_VERSION:-$DEFAULT_MBEDTLS_VERSION}
+MBEDTLS_COMMIT=${MBEDTLS_COMMIT:-}
+
+if [ -z "${MBEDTLS_COMMIT}" ] && [ "${MBEDTLS_VERSION}" = "${DEFAULT_MBEDTLS_VERSION}" ]; then
+    MBEDTLS_COMMIT="${DEFAULT_MBEDTLS_COMMIT}"
+fi
 BUILD_DIR=mbedtls-lib/build/mbedtls-${MBEDTLS_VERSION}
 DLEXT="${DLEXT:-so}"
 OSARCH="${OSARCH:-linux-x86-64}"
@@ -16,6 +22,14 @@ rm -rf ${BUILD_DIR}
 # Clone the repository for MbedTLS 4.0.0+
 echo "Cloning MbedTLS ${MBEDTLS_VERSION}..."
 git clone --depth 1 --branch v${MBEDTLS_VERSION} --recurse-submodules --shallow-submodules https://github.com/Mbed-TLS/mbedtls.git ${BUILD_DIR}
+
+# Verify cloned commit against pinned hash
+CLONED_COMMIT=$(git -C "${BUILD_DIR}" rev-parse HEAD)
+if [ -n "${MBEDTLS_COMMIT}" ] && [ "${CLONED_COMMIT}" != "${MBEDTLS_COMMIT}" ]; then
+    echo "ERROR: Cloned commit ${CLONED_COMMIT} does not match expected pin ${MBEDTLS_COMMIT}" >&2
+    exit 1
+fi
+echo "Verified upstream commit pin: ${CLONED_COMMIT}"
 
 # install python requirements
 python3 -m pip install -r ${BUILD_DIR}/scripts/basic.requirements.txt
