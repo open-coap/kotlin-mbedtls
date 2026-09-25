@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,13 +56,18 @@ class DtlsServerMetricsCallbacks(
     }
 
     override fun handshakeFinished(adr: InetSocketAddress, hanshakeStartTimestamp: Long, hanshakeFinishTimestamp: Long, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when {
-        throwable is HelloVerifyRequired -> {} // Skip HelloVerifyRequired handshake states
+        // Skip HelloVerifyRequired handshake states
+        throwable is HelloVerifyRequired -> {}
+
         reason == DtlsSessionLifecycleCallbacks.Reason.SUCCEEDED ->
             handshakesSucceeded.record(hanshakeFinishTimestamp - hanshakeStartTimestamp, TimeUnit.MILLISECONDS)
+
         reason == DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             handshakesFailedBuilder.reasonTag(throwable).register(registry).increment()
+
         reason == DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             handshakesExpired.increment()
+
         else -> {}
     }
 
@@ -75,12 +80,16 @@ class DtlsServerMetricsCallbacks(
     override fun sessionFinished(adr: InetSocketAddress, reason: DtlsSessionLifecycleCallbacks.Reason, throwable: Throwable?) = when (reason) {
         DtlsSessionLifecycleCallbacks.Reason.FAILED ->
             sessionsFailedBuilder.reasonTag(throwable).register(registry).increment()
+
         DtlsSessionLifecycleCallbacks.Reason.CLOSED ->
             sessionsClosed.increment()
+
         DtlsSessionLifecycleCallbacks.Reason.EXPIRED ->
             sessionsExpired.increment()
+
         DtlsSessionLifecycleCallbacks.Reason.STORED ->
             sessionsStored.increment()
+
         else -> {}
     }
 

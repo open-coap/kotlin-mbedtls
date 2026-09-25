@@ -61,7 +61,9 @@ val verifyReleasedBinaries by tasks.registering {
         val released = releasedBinaries()
         val isReleased = when {
             released == null -> false
+
             released == localBinaries() -> true
+
             else -> throw GradleException(
                 "mbedtls binaries differ from already released $artifact. " +
                     "Bump `mbedtlsLibVersion` in `gradle.properties`, released versions are immutable."

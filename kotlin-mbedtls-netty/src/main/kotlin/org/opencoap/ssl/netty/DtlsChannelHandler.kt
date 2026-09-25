@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,8 +70,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
             val result = dtlsServer.handleReceived(msg.sender(), msg.content().nioBuffer())
 
             when (result) {
-                is DtlsServer.ReceiveResult.Handled -> Unit // do nothing
-                is DtlsServer.ReceiveResult.DecryptFailed -> Unit // do nothing
+                // do nothing
+                is DtlsServer.ReceiveResult.Handled -> Unit
+
+                // do nothing
+                is DtlsServer.ReceiveResult.DecryptFailed -> Unit
 
                 is DtlsServer.ReceiveResult.Decrypted -> ctx.fireChannelRead(DatagramPacketWithContext.from(result.packet))
 
@@ -86,9 +89,13 @@ class DtlsChannelHandler @JvmOverloads constructor(
             .whenComplete { loadResult: DtlsServer.SessionLoadResult?, _ ->
                 when (loadResult) {
                     is DtlsServer.SessionLoadResult.Loaded -> channelRead(ctx, msg)
+
                     is DtlsServer.SessionLoadResult.NotFound -> msg.release()
+
                     is DtlsServer.SessionLoadResult.RecordVerificationFailed -> msg.release()
+
                     is DtlsServer.SessionLoadResult.NotReadable -> msg.release()
+
                     // the session store read itself failed
                     null -> msg.release()
                 }
@@ -101,6 +108,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
                 write(msg, promise, ctx)
                 dtlsServer.handleOutboundDtlsSessionContext(msg.recipient(), msg.sessionContext, promise.toCompletableFuture())
             }
+
             is DatagramPacket -> write(msg, promise, ctx)
 
             else -> ctx.write(msg, promise)

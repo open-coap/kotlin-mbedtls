@@ -95,8 +95,11 @@ class DtlsParserTest {
             val cidSize = when (random.nextInt(4)) {
                 // in range, then either side of each bound, then anything at all
                 0 -> random.nextInt(0, 33)
+
                 1 -> random.nextInt(-64, 64)
+
                 2 -> random.nextInt(24, Int.MAX_VALUE)
+
                 else -> random.nextInt()
             }
 

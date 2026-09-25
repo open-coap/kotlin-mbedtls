@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,6 +109,7 @@ class DtlsTransmitter private constructor(
 
                 return when (newSslContext) {
                     is SslSession -> completedFuture(newSslContext)
+
                     is SslHandshakeContext -> {
                         // readTimeout of zero means mbedtls has no active retransmission timer for this
                         // step (e.g. it's waiting on the peer, not scheduled to retransmit anything itself),

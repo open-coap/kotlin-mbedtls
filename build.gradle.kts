@@ -45,6 +45,12 @@ allprojects {
     group = "io.github.open-coap"
     project.version = rootProject.version
 
+    dependencies {
+        // Declared explicitly so dependabot bumps them; the ktlint plugin's default engine drags in a vulnerable logback
+        "ktlint"("com.pinterest.ktlint:ktlint-cli:1.8.0")
+        "ktlint"("ch.qos.logback:logback-classic:1.6.3")
+    }
+
     kotlin {
         compilerOptions {
             allWarningsAsErrors = true

@@ -61,6 +61,7 @@ class DtlsServer(
 
         return when {
             dtlsState is DtlsHandshake -> dtlsState.step(buf)
+
             dtlsState is DtlsSession -> dtlsState.decrypt(buf)
 
             // no session, but dtls packet contains CID

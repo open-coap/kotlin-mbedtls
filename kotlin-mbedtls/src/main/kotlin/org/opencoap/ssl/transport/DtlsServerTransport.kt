@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,9 @@ class DtlsServerTransport private constructor(
 
         return when (result) {
             is DtlsServer.ReceiveResult.Handled -> receive(timeout)
+
             is DtlsServer.ReceiveResult.DecryptFailed -> receive(timeout)
+
             is DtlsServer.ReceiveResult.Decrypted -> completedFuture(result.packet)
 
             is DtlsServer.ReceiveResult.CidSessionMissing -> {
@@ -96,6 +98,7 @@ class DtlsServerTransport private constructor(
 
         when {
             encPacket == null -> completedFuture(false)
+
             else -> {
                 transport.send(encPacket).also {
                     dtlsServer.handleOutboundDtlsSessionContext(packet.peerAddress, packet.sessionContext, it)

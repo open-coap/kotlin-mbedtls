@@ -66,7 +66,9 @@ class SslHandshakeContext internal constructor(
 
         return when (ret) {
             MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> return this
+
             MbedtlsApi.MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED -> throw HelloVerifyRequired
+
             0 -> SslSession(conf, sslContext, cid).also {
                 finishTimestamp = System.currentTimeMillis()
                 logger.info("[{}] DTLS connected in {}ms {}", peerAdr, finishTimestamp - startTimestamp, it)
@@ -167,7 +169,9 @@ class SslSession internal constructor(
         val ret = mbedtls_ssl_read(sslContext, plainBuffer, plainBuffer.remaining())
         return when {
             ret >= 0 -> ret
+
             ret == MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ -> 0
+
             // ret == MBEDTLS_ERR_SSL_WANT_WRITE -> 0
             else -> throw SslException.from(ret)
         }

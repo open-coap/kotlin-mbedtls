@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
+ * Copyright (c) 2022-2026 kotlin-mbedtls contributors (https://github.com/open-coap/kotlin-mbedtls)
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,9 @@ internal object ReceiveCallback : Callback {
         try {
             return when {
                 buffer == null -> MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
+
                 !buffer.hasRemaining() && timeout == 0 -> MbedtlsApi.MBEDTLS_ERR_SSL_WANT_READ
+
                 !buffer.hasRemaining() -> MbedtlsApi.MBEDTLS_ERR_SSL_TIMEOUT
 
                 else -> {
