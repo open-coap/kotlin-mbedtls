@@ -77,3 +77,37 @@ tasks.withType<PublishToMavenRepository>().configureEach {
     dependsOn(verifyReleasedBinaries)
     onlyIf { forcePublish.orNull ?: (publishDecisionFile.get().asFile.readText() == "publish") }
 }
+
+// Same as the bash one-liner in `gradle.properties`: sha256 of sorted `sha256sum` output lines
+fun binariesHash(): String = sha256(localBinaries().toSortedMap().entries.joinToString("") { "${it.value}  ${it.key}\n" }.toByteArray())
+
+val verifyBinariesHash by tasks.registering {
+    group = "verification"
+    description = "Verifies that mbedtls binaries match `mbedtlsLibBinariesSha256` in `gradle.properties`"
+    val libVersion = version.toString()
+    val recorded = providers.gradleProperty("mbedtlsLibBinariesSha256")
+    inputs.dir(binDir)
+    inputs.property("version", libVersion)
+    inputs.property("recorded", recorded)
+
+    doLast {
+        val (recordedVersion, recordedHash) = recorded.get().split(':', limit = 2)
+        val actualHash = binariesHash()
+        val binariesChanged = actualHash != recordedHash
+        val versionChanged = libVersion != recordedVersion
+
+        if (binariesChanged && !versionChanged) {
+            throw GradleException(
+                "mbedtls binaries changed. Bump `mbedtlsLibVersion` in `gradle.properties`, " +
+                    "then set `mbedtlsLibBinariesSha256=<new-version>:$actualHash`"
+            )
+        }
+        if (binariesChanged || versionChanged) {
+            throw GradleException("Set `mbedtlsLibBinariesSha256=$libVersion:$actualHash` in `gradle.properties`")
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(verifyBinariesHash)
+}

@@ -64,6 +64,8 @@ jobs:
         run: |
           sed -i 's/^\(DEFAULT_MBEDTLS_VERSION=\).\+$/\1'${NEW_MBEDTLS_VERSION}'/' compileMbedtls.sh
           sed -i 's/^\(mbedtlsLibVersion=\).\+$/\1'${NEW_MBEDTLS_VERSION}'.0/' gradle.properties
+          BINARIES_SHA256=$(cd mbedtls-lib/bin && find * -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          sed -i 's/^\(mbedtlsLibBinariesSha256=\).\+$/\1'${NEW_MBEDTLS_VERSION}'.0:'${BINARIES_SHA256}'/' gradle.properties
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:
