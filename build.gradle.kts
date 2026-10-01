@@ -48,7 +48,7 @@ allprojects {
     dependencies {
         // Declared explicitly so dependabot bumps them; the ktlint plugin's default engine drags in a vulnerable logback
         "ktlint"("com.pinterest.ktlint:ktlint-cli:1.8.0")
-        "ktlint"("ch.qos.logback:logback-classic:1.6.3")
+        "ktlint"("ch.qos.logback:logback-classic:1.6.4")
     }
 
     kotlin {
