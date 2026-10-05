@@ -6,7 +6,7 @@ plugins {
 dependencies {
     api(project(":mbedtls-lib"))
 
-    api("org.slf4j:slf4j-api:2.0.19")
+    api("org.slf4j:slf4j-api:2.0.20")
     api("net.java.dev.jna:jna:5.19.1")
 
     // TESTS
@@ -16,7 +16,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
-    testImplementation("ch.qos.logback:logback-classic:1.6.3")
+    testImplementation("ch.qos.logback:logback-classic:1.6.4")
     testImplementation("io.mockk:mockk:1.14.11")
 }
 
