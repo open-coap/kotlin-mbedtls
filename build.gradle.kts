@@ -6,10 +6,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.4.20"
+    id("org.jetbrains.kotlin.jvm") version "2.4.21"
     id("pl.allegro.tech.build.axion-release") version "1.21.4"
     id("se.patrikerdes.use-latest-versions") version "0.2.19"
-    id("io.github.ben-manes.versions") version "0.64.0"
+    id("io.github.ben-manes.versions") version "0.66.0"
     id("java-library")
     id("maven-publish")
     id("org.gradle.signing")
@@ -48,7 +48,7 @@ allprojects {
     dependencies {
         // Declared explicitly so dependabot bumps them; the ktlint plugin's default engine drags in a vulnerable logback
         "ktlint"("com.pinterest.ktlint:ktlint-cli:1.8.0")
-        "ktlint"("ch.qos.logback:logback-classic:1.6.4")
+        "ktlint"("ch.qos.logback:logback-classic:1.6.6")
     }
 
     kotlin {

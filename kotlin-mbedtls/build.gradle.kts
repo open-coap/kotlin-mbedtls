@@ -16,7 +16,7 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
     testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
-    testImplementation("ch.qos.logback:logback-classic:1.6.4")
+    testImplementation("ch.qos.logback:logback-classic:1.6.6")
     testImplementation("io.mockk:mockk:1.14.11")
 }
 
