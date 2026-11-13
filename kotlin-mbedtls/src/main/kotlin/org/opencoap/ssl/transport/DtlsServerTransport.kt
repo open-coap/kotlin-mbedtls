@@ -111,7 +111,6 @@ class DtlsServerTransport private constructor(
     override fun localPort() = transport.localPort()
 
     override fun close() {
-        // a session store read in flight stores its session back instead of loading it
         sessionStore.stopReading()
 
         executor.supply {
