@@ -646,39 +646,11 @@ class DtlsServerTransportTest {
         client.send("hi")
         await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
 
-        // when, closed while the read is still pending
-        val closing = CompletableFuture.runAsync { server.close() }
-        pendingStore.onWrite = { pendingStore.closedOnWrite.add(closing.isDone) }
-        Thread.sleep(100)
-
-        // then, close waits for the read
-        assertFalse(closing.isDone)
-
-        // and when, the read completes
-        pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
-
-        // then, the session is stored back before close returns
-        closing.get(5, TimeUnit.SECONDS)
-        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
-        assertEquals(listOf(false), pendingStore.closedOnWrite)
-
-        client.close()
-    }
-
-    @Test
-    fun `should close when pending session read does not complete in time`() {
-        // given
-        val pendingStore = PendingReadSessionStore()
-        server = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore, pendingSessionLoadsTimeout = 200.millis).listen(echoHandler)
-        val client = reloadedClient()
-        client.send("hi")
-        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
-
         // when
         CompletableFuture.runAsync { server.close() }.get(5, TimeUnit.SECONDS)
-
-        // then, a read completing after close does not load the session, it is stored back as a last resort
         pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+
+        // then, the session is not loaded, it is stored back
         assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
 
         client.close()
@@ -692,15 +664,9 @@ class DtlsServerTransportTest {
     private class PendingReadSessionStore : SessionStore {
         val reads = CopyOnWriteArrayList<CompletableFuture<SessionWithContext?>>()
         val writes = CopyOnWriteArrayList<CID>()
-        val closedOnWrite = CopyOnWriteArrayList<Boolean>()
-
-        @Volatile
-        var onWrite: () -> Unit = {}
-
         override fun read(cid: CID): CompletableFuture<SessionWithContext?> = CompletableFuture<SessionWithContext?>().also(reads::add)
 
         override fun write(cid: CID, session: SessionWithContext) {
-            onWrite()
             writes.add(cid)
         }
     }

@@ -27,29 +27,21 @@ import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.NoOpsSessionStore
 import org.opencoap.ssl.transport.SessionStore
-import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
-import java.util.concurrent.TimeUnit
 
 class DtlsChannelHandler @JvmOverloads constructor(
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
     sessionStore: SessionStore = NoOpsSessionStore,
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
-    private val cidRequired: Boolean = false,
-    // how long close() waits for in-flight session store reads, so that the sessions they read get stored again
-    private val pendingSessionLoadsTimeout: Duration = Duration.ofSeconds(5)
+    private val cidRequired: Boolean = false
 ) : ChannelDuplexHandler() {
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val drainingSessionStore = DrainingSessionStore(sessionStore)
     private lateinit var ctx: ChannelHandlerContext
     lateinit var dtlsServer: DtlsServer
-
-    // completes on ctx.executor() once sessions are closed, accessed only from ctx.executor()
-    private var sessionsClosed: CompletableFuture<Unit>? = null
 
     private fun write(packet: ByteBufferPacket): CompletableFuture<Boolean> {
         val dtlsPacket = DatagramPacket(packet.buffer.toByteBuf(), packet.peerAddress)
@@ -66,31 +58,10 @@ class DtlsChannelHandler @JvmOverloads constructor(
     }
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
-        // a second close() waits for the first one to close sessions
-        val sessionsClosed = this.sessionsClosed ?: closeSessionsWhenDrained(ctx).also { this.sessionsClosed = it }
-        sessionsClosed.whenComplete { _, _ -> ctx.close(promise) }
-    }
-
-    private fun closeSessionsWhenDrained(ctx: ChannelHandlerContext): CompletableFuture<Unit> {
-        val sessionsClosed = CompletableFuture<Unit>()
-        val timeout = ctx.executor().schedule(Runnable { closeSessions(sessionsClosed, timedOut = true) }, pendingSessionLoadsTimeout.toMillis(), TimeUnit.MILLISECONDS)
-
-        // a session store read in flight may already have removed a session from the store, wait until it is loaded or
-        // stored back; always continue on the executor, so that the loads scheduled by reads run first
-        drainingSessionStore.close().whenComplete { _, _ ->
-            ctx.executor().execute {
-                timeout.cancel(false)
-                closeSessions(sessionsClosed, timedOut = false)
-            }
-        }
-        return sessionsClosed
-    }
-
-    private fun closeSessions(sessionsClosed: CompletableFuture<Unit>, timedOut: Boolean) {
-        if (sessionsClosed.isDone) return
-        if (timedOut) logger.warn("Closing with session store read(s) still pending after {}", pendingSessionLoadsTimeout)
+        // a session store read in flight stores its session back instead of loading it
+        drainingSessionStore.close()
         dtlsServer.closeSessions()
-        sessionsClosed.complete(Unit)
+        ctx.close(promise)
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
