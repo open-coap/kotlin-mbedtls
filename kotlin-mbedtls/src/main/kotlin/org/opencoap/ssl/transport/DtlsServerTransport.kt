@@ -116,7 +116,7 @@ class DtlsServerTransport private constructor(
         if (!closed.compareAndSet(false, true)) return
 
         // a session store read in flight stores its session back instead of loading it
-        sessionStore.close()
+        sessionStore.stopReading()
 
         executor.supply {
             transport.close()

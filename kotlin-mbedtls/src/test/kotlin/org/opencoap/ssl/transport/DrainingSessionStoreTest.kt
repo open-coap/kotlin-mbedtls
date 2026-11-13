@@ -17,14 +17,12 @@
 package org.opencoap.ssl.transport
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionException
 
 class DrainingSessionStoreTest {
 
@@ -34,12 +32,12 @@ class DrainingSessionStoreTest {
     private val session = SessionWithContext(byteArrayOf(9), mapOf("auth" to "dev-1"), Instant.ofEpochSecond(123456789))
 
     @Test
-    fun `should pass through read completed before close`() {
+    fun `should pass through read completed before stopping`() {
         val read = store.read(cid)
         delegate.reads[0].complete(session)
+        store.stopReading()
 
         assertSame(session, read.join())
-        assertTrue(store.close().isDone)
         assertTrue(delegate.writes.isEmpty())
     }
 
@@ -51,8 +49,8 @@ class DrainingSessionStoreTest {
     }
 
     @Test
-    fun `should not read delegate once closed`() {
-        store.close()
+    fun `should not read delegate once stopped`() {
+        store.stopReading()
 
         // when
         val read = store.read(cid)
@@ -63,9 +61,9 @@ class DrainingSessionStoreTest {
     }
 
     @Test
-    fun `should store back session read in flight when closed`() {
+    fun `should store back session read in flight when stopped`() {
         val read = store.read(cid)
-        store.close()
+        store.stopReading()
 
         // when
         delegate.reads[0].complete(session)
@@ -76,49 +74,29 @@ class DrainingSessionStoreTest {
     }
 
     @Test
-    fun `should complete close only after reads in flight complete`() {
-        val read1 = store.read(cid)
-        val read2 = store.read(cid)
-
-        // when
-        val closed = store.close()
-
-        // then
-        assertFalse(closed.isDone)
-        delegate.reads[0].complete(null)
-        assertFalse(closed.isDone)
-        delegate.reads[1].complete(session)
-        assertTrue(closed.isDone)
-
-        assertNull(read1.join())
-        assertNull(read2.join())
-        assertEquals(1, delegate.writes.size)
-    }
-
-    @Test
-    fun `should have stored back the session when close completes`() {
-        store.read(cid)
-        val writesWhenClosed = store.close().thenApply { delegate.writes.size }
-
-        delegate.reads[0].complete(session)
-
-        assertEquals(1, writesWhenClosed.join())
-    }
-
-    @Test
-    fun `should complete close after a read in flight fails`() {
+    fun `should not store back when read in flight finds no session`() {
         val read = store.read(cid)
-        val closed = store.close()
+        store.stopReading()
+
+        delegate.reads[0].complete(null)
+
+        assertNull(read.join())
+        assertTrue(delegate.writes.isEmpty())
+    }
+
+    @Test
+    fun `should fail read when read in flight fails`() {
+        val read = store.read(cid)
+        store.stopReading()
 
         delegate.reads[0].completeExceptionally(IllegalStateException("store failed"))
 
-        assertTrue(closed.isDone)
         assertTrue(read.isCompletedExceptionally)
         assertTrue(delegate.writes.isEmpty())
     }
 
     @Test
-    fun `should complete close when delegate read throws`() {
+    fun `should fail read when delegate read throws`() {
         val failingStore = DrainingSessionStore(object : SessionStore by delegate {
             override fun read(cid: CID): CompletableFuture<SessionWithContext?> = throw IllegalStateException("store failed")
         })
@@ -126,37 +104,17 @@ class DrainingSessionStoreTest {
         val read = failingStore.read(cid)
 
         assertTrue(read.isCompletedExceptionally)
-        assertTrue(failingStore.close().isDone)
     }
 
     @Test
-    fun `should complete close when storing back fails`() {
+    fun `should return no session when storing back fails`() {
         delegate.failWrites = true
         val read = store.read(cid)
-        val closed = store.close()
+        store.stopReading()
 
         delegate.reads[0].complete(session)
 
         assertNull(read.join())
-        assertTrue(closed.isDone)
-    }
-
-    @Test
-    fun `should be idempotent when closing`() {
-        store.read(cid)
-        val closed1 = store.close()
-        val closed2 = store.close()
-        assertFalse(closed1.isDone || closed2.isDone)
-
-        // a caller completing its future does not complete the other ones
-        closed1.completeExceptionally(CompletionException(IllegalStateException()))
-        assertFalse(closed2.isDone)
-
-        delegate.reads[0].complete(session)
-
-        assertTrue(closed2.isDone)
-        assertTrue(store.close().isDone)
-        assertEquals(1, delegate.writes.size)
     }
 
     private class PendingReadSessionStore : SessionStore {

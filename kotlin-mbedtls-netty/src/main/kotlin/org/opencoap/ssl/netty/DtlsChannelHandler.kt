@@ -59,7 +59,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         // a session store read in flight stores its session back instead of loading it
-        drainingSessionStore.close()
+        drainingSessionStore.stopReading()
         dtlsServer.closeSessions()
         ctx.close(promise)
     }
