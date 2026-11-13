@@ -35,6 +35,7 @@ import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.Certs
+import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.mapToString
@@ -46,8 +47,10 @@ import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
 import java.nio.channels.DatagramChannel
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -65,6 +68,10 @@ class DtlsServerTransportTest {
     private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
     private val sessionStore = HashMapSessionStore()
+
+    // matching StoredSessionPair
+    private val storedPairConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, RandomCidSupplier(16))
+    private val storedPairClientConf = SslConfig.client(trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     private val sslLifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
 
     private lateinit var server: DtlsServerTransport
@@ -94,6 +101,8 @@ class DtlsServerTransportTest {
         clientConfig.close()
         timeoutConf.close()
         timeoutClientConf.close()
+        storedPairConf.close()
+        storedPairClientConf.close()
         sessionStore.clear()
         clearMocks(sslLifecycleCallbacks)
     }
@@ -626,6 +635,74 @@ class DtlsServerTransportTest {
         assertEquals(stoppedAt, receiveCount.get())
 
         client.close()
+    }
+
+    @Test
+    fun `should store back session read in flight when closed`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        server = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore).listen(echoHandler)
+        val client = reloadedClient()
+        client.send("hi")
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when, closed while the read is still pending
+        val closing = CompletableFuture.runAsync { server.close() }
+        pendingStore.onWrite = { pendingStore.closedOnWrite.add(closing.isDone) }
+        Thread.sleep(100)
+
+        // then, close waits for the read
+        assertFalse(closing.isDone)
+
+        // and when, the read completes
+        pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+
+        // then, the session is stored back before close returns
+        closing.get(5, TimeUnit.SECONDS)
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+        assertEquals(listOf(false), pendingStore.closedOnWrite)
+
+        client.close()
+    }
+
+    @Test
+    fun `should close when pending session read does not complete in time`() {
+        // given
+        val pendingStore = PendingReadSessionStore()
+        server = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore, pendingSessionLoadsTimeout = 200.millis).listen(echoHandler)
+        val client = reloadedClient()
+        client.send("hi")
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when
+        CompletableFuture.runAsync { server.close() }.get(5, TimeUnit.SECONDS)
+
+        // then, a read completing after close does not load the session, it is stored back as a last resort
+        pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+
+        client.close()
+    }
+
+    private fun reloadedClient(): DtlsTransmitter {
+        val srvAddress = localAddress(server.localPort())
+        return DtlsTransmitter.create(srvAddress, storedPairClientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress))
+    }
+
+    private class PendingReadSessionStore : SessionStore {
+        val reads = CopyOnWriteArrayList<CompletableFuture<SessionWithContext?>>()
+        val writes = CopyOnWriteArrayList<CID>()
+        val closedOnWrite = CopyOnWriteArrayList<Boolean>()
+
+        @Volatile
+        var onWrite: () -> Unit = {}
+
+        override fun read(cid: CID): CompletableFuture<SessionWithContext?> = CompletableFuture<SessionWithContext?>().also(reads::add)
+
+        override fun write(cid: CID, session: SessionWithContext) {
+            onWrite()
+            writes.add(cid)
+        }
     }
 
     // records the highest number of receives that were outstanding at the same time
