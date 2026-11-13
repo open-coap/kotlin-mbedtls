@@ -17,6 +17,7 @@
 package org.opencoap.ssl.transport
 
 import org.opencoap.ssl.SslConfig
+import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.time.Duration
@@ -24,6 +25,8 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Function
 
 /*
@@ -32,9 +35,12 @@ Single threaded dtls server on top of DatagramChannel.
 class DtlsServerTransport private constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
-    private val sessionStore: SessionStore,
-    private val executor: SingleThreadExecutor
+    private val sessionStore: DrainingSessionStore,
+    private val executor: SingleThreadExecutor,
+    private val pendingSessionLoadsTimeout: Duration
 ) : Transport<ByteBufferPacket> {
+    private val logger = LoggerFactory.getLogger(javaClass)
+    private val closed = AtomicBoolean(false)
 
     companion object {
         @JvmStatic
@@ -46,11 +52,14 @@ class DtlsServerTransport private constructor(
             sessionStore: SessionStore = NoOpsSessionStore,
             transport: Transport<ByteBufferPacket> = DatagramChannelAdapter.open(listenPort),
             lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
-            cidRequired: Boolean = false
+            cidRequired: Boolean = false,
+            // how long close() waits for in-flight session store reads, so that the sessions they read get stored again
+            pendingSessionLoadsTimeout: Duration = Duration.ofSeconds(5)
         ): DtlsServerTransport {
             val executor = SingleThreadExecutor.create("dtls-srv-")
-            val dtlsServer = DtlsServer(transport, config, expireAfter, sessionStore::write, lifecycleCallbacks, executor, cidRequired)
-            return DtlsServerTransport(transport, dtlsServer, sessionStore, executor)
+            val drainingSessionStore = DrainingSessionStore(sessionStore)
+            val dtlsServer = DtlsServer(transport, config, expireAfter, drainingSessionStore::write, lifecycleCallbacks, executor, cidRequired)
+            return DtlsServerTransport(transport, dtlsServer, drainingSessionStore, executor, pendingSessionLoadsTimeout)
         }
     }
 
@@ -87,6 +96,7 @@ class DtlsServerTransport private constructor(
                         is DtlsServer.SessionLoadResult.NotFound -> receive(timeout)
                         is DtlsServer.SessionLoadResult.RecordVerificationFailed -> receive(timeout)
                         is DtlsServer.SessionLoadResult.NotReadable -> receive(timeout)
+                        is DtlsServer.SessionLoadResult.ServerClosed -> receive(timeout)
                     }
                 }
             }
@@ -110,9 +120,19 @@ class DtlsServerTransport private constructor(
     override fun localPort() = transport.localPort()
 
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+
+        // a session store read in flight may already have removed a session from the store, wait until it is loaded or
+        // stored back; the loads those reads scheduled are queued before closing sessions
+        try {
+            sessionStore.close().get(pendingSessionLoadsTimeout.toMillis(), TimeUnit.MILLISECONDS)
+        } catch (_: TimeoutException) {
+            logger.warn("Closing with session store read(s) still pending after {}", pendingSessionLoadsTimeout)
+        }
+
         executor.supply {
             transport.close()
-            dtlsServer.closeSessions()
+            dtlsServer.close()
         }.get(30, TimeUnit.SECONDS)
         executor.shutdown()
     }

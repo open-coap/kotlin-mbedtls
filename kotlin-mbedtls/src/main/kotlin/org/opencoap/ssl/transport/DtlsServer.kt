@@ -54,6 +54,9 @@ class DtlsServer(
     private val cidSize = sslConfig.cidSupplier?.next()?.size ?: 0
     val numberOfSessions get() = sessions.size
 
+    // set by close(), sessions are no longer loaded as sslConfig may be freed
+    private var closed = false
+
     fun handleReceived(adr: InetSocketAddress, buf: ByteBuffer): ReceiveResult {
         val cid by lazy { DtlsParser.readCid(cidSize, buf) }
         val isValidHandshake by lazy { isValidHandshakeRequest(buf) }
@@ -121,6 +124,15 @@ class DtlsServer(
         }
     }
 
+    /**
+     * Stores and closes all sessions, like [closeSessions], and stops loading sessions: from then on [loadSession]
+     * stores the session back without loading it. Call it when the transport closes.
+     */
+    fun close() {
+        closed = true
+        closeSessions()
+    }
+
     private fun closeSession(addr: InetSocketAddress) {
         sessions.remove(addr)?.storeAndClose()
     }
@@ -135,6 +147,13 @@ class DtlsServer(
     }
 
     fun loadSession(sessBuf: SessionWithContext?, adr: InetSocketAddress, cid: ByteArray, dtlsPacket: ByteBuffer): SessionLoadResult {
+        if (closed) {
+            // a read that completed while closing, nothing will store the session again if it is not stored back now
+            if (sessBuf != null) storeBack(sessBuf, adr, cid)
+            reportMessageDrop(adr)
+            return SessionLoadResult.ServerClosed
+        }
+
         if (sessBuf == null) {
             logger.warn("[{}] [CID:{}] DTLS session not found", adr, cid.toHex())
             reportMessageDrop(adr)
@@ -180,6 +199,15 @@ class DtlsServer(
         }
     }
 
+    private fun storeBack(sessBuf: SessionWithContext, adr: InetSocketAddress, cid: ByteArray) {
+        try {
+            storeSession(cid, sessBuf)
+            logger.warn("[{}] [CID:{}] DTLS session not loaded, server closed, stored it back", adr, cid.toHex())
+        } catch (ex: Exception) {
+            logger.error("[{}] [CID:{}] DTLS failed to store back session, server closed: {}", adr, cid.toHex(), ex.message)
+        }
+    }
+
     private fun registerSession(sslSession: SslSession, adr: InetSocketAddress, sessBuf: SessionWithContext) {
         sessions[adr] = DtlsSession(sslSession, adr, sessBuf.authenticationContext, sessBuf.sessionStartTimestamp)
     }
@@ -200,8 +228,8 @@ class DtlsServer(
         class CidSessionMissing(val cid: ByteArray) : ReceiveResult
     }
 
-    // The three failures are kept apart on purpose: only NotFound means the connection state is
-    // genuinely gone. Reacting to the other two would answer records the server cannot verify.
+    // The failures are kept apart on purpose: only NotFound means the connection state is
+    // genuinely gone. Reacting to the others would answer records the server cannot verify.
     sealed interface SessionLoadResult {
         object Loaded : SessionLoadResult
 
@@ -214,6 +242,9 @@ class DtlsServer(
 
         // the stored session blob could not be deserialised, eg. after an mbedTLS upgrade
         object NotReadable : SessionLoadResult
+
+        // the server was closed, the session was stored back without loading it
+        object ServerClosed : SessionLoadResult
     }
 
     private abstract inner class DtlsState(val peerAddress: InetSocketAddress) {
