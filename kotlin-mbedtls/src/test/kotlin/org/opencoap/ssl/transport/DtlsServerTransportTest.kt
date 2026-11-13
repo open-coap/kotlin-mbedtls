@@ -96,7 +96,8 @@ class DtlsServerTransportTest {
 
     @AfterEach
     fun tearDown() {
-        server.close()
+        // a test that closes its own server does not set it
+        if (::server.isInitialized) server.close()
         conf.close()
         clientConfig.close()
         timeoutConf.close()
@@ -641,13 +642,13 @@ class DtlsServerTransportTest {
     fun `should store back session read in flight when closed`() {
         // given, a device's session is being read from the store
         val pendingStore = PendingReadSessionStore()
-        server = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore).listen(echoHandler)
-        val client = reloadedClient()
+        val srv = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore).listen(echoHandler)
+        val client = reloadedClient(srv)
         client.send("hi")
         await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
 
         // when
-        CompletableFuture.runAsync { server.close() }.get(5, TimeUnit.SECONDS)
+        srv.close()
         pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
 
         // then, the session is not loaded, it is stored back
@@ -656,8 +657,8 @@ class DtlsServerTransportTest {
         client.close()
     }
 
-    private fun reloadedClient(): DtlsTransmitter {
-        val srvAddress = localAddress(server.localPort())
+    private fun reloadedClient(srv: DtlsServerTransport): DtlsTransmitter {
+        val srvAddress = localAddress(srv.localPort())
         return DtlsTransmitter.create(srvAddress, storedPairClientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress))
     }
 

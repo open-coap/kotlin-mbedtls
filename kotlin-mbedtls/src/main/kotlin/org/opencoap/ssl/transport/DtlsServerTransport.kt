@@ -24,7 +24,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Function
 
 /*
@@ -36,7 +35,6 @@ class DtlsServerTransport private constructor(
     private val sessionStore: ShutdownSafeSessionStore,
     private val executor: SingleThreadExecutor
 ) : Transport<ByteBufferPacket> {
-    private val closed = AtomicBoolean(false)
 
     companion object {
         @JvmStatic
@@ -113,8 +111,6 @@ class DtlsServerTransport private constructor(
     override fun localPort() = transport.localPort()
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-
         // a session store read in flight stores its session back instead of loading it
         sessionStore.stopReading()
 
