@@ -24,10 +24,10 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 
-class DrainingSessionStoreTest {
+class ShutdownSafeSessionStoreTest {
 
     private val delegate = PendingReadSessionStore()
-    private val store = DrainingSessionStore(delegate)
+    private val store = ShutdownSafeSessionStore(delegate)
     private val cid = byteArrayOf(1, 2, 3)
     private val session = SessionWithContext(byteArrayOf(9), mapOf("auth" to "dev-1"), Instant.ofEpochSecond(123456789))
 
@@ -97,7 +97,7 @@ class DrainingSessionStoreTest {
 
     @Test
     fun `should fail read when delegate read throws`() {
-        val failingStore = DrainingSessionStore(object : SessionStore by delegate {
+        val failingStore = ShutdownSafeSessionStore(object : SessionStore by delegate {
             override fun read(cid: CID): CompletableFuture<SessionWithContext?> = throw IllegalStateException("store failed")
         })
 

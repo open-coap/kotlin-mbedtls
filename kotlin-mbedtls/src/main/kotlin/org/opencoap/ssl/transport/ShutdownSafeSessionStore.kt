@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture.completedFuture
  *
  * A read that completed just before [stopReading], but whose session the transport has not loaded yet, is not covered.
  */
-class DrainingSessionStore(private val delegate: SessionStore) : SessionStore {
+class ShutdownSafeSessionStore(private val delegate: SessionStore) : SessionStore {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     @Volatile

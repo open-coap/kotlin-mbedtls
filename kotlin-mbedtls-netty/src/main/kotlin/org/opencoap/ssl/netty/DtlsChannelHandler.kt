@@ -22,11 +22,11 @@ import io.netty.channel.ChannelPromise
 import io.netty.channel.socket.DatagramPacket
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.transport.ByteBufferPacket
-import org.opencoap.ssl.transport.DrainingSessionStore
 import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.NoOpsSessionStore
 import org.opencoap.ssl.transport.SessionStore
+import org.opencoap.ssl.transport.ShutdownSafeSessionStore
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -39,7 +39,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
     private val cidRequired: Boolean = false
 ) : ChannelDuplexHandler() {
-    private val drainingSessionStore = DrainingSessionStore(sessionStore)
+    private val shutdownSafeSessionStore = ShutdownSafeSessionStore(sessionStore)
     private lateinit var ctx: ChannelHandlerContext
     lateinit var dtlsServer: DtlsServer
 
@@ -54,12 +54,12 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
-        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, drainingSessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
+        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, shutdownSafeSessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
     }
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         // a session store read in flight stores its session back instead of loading it
-        drainingSessionStore.stopReading()
+        shutdownSafeSessionStore.stopReading()
         dtlsServer.closeSessions()
         ctx.close(promise)
     }
@@ -88,7 +88,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
     }
 
     private fun loadSession(result: DtlsServer.ReceiveResult.CidSessionMissing, msg: DatagramPacket, ctx: ChannelHandlerContext) {
-        drainingSessionStore.read(result.cid)
+        shutdownSafeSessionStore.read(result.cid)
             .thenApplyAsync({ sessBuf -> dtlsServer.loadSession(sessBuf, msg.sender(), result.cid, msg.content().nioBuffer()) }, ctx.executor())
             .whenComplete { loadResult: DtlsServer.SessionLoadResult?, _ ->
                 when (loadResult) {

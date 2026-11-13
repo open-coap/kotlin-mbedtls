@@ -33,7 +33,7 @@ Single threaded dtls server on top of DatagramChannel.
 class DtlsServerTransport private constructor(
     private val transport: Transport<ByteBufferPacket>,
     private val dtlsServer: DtlsServer,
-    private val sessionStore: DrainingSessionStore,
+    private val sessionStore: ShutdownSafeSessionStore,
     private val executor: SingleThreadExecutor
 ) : Transport<ByteBufferPacket> {
     private val closed = AtomicBoolean(false)
@@ -51,9 +51,9 @@ class DtlsServerTransport private constructor(
             cidRequired: Boolean = false
         ): DtlsServerTransport {
             val executor = SingleThreadExecutor.create("dtls-srv-")
-            val drainingSessionStore = DrainingSessionStore(sessionStore)
-            val dtlsServer = DtlsServer(transport, config, expireAfter, drainingSessionStore::write, lifecycleCallbacks, executor, cidRequired)
-            return DtlsServerTransport(transport, dtlsServer, drainingSessionStore, executor)
+            val shutdownSafeSessionStore = ShutdownSafeSessionStore(sessionStore)
+            val dtlsServer = DtlsServer(transport, config, expireAfter, shutdownSafeSessionStore::write, lifecycleCallbacks, executor, cidRequired)
+            return DtlsServerTransport(transport, dtlsServer, shutdownSafeSessionStore, executor)
         }
     }
 
