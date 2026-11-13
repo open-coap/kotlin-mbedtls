@@ -160,7 +160,9 @@ class NettyShutdownTest {
     fun `should close channel when pending session read does not complete in time`() {
         // given
         val pendingStore = PendingReadSessionStore()
-        val srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = pendingStore, pendingSessionLoadsTimeout = Duration.ofMillis(200)), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val handler = DtlsChannelHandler(serverConf, sessionStore = pendingStore, pendingSessionLoadsTimeout = Duration.ofMillis(200))
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        pendingStore.onWrite = { pendingStore.channelOpenOnWrite.add(srvChannel.isOpen) }
         val client = reloadedClient(srvChannel)
         client.send("Terve").await()
         await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
@@ -168,10 +170,37 @@ class NettyShutdownTest {
         // when
         assertTrue(srvChannel.close().await(5000))
 
-        // then, a read completing after close does not load nor store the session
+        // then, a read completing after close does not load the session, it is stored back as a last resort
         pendingStore.reads[0].complete(storedSession())
         srvChannel.eventLoop().submit {}.await()
-        assertEquals(0, pendingStore.writes.size)
+        assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+        assertEquals(listOf(false), pendingStore.channelOpenOnWrite)
+
+        client.close()
+    }
+
+    @Test
+    fun `should complete every close call when closing waits for a pending session read`() {
+        // given
+        val pendingStore = PendingReadSessionStore()
+        val srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = pendingStore), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when, closed twice while the read is pending
+        val closeFuture1 = srvChannel.close()
+        val closeFuture2 = srvChannel.close()
+        srvChannel.eventLoop().submit {}.await()
+        assertFalse(closeFuture1.isDone || closeFuture2.isDone)
+        pendingStore.reads[0].complete(storedSession())
+
+        // then, both complete and the session is stored once
+        assertTrue(closeFuture1.await(5000))
+        assertTrue(closeFuture2.await(5000))
+        assertTrue(closeFuture1.isSuccess && closeFuture2.isSuccess)
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
 
         client.close()
     }

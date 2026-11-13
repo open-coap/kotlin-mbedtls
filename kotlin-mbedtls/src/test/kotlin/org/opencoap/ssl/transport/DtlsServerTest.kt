@@ -18,12 +18,14 @@ package org.opencoap.ssl.transport
 
 import io.mockk.clearMocks
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -176,6 +178,47 @@ class DtlsServerTest {
         assertTrue(result is DtlsServer.SessionLoadResult.RecordVerificationFailed)
         assertEquals(0, dtlsServer.numberOfSessions)
         verify(exactly = 1) { lifecycleCallbacks.messageDropped(adr) }
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should store back session instead of loading it once closed`() {
+        // given, a server that is closed, its SslConfig may already be freed
+        val sslConfig = spyk(serverConf)
+        dtlsServer = DtlsServer(::outboundTransport, sslConfig, 100.millis, sessionStore::write, lifecycleCallbacks, executor = SingleThreadExecutor.create("dtls-srv-"))
+        dtlsServer.close()
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(5684))
+        val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        val storedSession = SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789))
+
+        // when, a session store read that was in flight while closing completes
+        val result = dtlsServer.loadSession(storedSession, adr, SRV_CID, dtlsPacket)
+
+        // then, the session is stored back without loading it
+        assertTrue(result is DtlsServer.SessionLoadResult.ServerClosed)
+        assertEquals(0, dtlsServer.numberOfSessions)
+        assertSame(storedSession, sessionStore.read(SRV_CID).join())
+        verify(exactly = 0) { sslConfig.loadSession(any(), any(), any()) }
+        verify(exactly = 1) { lifecycleCallbacks.messageDropped(adr) }
+        verify(exactly = 0) { lifecycleCallbacks.sessionStarted(any(), any(), any()) }
+
+        clientSession.close()
+    }
+
+    @Test
+    fun `should keep loading sessions after storing them with closeSessions`() {
+        // given
+        val clientSession = clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(5684))
+        val dtlsPacket = clientSession.encrypt("hello".toByteBuffer()).order(ByteOrder.BIG_ENDIAN)
+        dtlsServer.closeSessions()
+
+        // when
+        val result = dtlsServer.loadSession(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.now()), adr, SRV_CID, dtlsPacket)
+
+        // then
+        assertTrue(result is DtlsServer.SessionLoadResult.Loaded)
+        assertEquals(1, dtlsServer.numberOfSessions)
 
         clientSession.close()
     }
