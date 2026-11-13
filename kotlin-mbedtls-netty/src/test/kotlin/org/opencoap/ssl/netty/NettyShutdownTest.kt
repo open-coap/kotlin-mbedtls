@@ -17,20 +17,33 @@
 package org.opencoap.ssl.netty
 
 import io.netty.channel.socket.DatagramChannel
+import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
+import org.opencoap.ssl.transport.CID
+import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.HashMapSessionStore
+import org.opencoap.ssl.transport.SessionStore
+import org.opencoap.ssl.transport.SessionWithContext
+import org.opencoap.ssl.transport.SessionWriter
 import org.opencoap.ssl.util.Certs
+import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 
 class NettyShutdownTest {
 
@@ -84,5 +97,104 @@ class NettyShutdownTest {
 
         client.close()
         replacementChannel.close().sync()
+    }
+
+    @Test
+    fun `should store session loaded by a read that was pending when channel was closed`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = pendingStore), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        pendingStore.onWrite = { pendingStore.channelOpenOnWrite.add(srvChannel.isOpen) }
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when, the channel is closed while the read is still pending
+        val closeFuture = srvChannel.close()
+        srvChannel.eventLoop().submit {}.await()
+
+        // then, close waits for the read
+        assertFalse(closeFuture.isDone)
+
+        // and when, the read completes
+        pendingStore.reads[0].complete(storedSession())
+
+        // then, the loaded session is written back before the channel is closed
+        assertTrue(closeFuture.await(5000))
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+        assertEquals(listOf(true), pendingStore.channelOpenOnWrite)
+
+        client.close()
+    }
+
+    @Test
+    fun `should not read session from store once channel is closing`() {
+        // given, a channel that is closing while waiting for a pending session read
+        val pendingStore = PendingReadSessionStore()
+        val droppedMessages = AtomicInteger()
+        val callbacks = object : DtlsSessionLifecycleCallbacks {
+            override fun messageDropped(adr: InetSocketAddress) {
+                droppedMessages.incrementAndGet()
+            }
+        }
+        val srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = pendingStore, lifecycleCallbacks = callbacks), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+        val closeFuture = srvChannel.close()
+
+        // when, another packet with an unknown CID arrives
+        client.send("Terve again").await()
+        await.atMost(5.seconds).until { droppedMessages.get() > 0 || pendingStore.reads.size > 1 }
+
+        // then, the packet is dropped without reading (and removing) the session from the store
+        assertEquals(1, pendingStore.reads.size)
+        assertEquals(1, droppedMessages.get())
+
+        pendingStore.reads[0].complete(null)
+        assertTrue(closeFuture.await(5000))
+        client.close()
+    }
+
+    @Test
+    fun `should close channel when pending session read does not complete in time`() {
+        // given
+        val pendingStore = PendingReadSessionStore()
+        val srvChannel = createBootstrap(0, DtlsChannelHandler(serverConf, sessionStore = pendingStore, pendingSessionLoadsTimeout = Duration.ofMillis(200)), { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when
+        assertTrue(srvChannel.close().await(5000))
+
+        // then, a read completing after close does not load nor store the session
+        pendingStore.reads[0].complete(storedSession())
+        srvChannel.eventLoop().submit {}.await()
+        assertEquals(0, pendingStore.writes.size)
+
+        client.close()
+    }
+
+    private fun reloadedClient(srvChannel: DatagramChannel) = NettyTransportAdapter.reload(
+        clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(srvChannel.localAddress().port)),
+        localAddress(srvChannel.localAddress().port),
+        SessionWriter.NO_OPS
+    ).mapToString()
+
+    private fun storedSession() = SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789))
+
+    private class PendingReadSessionStore : SessionStore {
+        val reads = CopyOnWriteArrayList<CompletableFuture<SessionWithContext?>>()
+        val writes = CopyOnWriteArrayList<CID>()
+        val channelOpenOnWrite = CopyOnWriteArrayList<Boolean>()
+        var onWrite: () -> Unit = {}
+
+        override fun read(cid: CID): CompletableFuture<SessionWithContext?> = CompletableFuture<SessionWithContext?>().also(reads::add)
+
+        override fun write(cid: CID, session: SessionWithContext) {
+            onWrite()
+            writes.add(cid)
+        }
     }
 }
