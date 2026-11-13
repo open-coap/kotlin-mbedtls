@@ -17,6 +17,7 @@
 package org.opencoap.ssl.netty
 
 import io.netty.channel.socket.DatagramChannel
+import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -25,12 +26,20 @@ import org.opencoap.ssl.CertificateAuth
 import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.netty.NettyHelpers.createBootstrap
+import org.opencoap.ssl.transport.CID
 import org.opencoap.ssl.transport.HashMapSessionStore
+import org.opencoap.ssl.transport.SessionStore
+import org.opencoap.ssl.transport.SessionWithContext
+import org.opencoap.ssl.transport.SessionWriter
 import org.opencoap.ssl.util.Certs
+import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
+import java.time.Instant
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
 
 class NettyShutdownTest {
 
@@ -84,5 +93,46 @@ class NettyShutdownTest {
 
         client.close()
         replacementChannel.close().sync()
+    }
+
+    @Test
+    fun `should store back session read that was pending when channel was closed`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val handler = DtlsChannelHandler(serverConf, sessionStore = pendingStore)
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when
+        assertTrue(srvChannel.close().await(5000))
+        pendingStore.reads[0].complete(storedSession())
+
+        // then, the session is not loaded, it is stored back
+        srvChannel.eventLoop().submit {}.await()
+        assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+
+        client.close()
+    }
+
+    private fun reloadedClient(srvChannel: DatagramChannel) = NettyTransportAdapter.reload(
+        clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(srvChannel.localAddress().port)),
+        localAddress(srvChannel.localAddress().port),
+        SessionWriter.NO_OPS
+    ).mapToString()
+
+    private fun storedSession() = SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789))
+
+    private class PendingReadSessionStore : SessionStore {
+        val reads = CopyOnWriteArrayList<CompletableFuture<SessionWithContext?>>()
+        val writes = CopyOnWriteArrayList<CID>()
+
+        override fun read(cid: CID): CompletableFuture<SessionWithContext?> = CompletableFuture<SessionWithContext?>().also(reads::add)
+
+        override fun write(cid: CID, session: SessionWithContext) {
+            writes.add(cid)
+        }
     }
 }

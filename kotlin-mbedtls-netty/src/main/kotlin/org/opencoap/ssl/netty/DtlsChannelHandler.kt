@@ -26,6 +26,7 @@ import org.opencoap.ssl.transport.DtlsServer
 import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.NoOpsSessionStore
 import org.opencoap.ssl.transport.SessionStore
+import org.opencoap.ssl.transport.ShutdownSafeSessionStore
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -34,10 +35,11 @@ import java.util.concurrent.CompletableFuture.completedFuture
 class DtlsChannelHandler @JvmOverloads constructor(
     private val sslConfig: SslConfig,
     private val expireAfter: Duration = Duration.ofSeconds(60),
-    private val sessionStore: SessionStore = NoOpsSessionStore,
+    sessionStore: SessionStore = NoOpsSessionStore,
     private val lifecycleCallbacks: DtlsSessionLifecycleCallbacks = object : DtlsSessionLifecycleCallbacks {},
     private val cidRequired: Boolean = false
 ) : ChannelDuplexHandler() {
+    private val shutdownSafeSessionStore = ShutdownSafeSessionStore(sessionStore)
     private lateinit var ctx: ChannelHandlerContext
     lateinit var dtlsServer: DtlsServer
 
@@ -52,10 +54,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
-        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, sessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
+        this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, shutdownSafeSessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
     }
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
+        shutdownSafeSessionStore.stopReading()
         dtlsServer.closeSessions()
         ctx.close(promise)
     }
@@ -84,7 +87,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
     }
 
     private fun loadSession(result: DtlsServer.ReceiveResult.CidSessionMissing, msg: DatagramPacket, ctx: ChannelHandlerContext) {
-        sessionStore.read(result.cid)
+        shutdownSafeSessionStore.read(result.cid)
             .thenApplyAsync({ sessBuf -> dtlsServer.loadSession(sessBuf, msg.sender(), result.cid, msg.content().nioBuffer()) }, ctx.executor())
             .whenComplete { loadResult: DtlsServer.SessionLoadResult?, _ ->
                 when (loadResult) {

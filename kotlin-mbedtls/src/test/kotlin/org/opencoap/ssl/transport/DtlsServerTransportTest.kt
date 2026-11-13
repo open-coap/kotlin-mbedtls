@@ -35,6 +35,7 @@ import org.opencoap.ssl.RandomCidSupplier
 import org.opencoap.ssl.SslConfig
 import org.opencoap.ssl.SslException
 import org.opencoap.ssl.util.Certs
+import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
 import org.opencoap.ssl.util.mapToString
@@ -46,8 +47,10 @@ import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
 import java.nio.channels.DatagramChannel
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -65,6 +68,10 @@ class DtlsServerTransportTest {
     private val clientConfig = SslConfig.client(psk, cidSupplier = EmptyCidSupplier)
     private val timeoutClientConf = SslConfig.client(CertificateAuth(Certs.dev01Chain, Certs.dev01.privateKey, Certs.root.asX509()), retransmitMin = 20.seconds, retransmitMax = 20.seconds)
     private val sessionStore = HashMapSessionStore()
+
+    // matching StoredSessionPair
+    private val storedPairConf = SslConfig.server(CertificateAuth(Certs.serverChain, Certs.server.privateKey), listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"), false, RandomCidSupplier(16))
+    private val storedPairClientConf = SslConfig.client(trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     private val sslLifecycleCallbacks: DtlsSessionLifecycleCallbacks = mockk(relaxed = true)
 
     private lateinit var server: DtlsServerTransport
@@ -89,11 +96,14 @@ class DtlsServerTransportTest {
 
     @AfterEach
     fun tearDown() {
-        server.close()
+        // a test that closes its own server does not set it
+        if (::server.isInitialized) server.close()
         conf.close()
         clientConfig.close()
         timeoutConf.close()
         timeoutClientConf.close()
+        storedPairConf.close()
+        storedPairClientConf.close()
         sessionStore.clear()
         clearMocks(sslLifecycleCallbacks)
     }
@@ -626,6 +636,40 @@ class DtlsServerTransportTest {
         assertEquals(stoppedAt, receiveCount.get())
 
         client.close()
+    }
+
+    @Test
+    fun `should store back session read in flight when closed`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val srv = DtlsServerTransport.create(storedPairConf, sessionStore = pendingStore).listen(echoHandler)
+        val client = reloadedClient(srv)
+        client.send("hi")
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when
+        srv.close()
+        pendingStore.reads[0].complete(SessionWithContext(StoredSessionPair.srvSession, mapOf(), Instant.ofEpochSecond(123456789)))
+
+        // then, the session is not loaded, it is stored back
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+
+        client.close()
+    }
+
+    private fun reloadedClient(srv: DtlsServerTransport): DtlsTransmitter {
+        val srvAddress = localAddress(srv.localPort())
+        return DtlsTransmitter.create(srvAddress, storedPairClientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, srvAddress))
+    }
+
+    private class PendingReadSessionStore : SessionStore {
+        val reads = CopyOnWriteArrayList<CompletableFuture<SessionWithContext?>>()
+        val writes = CopyOnWriteArrayList<CID>()
+        override fun read(cid: CID): CompletableFuture<SessionWithContext?> = CompletableFuture<SessionWithContext?>().also(reads::add)
+
+        override fun write(cid: CID, session: SessionWithContext) {
+            writes.add(cid)
+        }
     }
 
     // records the highest number of receives that were outstanding at the same time
