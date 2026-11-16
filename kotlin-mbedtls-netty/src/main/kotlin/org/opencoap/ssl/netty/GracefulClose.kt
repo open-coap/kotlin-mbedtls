@@ -16,8 +16,6 @@
 
 package org.opencoap.ssl.netty
 
-import io.netty.channel.ChannelPromise
-import io.netty.util.concurrent.PromiseNotifier
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -30,50 +28,45 @@ import java.util.concurrent.TimeUnit
  */
 internal class GracefulClose(
     private val executor: ScheduledExecutorService,
-    private val timeout: Duration,
-    private val doClose: (ChannelPromise) -> Unit
+    private val timeout: Duration
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private var pending = 0
-    private var promise: ChannelPromise? = null
+    private var done: CompletableFuture<Unit>? = null
     private var timeoutTask: Future<*>? = null
-    private var closed = false
 
     fun track(operation: CompletableFuture<*>) {
         pending++
         operation.whenComplete { _, _ -> operationDone() }
     }
 
-    fun close(promise: ChannelPromise) {
-        val closing = this.promise
-        if (closing != null) {
-            PromiseNotifier.cascade(closing, promise.unvoid())
-            return
-        }
+    fun whenDone(): CompletableFuture<Unit> {
+        done?.let { return it }
 
-        this.promise = promise.unvoid()
+        val future = CompletableFuture<Unit>()
+        done = future
         if (pending == 0) {
-            closeNow()
+            complete()
         } else {
-            timeoutTask = executor.schedule(::closeAfterTimeout, timeout.toMillis(), TimeUnit.MILLISECONDS)
+            timeoutTask = executor.schedule(::completeAfterTimeout, timeout.toMillis(), TimeUnit.MILLISECONDS)
         }
+        return future
     }
 
     private fun operationDone() {
         pending--
-        if (promise != null && pending == 0) closeNow()
+        if (pending == 0) complete()
     }
 
-    private fun closeAfterTimeout() {
-        logger.warn("Closing after {}ms timeout, {} operations still pending", timeout.toMillis(), pending)
-        closeNow()
+    private fun completeAfterTimeout() {
+        logger.warn("Stopped waiting after {}ms timeout, {} operations still pending", timeout.toMillis(), pending)
+        complete()
     }
 
-    private fun closeNow() {
-        if (closed) return
-        closed = true
+    private fun complete() {
+        val future = done ?: return
         timeoutTask?.cancel(false)
-        doClose(promise!!)
+        future.complete(Unit)
     }
 }

@@ -16,11 +16,10 @@
 
 package org.opencoap.ssl.netty
 
-import io.netty.channel.ChannelPromise
 import io.netty.channel.embedded.EmbeddedChannel
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.util.seconds
@@ -30,11 +29,7 @@ import java.util.concurrent.TimeUnit
 class GracefulCloseTest {
 
     private val channel = EmbeddedChannel().apply { freezeTime() }
-    private val closes = mutableListOf<ChannelPromise>()
-    private val gracefulClose = GracefulClose(channel.eventLoop(), 5.seconds) { promise ->
-        closes.add(promise)
-        promise.setSuccess()
-    }
+    private val gracefulClose = GracefulClose(channel.eventLoop(), 5.seconds)
 
     @AfterEach
     fun tearDown() {
@@ -42,116 +37,75 @@ class GracefulCloseTest {
     }
 
     @Test
-    fun `should close at once when nothing is pending`() {
-        val promise = channel.newPromise()
-
-        gracefulClose.close(promise)
-
-        assertEquals(listOf(promise), closes)
-        assertTrue(promise.isSuccess)
+    fun `should be done at once when nothing is pending`() {
+        assertTrue(gracefulClose.whenDone().isDone)
     }
 
     @Test
-    fun `should not wait for operation completed before close`() {
+    fun `should not wait for operation completed before`() {
         val operation = CompletableFuture<Unit>()
         gracefulClose.track(operation)
         operation.complete(Unit)
 
-        gracefulClose.close(channel.newPromise())
-
-        assertEquals(1, closes.size)
+        assertTrue(gracefulClose.whenDone().isDone)
     }
 
     @Test
-    fun `should close once all tracked operations are done`() {
+    fun `should be done once all tracked operations are done`() {
         // given
         val operation1 = CompletableFuture<Unit>()
         val operation2 = CompletableFuture<Unit>()
         gracefulClose.track(operation1)
         gracefulClose.track(operation2)
-        val promise = channel.newPromise()
 
         // when
-        gracefulClose.close(promise)
+        val done = gracefulClose.whenDone()
         operation1.complete(Unit)
 
         // then, still waiting for the second
-        assertTrue(closes.isEmpty())
-        assertFalse(promise.isDone)
+        assertFalse(done.isDone)
 
         // and when, it fails
         operation2.completeExceptionally(Exception("store read failed"))
 
         // then
-        assertEquals(listOf(promise), closes)
-        assertTrue(promise.isSuccess)
-
-        // and, the timeout does not close again
-        channel.advanceTimeBy(5, TimeUnit.SECONDS)
-        channel.runScheduledPendingTasks()
-        assertEquals(1, closes.size)
+        assertTrue(done.isDone && !done.isCompletedExceptionally)
     }
 
     @Test
-    fun `should close after timeout when operation does not complete`() {
+    fun `should be done after timeout when operation does not complete`() {
         // given
-        val operation = CompletableFuture<Unit>()
-        gracefulClose.track(operation)
-        val promise = channel.newPromise()
-        gracefulClose.close(promise)
+        gracefulClose.track(CompletableFuture<Unit>())
+        val done = gracefulClose.whenDone()
 
         // when
         channel.advanceTimeBy(4999, TimeUnit.MILLISECONDS)
         channel.runScheduledPendingTasks()
-        assertTrue(closes.isEmpty())
+        assertFalse(done.isDone)
 
         channel.advanceTimeBy(1, TimeUnit.MILLISECONDS)
         channel.runScheduledPendingTasks()
 
         // then
-        assertEquals(listOf(promise), closes)
-
-        // and, a late completion does not close again
-        operation.complete(Unit)
-        assertEquals(1, closes.size)
+        assertTrue(done.isDone && !done.isCompletedExceptionally)
     }
 
     @Test
-    fun `should complete every close call with the first one`() {
+    fun `should return the same future on every call`() {
         // given
         val operation = CompletableFuture<Unit>()
         gracefulClose.track(operation)
-        val first = channel.newPromise()
-        val second = channel.newPromise()
 
         // when
-        gracefulClose.close(first)
-        gracefulClose.close(second)
+        val first = gracefulClose.whenDone()
+        val second = gracefulClose.whenDone()
         operation.complete(Unit)
 
         // then
-        assertEquals(listOf(first), closes)
-        assertTrue(first.isSuccess)
-        assertTrue(second.isSuccess)
-    }
+        assertSame(first, second)
+        assertTrue(first.isDone)
 
-    @Test
-    fun `should complete close call made after closing`() {
-        gracefulClose.close(channel.newPromise())
-        val late = channel.newPromise()
-
-        gracefulClose.close(late)
-
-        assertEquals(1, closes.size)
-        assertTrue(late.isSuccess)
-    }
-
-    @Test
-    fun `should close with void promise`() {
-        gracefulClose.close(channel.voidPromise())
-
-        assertEquals(1, closes.size)
-        assertFalse(closes[0].isVoid)
-        assertTrue(closes[0].isSuccess)
+        // and, a call after done gets it too
+        assertSame(first, gracefulClose.whenDone())
     }
 }

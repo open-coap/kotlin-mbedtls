@@ -57,16 +57,16 @@ class DtlsChannelHandler @JvmOverloads constructor(
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
         this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, shutdownSafeSessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
-        this.gracefulClose = GracefulClose(ctx.executor(), closeTimeout) { promise ->
-            dtlsServer.closeSessions()
-            ctx.close(promise)
-        }
+        this.gracefulClose = GracefulClose(ctx.executor(), closeTimeout)
     }
 
     // a session loaded after closeSessions() would be lost, the store already removed it on read
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         shutdownSafeSessionStore.stopReading()
-        gracefulClose.close(promise)
+        gracefulClose.whenDone().thenRunAsync({
+            dtlsServer.closeSessions()
+            ctx.close(promise)
+        }, ctx.executor())
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
