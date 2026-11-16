@@ -17,19 +17,19 @@
 package org.opencoap.ssl.netty
 
 import io.netty.channel.ChannelPromise
-import io.netty.util.concurrent.EventExecutor
 import io.netty.util.concurrent.PromiseNotifier
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
  * Not thread safe, must be used only from [executor]. Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
 internal class GracefulClose(
-    private val executor: EventExecutor,
+    private val executor: ScheduledExecutorService,
     private val timeout: Duration,
     private val doClose: (ChannelPromise) -> Unit
 ) {
