@@ -24,7 +24,8 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * Not thread safe, must be used only from [executor]. Follows the graceful shutdown of Netty's Http2ConnectionHandler.
+ * Not thread safe, [track] and [whenDone] must be called from [executor], a tracked operation may complete on any thread.
+ * Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
 internal class PendingOperations(private val executor: ScheduledExecutorService) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -35,7 +36,8 @@ internal class PendingOperations(private val executor: ScheduledExecutorService)
 
     fun <T> track(operation: CompletableFuture<T>): CompletableFuture<T> {
         pending++
-        operation.whenComplete { _, _ -> operationDone() }
+        // a failed operation completes on the thread that failed it, eg. a session store thread
+        operation.whenCompleteAsync({ _, _ -> operationDone() }, executor)
         return operation
     }
 
@@ -43,13 +45,13 @@ internal class PendingOperations(private val executor: ScheduledExecutorService)
     fun whenDone(timeout: Duration): CompletableFuture<Unit> {
         done?.let { return it }
 
-        val future = CompletableFuture<Unit>()
-        done = future
-        if (pending == 0) {
-            complete()
-        } else {
+        // scheduled first, a rejected timeout must not leave a future that never completes
+        if (pending > 0) {
             timeoutTask = executor.schedule(Runnable { completeAfterTimeout(timeout) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
         }
+        val future = CompletableFuture<Unit>()
+        done = future
+        if (pending == 0) complete()
         return future
     }
 

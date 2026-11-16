@@ -18,13 +18,19 @@ package org.opencoap.ssl.netty
 
 import io.netty.channel.embedded.EmbeddedChannel
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.util.seconds
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletableFuture.completedFuture
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 class PendingOperationsTest {
 
@@ -46,6 +52,15 @@ class PendingOperationsTest {
         val operation = CompletableFuture<Unit>()
         assertSame(operation, pendingOperations.track(operation))
         operation.complete(Unit)
+        channel.runPendingTasks()
+
+        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
+    }
+
+    @Test
+    fun `should not wait for operation already completed when tracked`() {
+        pendingOperations.track(completedFuture(Unit))
+        channel.runPendingTasks()
 
         assertTrue(pendingOperations.whenDone(5.seconds).isDone)
     }
@@ -61,21 +76,48 @@ class PendingOperationsTest {
         // when
         val done = pendingOperations.whenDone(5.seconds)
         operation1.complete(Unit)
+        channel.runPendingTasks()
 
         // then, still waiting for the second
         assertFalse(done.isDone)
 
         // and when, it fails
         operation2.completeExceptionally(Exception("store read failed"))
+        channel.runPendingTasks()
 
         // then
         assertTrue(done.isDone && !done.isCompletedExceptionally)
     }
 
     @Test
+    fun `should wait for operation tracked while waiting`() {
+        // given
+        val operation1 = CompletableFuture<Unit>()
+        pendingOperations.track(operation1)
+        val done = pendingOperations.whenDone(5.seconds)
+
+        // when
+        val operation2 = CompletableFuture<Unit>()
+        pendingOperations.track(operation2)
+        operation1.complete(Unit)
+        channel.runPendingTasks()
+
+        // then, still waiting for the one tracked later
+        assertFalse(done.isDone)
+
+        // and when
+        operation2.complete(Unit)
+        channel.runPendingTasks()
+
+        // then
+        assertTrue(done.isDone)
+    }
+
+    @Test
     fun `should be done after timeout when operation does not complete`() {
         // given
-        pendingOperations.track(CompletableFuture<Unit>())
+        val operation = CompletableFuture<Unit>()
+        pendingOperations.track(operation)
         val done = pendingOperations.whenDone(5.seconds)
 
         // when
@@ -87,6 +129,11 @@ class PendingOperationsTest {
         channel.runScheduledPendingTasks()
 
         // then
+        assertTrue(done.isDone && !done.isCompletedExceptionally)
+
+        // and, a late completion changes nothing
+        operation.complete(Unit)
+        channel.runPendingTasks()
         assertTrue(done.isDone && !done.isCompletedExceptionally)
     }
 
@@ -100,6 +147,7 @@ class PendingOperationsTest {
         val first = pendingOperations.whenDone(5.seconds)
         val second = pendingOperations.whenDone(5.seconds)
         operation.complete(Unit)
+        channel.runPendingTasks()
 
         // then
         assertSame(first, second)
@@ -107,5 +155,40 @@ class PendingOperationsTest {
 
         // and, a call after done gets it too
         assertSame(first, pendingOperations.whenDone(5.seconds))
+    }
+
+    @Test
+    fun `should count operation completed on another thread on the executor`() {
+        // given, an operation tracked on the executor, eg. a session store read
+        val executor = Executors.newSingleThreadScheduledExecutor { Thread(it, "executor") }
+        val pendingOperations = PendingOperations(executor)
+        val operation = CompletableFuture<Unit>()
+        val done = executor.submit<CompletableFuture<Unit>> {
+            pendingOperations.track(operation)
+            pendingOperations.whenDone(5.seconds)
+        }.get()
+        val doneOnThread = done.thenApply { Thread.currentThread().name }
+
+        // when, it fails on the thread of the store
+        thread(name = "store-thread") { operation.completeExceptionally(Exception("store read failed")) }.join()
+
+        // then
+        assertEquals("executor", doneOnThread.get(5, TimeUnit.SECONDS))
+
+        executor.shutdown()
+    }
+
+    @Test
+    fun `should not return a future that never completes when timeout cannot be scheduled`() {
+        // given
+        val executor = Executors.newSingleThreadScheduledExecutor().apply { shutdown() }
+        val pendingOperations = PendingOperations(executor)
+        pendingOperations.track(CompletableFuture<Unit>())
+
+        // when
+        assertThrows(RejectedExecutionException::class.java) { pendingOperations.whenDone(5.seconds) }
+
+        // then, a later call fails too
+        assertThrows(RejectedExecutionException::class.java) { pendingOperations.whenDone(5.seconds) }
     }
 }
