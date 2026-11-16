@@ -16,10 +16,8 @@
 
 package org.opencoap.ssl.netty
 
-import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Future
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
@@ -28,46 +26,24 @@ import java.util.concurrent.TimeUnit
  * Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
 internal class PendingOperations(private val executor: ScheduledExecutorService) {
-    private val logger = LoggerFactory.getLogger(javaClass)
-
     private var pending = 0
-    private var done: CompletableFuture<Unit>? = null
-    private var timeoutTask: Future<*>? = null
+    private var waiting = false
+    private val done = CompletableFuture<Boolean>()
 
-    fun <T> track(operation: CompletableFuture<T>): CompletableFuture<T> {
+    fun track(operation: CompletableFuture<*>) {
         pending++
         // a failed operation completes on the thread that failed it, eg. a session store thread
-        operation.whenCompleteAsync({ _, _ -> operationDone() }, executor)
-        return operation
+        operation.whenCompleteAsync({ _, _ -> if (--pending == 0 && waiting) done.complete(true) }, executor)
     }
 
-    // a later call gets the same future, the timeout of the first call applies
-    fun whenDone(timeout: Duration): CompletableFuture<Unit> {
-        done?.let { return it }
-
-        // scheduled first, a rejected timeout must not leave a future that never completes
-        if (pending > 0) {
-            timeoutTask = executor.schedule(Runnable { completeAfterTimeout(timeout) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
+    // true once all tracked operations are done, false after timeout; a later call gets the same future
+    fun whenDone(timeout: Duration): CompletableFuture<Boolean> {
+        if (!waiting) {
+            // scheduled first, a rejected timeout must not leave a future that never completes
+            if (pending > 0) executor.schedule(Runnable { done.complete(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
+            waiting = true
+            if (pending == 0) done.complete(true)
         }
-        val future = CompletableFuture<Unit>()
-        done = future
-        if (pending == 0) complete()
-        return future
-    }
-
-    private fun operationDone() {
-        pending--
-        if (pending == 0) complete()
-    }
-
-    private fun completeAfterTimeout(timeout: Duration) {
-        logger.warn("Stopped waiting after {}ms timeout, {} operations still pending", timeout.toMillis(), pending)
-        complete()
-    }
-
-    private fun complete() {
-        val future = done ?: return
-        timeoutTask?.cancel(false)
-        future.complete(Unit)
+        return done
     }
 }

@@ -27,6 +27,7 @@ import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.NoOpsSessionStore
 import org.opencoap.ssl.transport.SessionStore
 import org.opencoap.ssl.transport.ShutdownSafeSessionStore
+import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -40,6 +41,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
     private val cidRequired: Boolean = false,
     private val closeTimeout: Duration = Duration.ofSeconds(5)
 ) : ChannelDuplexHandler() {
+    private val logger = LoggerFactory.getLogger(javaClass)
     private val shutdownSafeSessionStore = ShutdownSafeSessionStore(sessionStore)
     private lateinit var ctx: ChannelHandlerContext
     private lateinit var pendingLoads: PendingOperations
@@ -63,7 +65,8 @@ class DtlsChannelHandler @JvmOverloads constructor(
     // a session loaded after closeSessions() would be lost, the store already removed it on read
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         shutdownSafeSessionStore.stopReading()
-        pendingLoads.whenDone(closeTimeout).thenRunAsync({
+        pendingLoads.whenDone(closeTimeout).thenAcceptAsync({ allDone ->
+            if (!allDone) logger.warn("DTLS closing after {}ms timeout, session loads still pending", closeTimeout.toMillis())
             dtlsServer.closeSessions()
             ctx.close(promise)
         }, ctx.executor())

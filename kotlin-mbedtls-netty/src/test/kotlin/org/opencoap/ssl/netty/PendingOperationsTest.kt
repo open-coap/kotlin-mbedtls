@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.util.seconds
 import java.util.concurrent.CompletableFuture
@@ -44,17 +43,17 @@ class PendingOperationsTest {
 
     @Test
     fun `should be done at once when nothing is pending`() {
-        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
+        assertEquals(true, pendingOperations.whenDone(5.seconds).getNow(null))
     }
 
     @Test
     fun `should not wait for operation completed before`() {
         val operation = CompletableFuture<Unit>()
-        assertSame(operation, pendingOperations.track(operation))
+        pendingOperations.track(operation)
         operation.complete(Unit)
         channel.runPendingTasks()
 
-        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
+        assertEquals(true, pendingOperations.whenDone(5.seconds).getNow(null))
     }
 
     @Test
@@ -62,7 +61,7 @@ class PendingOperationsTest {
         pendingOperations.track(completedFuture(Unit))
         channel.runPendingTasks()
 
-        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
+        assertEquals(true, pendingOperations.whenDone(5.seconds).getNow(null))
     }
 
     @Test
@@ -86,7 +85,12 @@ class PendingOperationsTest {
         channel.runPendingTasks()
 
         // then
-        assertTrue(done.isDone && !done.isCompletedExceptionally)
+        assertEquals(true, done.getNow(null))
+
+        // and, the timeout firing later changes nothing
+        channel.advanceTimeBy(5, TimeUnit.SECONDS)
+        channel.runScheduledPendingTasks()
+        assertEquals(true, done.getNow(null))
     }
 
     @Test
@@ -110,7 +114,7 @@ class PendingOperationsTest {
         channel.runPendingTasks()
 
         // then
-        assertTrue(done.isDone)
+        assertEquals(true, done.getNow(null))
     }
 
     @Test
@@ -128,13 +132,13 @@ class PendingOperationsTest {
         channel.advanceTimeBy(1, TimeUnit.MILLISECONDS)
         channel.runScheduledPendingTasks()
 
-        // then
-        assertTrue(done.isDone && !done.isCompletedExceptionally)
+        // then, timed out
+        assertEquals(false, done.getNow(null))
 
         // and, a late completion changes nothing
         operation.complete(Unit)
         channel.runPendingTasks()
-        assertTrue(done.isDone && !done.isCompletedExceptionally)
+        assertEquals(false, done.getNow(null))
     }
 
     @Test
@@ -151,7 +155,7 @@ class PendingOperationsTest {
 
         // then
         assertSame(first, second)
-        assertTrue(first.isDone)
+        assertEquals(true, first.getNow(null))
 
         // and, a call after done gets it too
         assertSame(first, pendingOperations.whenDone(5.seconds))
@@ -163,7 +167,7 @@ class PendingOperationsTest {
         val executor = Executors.newSingleThreadScheduledExecutor { Thread(it, "executor") }
         val pendingOperations = PendingOperations(executor)
         val operation = CompletableFuture<Unit>()
-        val done = executor.submit<CompletableFuture<Unit>> {
+        val done = executor.submit<CompletableFuture<Boolean>> {
             pendingOperations.track(operation)
             pendingOperations.whenDone(5.seconds)
         }.get()
