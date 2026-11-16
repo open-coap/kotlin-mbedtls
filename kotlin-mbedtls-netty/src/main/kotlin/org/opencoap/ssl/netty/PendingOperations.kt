@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Not thread safe, must be used only from [executor]. Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
-internal class GracefulClose(
+internal class PendingOperations(
     private val executor: ScheduledExecutorService,
     private val timeout: Duration
 ) {

@@ -26,10 +26,10 @@ import org.opencoap.ssl.util.seconds
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-class GracefulCloseTest {
+class PendingOperationsTest {
 
     private val channel = EmbeddedChannel().apply { freezeTime() }
-    private val gracefulClose = GracefulClose(channel.eventLoop(), 5.seconds)
+    private val pendingOperations = PendingOperations(channel.eventLoop(), 5.seconds)
 
     @AfterEach
     fun tearDown() {
@@ -38,16 +38,16 @@ class GracefulCloseTest {
 
     @Test
     fun `should be done at once when nothing is pending`() {
-        assertTrue(gracefulClose.whenDone().isDone)
+        assertTrue(pendingOperations.whenDone().isDone)
     }
 
     @Test
     fun `should not wait for operation completed before`() {
         val operation = CompletableFuture<Unit>()
-        gracefulClose.track(operation)
+        pendingOperations.track(operation)
         operation.complete(Unit)
 
-        assertTrue(gracefulClose.whenDone().isDone)
+        assertTrue(pendingOperations.whenDone().isDone)
     }
 
     @Test
@@ -55,11 +55,11 @@ class GracefulCloseTest {
         // given
         val operation1 = CompletableFuture<Unit>()
         val operation2 = CompletableFuture<Unit>()
-        gracefulClose.track(operation1)
-        gracefulClose.track(operation2)
+        pendingOperations.track(operation1)
+        pendingOperations.track(operation2)
 
         // when
-        val done = gracefulClose.whenDone()
+        val done = pendingOperations.whenDone()
         operation1.complete(Unit)
 
         // then, still waiting for the second
@@ -75,8 +75,8 @@ class GracefulCloseTest {
     @Test
     fun `should be done after timeout when operation does not complete`() {
         // given
-        gracefulClose.track(CompletableFuture<Unit>())
-        val done = gracefulClose.whenDone()
+        pendingOperations.track(CompletableFuture<Unit>())
+        val done = pendingOperations.whenDone()
 
         // when
         channel.advanceTimeBy(4999, TimeUnit.MILLISECONDS)
@@ -94,11 +94,11 @@ class GracefulCloseTest {
     fun `should return the same future on every call`() {
         // given
         val operation = CompletableFuture<Unit>()
-        gracefulClose.track(operation)
+        pendingOperations.track(operation)
 
         // when
-        val first = gracefulClose.whenDone()
-        val second = gracefulClose.whenDone()
+        val first = pendingOperations.whenDone()
+        val second = pendingOperations.whenDone()
         operation.complete(Unit)
 
         // then
@@ -106,6 +106,6 @@ class GracefulCloseTest {
         assertTrue(first.isDone)
 
         // and, a call after done gets it too
-        assertSame(first, gracefulClose.whenDone())
+        assertSame(first, pendingOperations.whenDone())
     }
 }
