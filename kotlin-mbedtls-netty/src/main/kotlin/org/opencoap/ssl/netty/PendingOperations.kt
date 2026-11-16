@@ -26,22 +26,21 @@ import java.util.concurrent.TimeUnit
 /**
  * Not thread safe, must be used only from [executor]. Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
-internal class PendingOperations(
-    private val executor: ScheduledExecutorService,
-    private val timeout: Duration
-) {
+internal class PendingOperations(private val executor: ScheduledExecutorService) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private var pending = 0
     private var done: CompletableFuture<Unit>? = null
     private var timeoutTask: Future<*>? = null
 
-    fun track(operation: CompletableFuture<*>) {
+    fun <T> track(operation: CompletableFuture<T>): CompletableFuture<T> {
         pending++
         operation.whenComplete { _, _ -> operationDone() }
+        return operation
     }
 
-    fun whenDone(): CompletableFuture<Unit> {
+    // a later call gets the same future, the timeout of the first call applies
+    fun whenDone(timeout: Duration): CompletableFuture<Unit> {
         done?.let { return it }
 
         val future = CompletableFuture<Unit>()
@@ -49,7 +48,7 @@ internal class PendingOperations(
         if (pending == 0) {
             complete()
         } else {
-            timeoutTask = executor.schedule(::completeAfterTimeout, timeout.toMillis(), TimeUnit.MILLISECONDS)
+            timeoutTask = executor.schedule(Runnable { completeAfterTimeout(timeout) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
         }
         return future
     }
@@ -59,7 +58,7 @@ internal class PendingOperations(
         if (pending == 0) complete()
     }
 
-    private fun completeAfterTimeout() {
+    private fun completeAfterTimeout(timeout: Duration) {
         logger.warn("Stopped waiting after {}ms timeout, {} operations still pending", timeout.toMillis(), pending)
         complete()
     }

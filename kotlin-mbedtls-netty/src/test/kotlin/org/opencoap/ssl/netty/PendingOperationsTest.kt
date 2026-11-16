@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
 class PendingOperationsTest {
 
     private val channel = EmbeddedChannel().apply { freezeTime() }
-    private val pendingOperations = PendingOperations(channel.eventLoop(), 5.seconds)
+    private val pendingOperations = PendingOperations(channel.eventLoop())
 
     @AfterEach
     fun tearDown() {
@@ -38,16 +38,16 @@ class PendingOperationsTest {
 
     @Test
     fun `should be done at once when nothing is pending`() {
-        assertTrue(pendingOperations.whenDone().isDone)
+        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
     }
 
     @Test
     fun `should not wait for operation completed before`() {
         val operation = CompletableFuture<Unit>()
-        pendingOperations.track(operation)
+        assertSame(operation, pendingOperations.track(operation))
         operation.complete(Unit)
 
-        assertTrue(pendingOperations.whenDone().isDone)
+        assertTrue(pendingOperations.whenDone(5.seconds).isDone)
     }
 
     @Test
@@ -59,7 +59,7 @@ class PendingOperationsTest {
         pendingOperations.track(operation2)
 
         // when
-        val done = pendingOperations.whenDone()
+        val done = pendingOperations.whenDone(5.seconds)
         operation1.complete(Unit)
 
         // then, still waiting for the second
@@ -76,7 +76,7 @@ class PendingOperationsTest {
     fun `should be done after timeout when operation does not complete`() {
         // given
         pendingOperations.track(CompletableFuture<Unit>())
-        val done = pendingOperations.whenDone()
+        val done = pendingOperations.whenDone(5.seconds)
 
         // when
         channel.advanceTimeBy(4999, TimeUnit.MILLISECONDS)
@@ -97,8 +97,8 @@ class PendingOperationsTest {
         pendingOperations.track(operation)
 
         // when
-        val first = pendingOperations.whenDone()
-        val second = pendingOperations.whenDone()
+        val first = pendingOperations.whenDone(5.seconds)
+        val second = pendingOperations.whenDone(5.seconds)
         operation.complete(Unit)
 
         // then
@@ -106,6 +106,6 @@ class PendingOperationsTest {
         assertTrue(first.isDone)
 
         // and, a call after done gets it too
-        assertSame(first, pendingOperations.whenDone())
+        assertSame(first, pendingOperations.whenDone(5.seconds))
     }
 }
