@@ -20,6 +20,7 @@ import io.netty.channel.socket.DatagramChannel
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.opencoap.ssl.CertificateAuth
@@ -35,11 +36,17 @@ import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.await
 import org.opencoap.ssl.util.localAddress
+import org.opencoap.ssl.util.millis
 import org.opencoap.ssl.util.seconds
 import java.net.InetSocketAddress
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
+import java.util.function.Function
+import kotlin.concurrent.thread
 
 class NettyShutdownTest {
 
@@ -105,12 +112,14 @@ class NettyShutdownTest {
         client.send("Terve").await()
         await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
 
-        // when
-        assertTrue(srvChannel.close().await(5000))
+        // when, the channel closes, then the read completes
+        val closed = srvChannel.close()
+        srvChannel.eventLoop().submit {}.await()
+        assertFalse(closed.isDone)
         pendingStore.reads[0].complete(storedSession())
 
-        // then, the session is not loaded, it is stored back
-        srvChannel.eventLoop().submit {}.await()
+        // then, the session is not loaded, it is stored back, and the channel closes
+        assertTrue(closed.await(5000))
         assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
         assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
 
@@ -141,6 +150,77 @@ class NettyShutdownTest {
         client.close()
     }
 
+    @Test
+    fun `should store session read just before channel was closed`() {
+        // given, a device's session is being read from the store
+        val store = GatedSessionStore()
+        val handler = DtlsChannelHandler(serverConf, sessionStore = store)
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { store.future.numberOfDependents > 0 }
+
+        // when, the read completes and passes the closing check, but its load is queued only after the channel closed
+        val storeThread = thread(name = "store-thread") { store.future.complete(storedSession()) }
+        assertTrue(store.loadAboutToQueue.await(5, TimeUnit.SECONDS))
+        val closed = srvChannel.close()
+        srvChannel.eventLoop().submit {}.await()
+        assertFalse(closed.isDone)
+        store.queueLoad.countDown()
+        storeThread.join()
+
+        // then, the channel closes once the session is loaded, and stores it
+        assertTrue(closed.await(5000))
+        assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
+        assertEquals(listOf(StoredSessionPair.cid.toList()), store.writes.map(CID::toList))
+
+        client.close()
+    }
+
+    @Test
+    fun `should close after timeout when session read does not complete`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val handler = DtlsChannelHandler(serverConf, sessionStore = pendingStore, closeTimeout = 100.millis)
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when
+        assertTrue(srvChannel.close().await(5000))
+
+        // then, a read completing late stores the session back
+        pendingStore.reads[0].complete(storedSession())
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+
+        client.close()
+    }
+
+    @Test
+    fun `should complete every close call once pending session load is done`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val handler = DtlsChannelHandler(serverConf, sessionStore = pendingStore)
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when, closed twice while the read is pending
+        val first = srvChannel.close()
+        val second = srvChannel.close()
+        srvChannel.eventLoop().submit {}.await()
+        assertFalse(first.isDone || second.isDone)
+        pendingStore.reads[0].complete(storedSession())
+
+        // then
+        assertTrue(first.await(5000) && first.isSuccess)
+        assertTrue(second.await(5000) && second.isSuccess)
+
+        client.close()
+    }
+
     private fun reloadedClient(srvChannel: DatagramChannel) = NettyTransportAdapter.reload(
         clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(srvChannel.localAddress().port)),
         localAddress(srvChannel.localAddress().port),
@@ -157,6 +237,31 @@ class NettyShutdownTest {
 
         override fun write(cid: CID, session: SessionWithContext) {
             writes.add(cid)
+        }
+    }
+
+    private class GatedSessionStore : SessionStore {
+        val loadAboutToQueue = CountDownLatch(1)
+        val queueLoad = CountDownLatch(1)
+        val future = GatedFuture<SessionWithContext?>(loadAboutToQueue, queueLoad)
+        val writes = CopyOnWriteArrayList<CID>()
+
+        override fun read(cid: CID): CompletableFuture<SessionWithContext?> = future
+
+        override fun write(cid: CID, session: SessionWithContext) {
+            writes.add(cid)
+        }
+    }
+
+    // pauses the thread completing the read right before it queues the session load on the event loop: ShutdownSafeSessionStore's
+    // thenApply returns a GatedFuture too (newIncompleteFuture), so the handler's thenApplyAsync goes through here
+    private class GatedFuture<T>(private val aboutToQueue: CountDownLatch, private val queue: CountDownLatch) : CompletableFuture<T>() {
+        override fun <U> newIncompleteFuture(): CompletableFuture<U> = GatedFuture(aboutToQueue, queue)
+
+        override fun <U> thenApplyAsync(fn: Function<in T, out U>, executor: Executor): CompletableFuture<U> = super.thenApplyAsync(fn) { task ->
+            aboutToQueue.countDown()
+            queue.await()
+            executor.execute(task)
         }
     }
 }
