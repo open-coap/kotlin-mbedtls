@@ -63,7 +63,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
         }
     }
 
-    // Closes once the session loads in flight are done, so their sessions are stored with the others, or after closeTimeout.
+    // a session loaded after closeSessions() would be lost, the store already removed it on read
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         shutdownSafeSessionStore.stopReading()
         gracefulClose.close(promise)

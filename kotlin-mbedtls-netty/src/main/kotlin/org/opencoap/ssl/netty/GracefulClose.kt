@@ -26,11 +26,7 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 /**
- * Postpones closing a channel until the tracked operations are done, or until [timeout] elapses, like the graceful shutdown
- * of Netty's Http2ConnectionHandler. [doClose] runs once, with the promise of the first [close] call; a later [close] call
- * completes with it.
- *
- * Not thread safe, must be used only from [executor].
+ * Not thread safe, must be used only from [executor]. Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
 internal class GracefulClose(
     private val executor: EventExecutor,

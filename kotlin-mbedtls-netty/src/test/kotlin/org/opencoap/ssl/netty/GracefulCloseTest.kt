@@ -85,6 +85,11 @@ class GracefulCloseTest {
         // then
         assertEquals(listOf(promise), closes)
         assertTrue(promise.isSuccess)
+
+        // and, the timeout does not close again
+        channel.advanceTimeBy(5, TimeUnit.SECONDS)
+        channel.runScheduledPendingTasks()
+        assertEquals(1, closes.size)
     }
 
     @Test
@@ -108,19 +113,6 @@ class GracefulCloseTest {
 
         // and, a late completion does not close again
         operation.complete(Unit)
-        assertEquals(1, closes.size)
-    }
-
-    @Test
-    fun `should cancel timeout when operations are done`() {
-        val operation = CompletableFuture<Unit>()
-        gracefulClose.track(operation)
-        gracefulClose.close(channel.newPromise())
-
-        operation.complete(Unit)
-        channel.advanceTimeBy(5, TimeUnit.SECONDS)
-        channel.runScheduledPendingTasks()
-
         assertEquals(1, closes.size)
     }
 
