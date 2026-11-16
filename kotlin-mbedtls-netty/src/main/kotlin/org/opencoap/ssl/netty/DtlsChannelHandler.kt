@@ -59,8 +59,11 @@ class DtlsChannelHandler @JvmOverloads constructor(
 
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         shutdownSafeSessionStore.stopReading()
-        dtlsServer.closeSessions()
-        ctx.close(promise)
+        // closes at the end of the queue, so sessions already read but not yet loaded get loaded and stored
+        ctx.executor().execute {
+            dtlsServer.closeSessions()
+            ctx.close(promise)
+        }
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {

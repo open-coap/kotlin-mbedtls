@@ -117,6 +117,30 @@ class NettyShutdownTest {
         client.close()
     }
 
+    @Test
+    fun `should store session read but not yet loaded when channel was closed`() {
+        // given, a device's session is being read from the store
+        val pendingStore = PendingReadSessionStore()
+        val handler = DtlsChannelHandler(serverConf, sessionStore = pendingStore)
+        val srvChannel = createBootstrap(0, handler, { addLast("echo", EchoHandler()) }).bind().sync().channel() as DatagramChannel
+        val client = reloadedClient(srvChannel)
+        client.send("Terve").await()
+        await.atMost(5.seconds).until { pendingStore.reads.size == 1 }
+
+        // when, the read completes and the channel closes before the session is loaded on the event loop
+        srvChannel.eventLoop().submit {
+            pendingStore.reads[0].complete(storedSession())
+            srvChannel.close()
+        }.await()
+
+        // then, the session is loaded before closing and stored on close
+        srvChannel.eventLoop().submit {}.await()
+        assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
+        assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
+
+        client.close()
+    }
+
     private fun reloadedClient(srvChannel: DatagramChannel) = NettyTransportAdapter.reload(
         clientConf.loadSession(byteArrayOf(), StoredSessionPair.cliSession, localAddress(srvChannel.localAddress().port)),
         localAddress(srvChannel.localAddress().port),
