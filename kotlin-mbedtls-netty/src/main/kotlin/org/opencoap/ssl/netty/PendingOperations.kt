@@ -40,7 +40,7 @@ internal class PendingOperations(private val executor: ScheduledExecutorService)
     fun whenDone(timeout: Duration): CompletableFuture<Boolean> {
         if (!waiting) {
             // scheduled first, a rejected timeout must not leave a future that never completes
-            if (pending > 0) executor.schedule(Runnable { done.complete(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
+            if (pending > 0) executor.schedule({ done.complete(false) }, timeout.toMillis(), TimeUnit.MILLISECONDS)
             waiting = true
             if (pending == 0) done.complete(true)
         }
