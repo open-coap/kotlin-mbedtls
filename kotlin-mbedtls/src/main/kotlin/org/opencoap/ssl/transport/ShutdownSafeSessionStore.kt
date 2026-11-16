@@ -28,7 +28,8 @@ import java.util.concurrent.CompletableFuture.completedFuture
  * - a new read returns no session without reading the delegate, the session stays there for another server,
  * - a read in flight that completes with a session writes it back to the delegate and returns no session.
  *
- * A read that completed just before [stopReading], but whose session the transport has not loaded yet, is not covered.
+ * A read that completed just before [stopReading], but whose session the transport has not loaded yet, is not covered: the
+ * transport has to wait for its session loads in flight before storing its sessions.
  */
 class ShutdownSafeSessionStore(private val delegate: SessionStore) : SessionStore {
     private val logger = LoggerFactory.getLogger(javaClass)
