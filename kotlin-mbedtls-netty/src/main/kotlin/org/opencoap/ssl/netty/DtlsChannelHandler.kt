@@ -27,6 +27,7 @@ import org.opencoap.ssl.transport.DtlsSessionLifecycleCallbacks
 import org.opencoap.ssl.transport.NoOpsSessionStore
 import org.opencoap.ssl.transport.SessionStore
 import org.opencoap.ssl.transport.ShutdownSafeSessionStore
+import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -40,9 +41,10 @@ class DtlsChannelHandler @JvmOverloads constructor(
     private val cidRequired: Boolean = false,
     private val closeTimeout: Duration = Duration.ofSeconds(5)
 ) : ChannelDuplexHandler() {
+    private val logger = LoggerFactory.getLogger(javaClass)
     private val shutdownSafeSessionStore = ShutdownSafeSessionStore(sessionStore)
     private lateinit var ctx: ChannelHandlerContext
-    private lateinit var gracefulClose: GracefulClose
+    private lateinit var pendingLoads: PendingOperations
     lateinit var dtlsServer: DtlsServer
 
     private fun write(packet: ByteBufferPacket): CompletableFuture<Boolean> {
@@ -57,16 +59,17 @@ class DtlsChannelHandler @JvmOverloads constructor(
     override fun handlerAdded(ctx: ChannelHandlerContext) {
         this.ctx = ctx
         this.dtlsServer = DtlsServer(::write, sslConfig, expireAfter, shutdownSafeSessionStore::write, lifecycleCallbacks, ctx.executor(), cidRequired)
-        this.gracefulClose = GracefulClose(ctx.executor(), closeTimeout) { promise ->
-            dtlsServer.closeSessions()
-            ctx.close(promise)
-        }
+        this.pendingLoads = PendingOperations(ctx.executor())
     }
 
     // a session loaded after closeSessions() would be lost, the store already removed it on read
     override fun close(ctx: ChannelHandlerContext, promise: ChannelPromise) {
         shutdownSafeSessionStore.stopReading()
-        gracefulClose.close(promise)
+        pendingLoads.whenDone(closeTimeout).thenAcceptAsync({ allDone ->
+            if (!allDone) logger.warn("DTLS closing after {}ms timeout, session loads still pending", closeTimeout.toMillis())
+            dtlsServer.closeSessions()
+            ctx.close(promise)
+        }, ctx.executor())
     }
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
@@ -110,7 +113,7 @@ class DtlsChannelHandler @JvmOverloads constructor(
                 }
             }
         // done once the loaded record was handled, so a close waiting for it stores the session
-        gracefulClose.track(load)
+        pendingLoads.track(load)
     }
 
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) {
