@@ -35,7 +35,7 @@ internal class PendingOperations(private val executor: ScheduledExecutorService)
         operation.whenCompleteAsync({ _, _ -> if (--pending == 0 && waiting) done.complete(true) }, executor)
     }
 
-    // true once all tracked operations are done, false after timeout; a later call gets the same future
+    // a later call gets the same future, the timeout of the first call applies
     fun whenDone(timeout: Duration): CompletableFuture<Boolean> {
         if (!waiting) {
             // scheduled first, a rejected timeout must not leave a future that never completes

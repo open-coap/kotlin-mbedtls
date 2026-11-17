@@ -124,11 +124,14 @@ class PendingOperationsTest {
         pendingOperations.track(operation)
         val done = pendingOperations.whenDone(5.seconds)
 
-        // when
+        // when, just before the timeout
         channel.advanceTimeBy(4999, TimeUnit.MILLISECONDS)
         channel.runScheduledPendingTasks()
+
+        // then, still waiting
         assertFalse(done.isDone)
 
+        // and when, the timeout elapses
         channel.advanceTimeBy(1, TimeUnit.MILLISECONDS)
         channel.runScheduledPendingTasks()
 
@@ -189,10 +192,10 @@ class PendingOperationsTest {
         val pendingOperations = PendingOperations(executor)
         pendingOperations.track(CompletableFuture<Unit>())
 
-        // when
+        // when, the timeout is rejected
         assertThrows(RejectedExecutionException::class.java) { pendingOperations.whenDone(5.seconds) }
 
-        // then, a later call fails too
+        // and, a later call fails too
         assertThrows(RejectedExecutionException::class.java) { pendingOperations.whenDone(5.seconds) }
     }
 }
