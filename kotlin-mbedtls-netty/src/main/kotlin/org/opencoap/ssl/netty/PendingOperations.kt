@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Not thread safe, [track] and [whenDone] must be called from [executor], a tracked operation may complete on any thread.
- * Follows the graceful shutdown of Netty's Http2ConnectionHandler.
  */
 internal class PendingOperations(private val executor: ScheduledExecutorService) {
     private var pending = 0
