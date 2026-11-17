@@ -143,7 +143,7 @@ class NettyShutdownTest {
         }.await()
 
         // then, the session is loaded before closing and stored on close
-        srvChannel.eventLoop().submit {}.await()
+        assertTrue(srvChannel.closeFuture().await(5000))
         assertEquals(0, srvChannel.eventLoop().submit<Int> { handler.dtlsServer.numberOfSessions }.get())
         assertEquals(listOf(StoredSessionPair.cid.toList()), pendingStore.writes.map(CID::toList))
 

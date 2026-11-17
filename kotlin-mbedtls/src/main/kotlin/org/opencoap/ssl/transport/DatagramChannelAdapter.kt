@@ -39,8 +39,8 @@ class DatagramChannelAdapter(
         }
 
         fun connect(dest: InetSocketAddress, listenPort: Int = 0): Transport<ByteBuffer> {
-            val channel: DatagramChannel = DatagramChannel.open()
-            if (listenPort > 0) channel.bind(InetSocketAddress("0.0.0.0", listenPort))
+            // binding explicitly avoids EADDRINUSE from the implicit bind in connect() seen on macOS
+            val channel: DatagramChannel = DatagramChannel.open().bind(InetSocketAddress("0.0.0.0", listenPort))
             channel.connect(dest)
 
             return DatagramChannelAdapter(channel).map(ByteBufferPacket::buffer) { ByteBufferPacket(it, dest) }
