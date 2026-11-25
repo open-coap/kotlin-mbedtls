@@ -17,28 +17,31 @@
 package org.opencoap.ssl
 
 /**
+ * mbedtls version, encoded as in `mbedtls_version_get_number()`: 0xMMNNPP00, e.g. 0x04020000 for 4.2.0.
+ */
+typealias MbedtlsVersion = Int
+
+/**
  * mbedtls starts a stored session (`mbedtls_ssl_context_save`) with the version of mbedtls that wrote it, and
  * `mbedtls_ssl_context_load` refuses any other version, even when the format did not change.
  * This upgrades sessions stored by the previous mbedtls version, so they survive an mbedtls upgrade.
- *
- * Versions are encoded as in `mbedtls_version_get_number()`: 0xMMNNPP00, e.g. 0x04020000 for 4.2.0.
  */
 object StoredSessionVersion {
     private const val VERSION_LEN = 3
 
     // Serialisation format of 4.1.0 and 4.2.0 is identical, only the version in the header differs.
     // On each mbedtls upgrade, verify the format against the previous version and update both.
-    private const val PREVIOUS = 0x04010000
-    private const val UPGRADABLE_TO = 0x04020000
+    private const val PREVIOUS: MbedtlsVersion = 0x04010000
+    private const val UPGRADABLE_TO: MbedtlsVersion = 0x04020000
 
     @JvmStatic
-    val current: Int = MbedtlsApi.mbedtls_version_get_number()
+    val current: MbedtlsVersion = MbedtlsApi.mbedtls_version_get_number()
 
     /**
      * Version of mbedtls that stored the session, or null when the session is too short.
      */
     @JvmStatic
-    fun of(session: ByteArray): Int? {
+    fun of(session: ByteArray): MbedtlsVersion? {
         if (session.size < VERSION_LEN) return null
         return ((session[0].toInt() and 0xFF) shl 24) or ((session[1].toInt() and 0xFF) shl 16) or ((session[2].toInt() and 0xFF) shl 8)
     }
