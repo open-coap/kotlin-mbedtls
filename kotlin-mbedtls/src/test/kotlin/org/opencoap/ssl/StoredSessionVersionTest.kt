@@ -22,7 +22,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestFactory
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.Certs
@@ -91,20 +94,57 @@ class StoredSessionVersionTest {
         assertSame(session, StoredSessionVersion.upgrade(session))
     }
 
-    // When this fails after an mbedtls upgrade: compare serialisation (mbedtls_ssl_context_save/load) of the
-    // previous and the new mbedtls version, update StoredSessionVersion and replace the stored-sessions fixture
-    // with one saved by the previous version.
     @Test
-    fun `should load sessions stored by previous mbedtls version and exchange data`() {
-        val clientSession = clientConf.loadSession(byteArrayOf(), v410.cliSession, localAddress(2_5684))
-        val serverSession = serverConf.loadSession(v410.cid, v410.srvSession, localAddress(1_5684))
+    fun `should upgrade session through multiple mbedtls versions`() {
+        val v400 = v410.srvSession.withVersion(4, 0, 0)
+        val original = v400.copyOf()
+        val chain = listOf(Upgrade(from = 0x04000000, to = 0x04010000), Upgrade(from = 0x04010000, to = 0x04020000))
 
-        assertEquals("perse", serverSession.decrypt(clientSession.encrypt("perse".toByteBuffer()), noSend).decodeToString())
-        assertEquals("dupa", clientSession.decrypt(serverSession.encrypt("dupa".toByteBuffer()), noSend).decodeToString())
+        val upgraded = StoredSessionVersion.upgrade(v400, chain, target = 0x04020000)
 
-        clientSession.close()
-        serverSession.close()
+        assertEquals(0x04020000, StoredSessionVersion.of(upgraded))
+        assertArrayEquals(original.copyOfRange(3, original.size), upgraded.copyOfRange(3, upgraded.size))
     }
+
+    @Test
+    fun `should not change session when upgrades do not reach running mbedtls version`() {
+        val v400 = v410.srvSession.withVersion(4, 0, 0)
+        val original = v400.copyOf()
+        val chain = listOf(Upgrade(from = 0x04000000, to = 0x04010000))
+
+        val upgraded = StoredSessionVersion.upgrade(v400, chain, target = 0x04020000)
+
+        assertSame(v400, upgraded)
+        assertArrayEquals(original, upgraded)
+    }
+
+    // When this fails after an mbedtls upgrade: compare serialisation (mbedtls_ssl_context_save/load) of the
+    // previous and the new mbedtls version, add an Upgrade to StoredSessionVersion.upgrades and add a
+    // stored-sessions fixture saved by the previous version.
+    @Test
+    fun `should upgrade one version after another up to running mbedtls version`() {
+        val upgrades = StoredSessionVersion.upgrades
+
+        assertEquals(StoredSessionVersion.current, upgrades.last().to)
+        upgrades.zipWithNext().forEach { (prev, next) -> assertEquals(prev.to, next.from) }
+    }
+
+    @TestFactory
+    fun `should load sessions stored by upgradable mbedtls version and exchange data`(): List<DynamicTest> = StoredSessionVersion.upgrades.map { upgrade ->
+        dynamicTest(upgrade.from.format()) {
+            val stored = StoredSessions.load("mbedtls-${upgrade.from.format()}.txt")
+            val clientSession = clientConf.loadSession(byteArrayOf(), stored.cliSession, localAddress(2_5684))
+            val serverSession = serverConf.loadSession(stored.cid, stored.srvSession, localAddress(1_5684))
+
+            assertEquals("perse", serverSession.decrypt(clientSession.encrypt("perse".toByteBuffer()), noSend).decodeToString())
+            assertEquals("dupa", clientSession.decrypt(serverSession.encrypt("dupa".toByteBuffer()), noSend).decodeToString())
+
+            clientSession.close()
+            serverSession.close()
+        }
+    }
+
+    private fun MbedtlsVersion.format(): String = "${this ushr 24 and 0xFF}.${this ushr 16 and 0xFF}.${this ushr 8 and 0xFF}"
 
     private fun ByteArray.withVersion(major: Int, minor: Int, patch: Int): ByteArray = copyOf().also {
         it[0] = major.toByte()
@@ -115,7 +155,8 @@ class StoredSessionVersionTest {
     private class StoredSessions(val cid: ByteArray, val cliSession: ByteArray, val srvSession: ByteArray) {
         companion object {
             fun load(name: String): StoredSessions {
-                val values = StoredSessionVersionTest::class.java.getResource("/stored-sessions/$name")!!.readText()
+                val resource = checkNotNull(StoredSessionVersionTest::class.java.getResource("/stored-sessions/$name")) { "Missing fixture: stored-sessions/$name" }
+                val values = resource.readText()
                     .lines()
                     .filter { it.isNotBlank() && !it.startsWith("#") }
                     .associate { it.substringBefore('=') to it.substringAfter('=').decodeHex() }

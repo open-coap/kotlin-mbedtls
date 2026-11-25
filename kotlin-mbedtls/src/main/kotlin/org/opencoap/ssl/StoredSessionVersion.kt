@@ -22,17 +22,31 @@ package org.opencoap.ssl
 typealias MbedtlsVersion = Int
 
 /**
+ * Upgrades a session stored by mbedtls [from] to the format of mbedtls [to].
+ * Rewriting the version in the header is enough while the serialisation format does not change.
+ */
+internal class Upgrade(val from: MbedtlsVersion, val to: MbedtlsVersion) {
+    fun apply(session: ByteArray): ByteArray {
+        session[0] = (to ushr 24).toByte()
+        session[1] = (to ushr 16).toByte()
+        session[2] = (to ushr 8).toByte()
+        return session
+    }
+}
+
+/**
  * mbedtls starts a stored session (`mbedtls_ssl_context_save`) with the version of mbedtls that wrote it, and
  * `mbedtls_ssl_context_load` refuses any other version, even when the format did not change.
- * This upgrades sessions stored by the previous mbedtls version, so they survive an mbedtls upgrade.
+ * This upgrades sessions stored by older mbedtls versions, so they survive an mbedtls upgrade.
  */
 object StoredSessionVersion {
     private const val VERSION_LEN = 3
 
-    // Serialisation format of 4.1.0 and 4.2.0 is identical, only the version in the header differs.
-    // On each mbedtls upgrade, verify the format against the previous version and update both.
-    private const val PREVIOUS: MbedtlsVersion = 0x04010000
-    private const val UPGRADABLE_TO: MbedtlsVersion = 0x04020000
+    // One step per mbedtls upgrade, oldest first, the last one ending at the running mbedtls version.
+    // On each mbedtls upgrade, verify the serialisation format against the previous version and add a step.
+    internal val upgrades = listOf(
+        Upgrade(from = 0x04010000, to = 0x04020000), // format identical
+    )
 
     @JvmStatic
     val current: MbedtlsVersion = MbedtlsApi.mbedtls_version_get_number()
@@ -50,12 +64,14 @@ object StoredSessionVersion {
      * Upgrades the session in place, so the running mbedtls can load it. Leaves it unchanged when it can't be upgraded.
      */
     @JvmStatic
-    fun upgrade(session: ByteArray): ByteArray {
-        if (current != UPGRADABLE_TO || of(session) != PREVIOUS) return session
+    fun upgrade(session: ByteArray): ByteArray = upgrade(session, upgrades, current)
 
-        session[0] = (current ushr 24).toByte()
-        session[1] = (current ushr 16).toByte()
-        session[2] = (current ushr 8).toByte()
-        return session
+    internal fun upgrade(session: ByteArray, upgrades: List<Upgrade>, target: MbedtlsVersion): ByteArray {
+        val version = of(session) ?: return session
+        val start = upgrades.indexOfFirst { it.from == version }
+        // all steps or none, so a session is never left half upgraded
+        if (start < 0 || upgrades.last().to != target) return session
+
+        return upgrades.subList(start, upgrades.size).fold(session) { s, step -> step.apply(s) }
     }
 }
