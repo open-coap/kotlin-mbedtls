@@ -48,16 +48,15 @@ object StoredSessionVersion {
     }
 
     /**
-     * Returns a session that the running mbedtls can load, or the same session when it can't be upgraded.
+     * Upgrades the session in place, so the running mbedtls can load it. Leaves it unchanged when it can't be upgraded.
      */
     @JvmStatic
     fun upgrade(session: ByteArray): ByteArray {
         if (current != upgradableTo || of(session) != previous) return session
 
-        return session.copyOf().also {
-            it[0] = current.major.toByte()
-            it[1] = current.minor.toByte()
-            it[2] = current.patch.toByte()
-        }
+        session[0] = current.major.toByte()
+        session[1] = current.minor.toByte()
+        session[2] = current.patch.toByte()
+        return session
     }
 }

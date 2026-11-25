@@ -63,12 +63,12 @@ class StoredSessionVersionTest {
 
     @Test
     fun `should upgrade session stored by previous mbedtls version`() {
+        val original = v410.srvSession.copyOf()
+
         val upgraded = StoredSessionVersion.upgrade(v410.srvSession)
 
         assertEquals(StoredSessionVersion.current, StoredSessionVersion.of(upgraded))
-        assertArrayEquals(v410.srvSession.copyOfRange(3, v410.srvSession.size), upgraded.copyOfRange(3, upgraded.size))
-        // input is not modified
-        assertEquals(MbedtlsVersion(4, 1, 0), StoredSessionVersion.of(v410.srvSession))
+        assertArrayEquals(original.copyOfRange(3, original.size), upgraded.copyOfRange(3, upgraded.size))
     }
 
     @Test
