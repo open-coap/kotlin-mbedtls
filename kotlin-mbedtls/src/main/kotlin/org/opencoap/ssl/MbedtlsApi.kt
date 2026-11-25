@@ -98,6 +98,9 @@ internal object MbedtlsApi {
     // mbedtls/debug.h
     external fun mbedtls_debug_set_threshold(threshold: Int)
 
+    // mbedtls/version.h
+    external fun mbedtls_version_get_number(): Int
+
     // mbedtls/ssl_cookie.h
     external fun mbedtls_ssl_cookie_init(cookieCtx: Pointer)
     external fun mbedtls_ssl_cookie_free(cookieCtx: Pointer)
