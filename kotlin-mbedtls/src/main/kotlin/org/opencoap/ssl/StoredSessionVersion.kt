@@ -16,35 +16,31 @@
 
 package org.opencoap.ssl
 
-data class MbedtlsVersion(val major: Int, val minor: Int, val patch: Int) {
-    override fun toString(): String = "$major.$minor.$patch"
-}
-
 /**
  * mbedtls starts a stored session (`mbedtls_ssl_context_save`) with the version of mbedtls that wrote it, and
  * `mbedtls_ssl_context_load` refuses any other version, even when the format did not change.
  * This upgrades sessions stored by the previous mbedtls version, so they survive an mbedtls upgrade.
+ *
+ * Versions are encoded as in `mbedtls_version_get_number()`: 0xMMNNPP00, e.g. 0x04020000 for 4.2.0.
  */
 object StoredSessionVersion {
     private const val VERSION_LEN = 3
 
-    @JvmStatic
-    val current: MbedtlsVersion = MbedtlsApi.mbedtls_version_get_number().let {
-        MbedtlsVersion(it ushr 24 and 0xFF, it ushr 16 and 0xFF, it ushr 8 and 0xFF)
-    }
-
     // Serialisation format of 4.1.0 and 4.2.0 is identical, only the version in the header differs.
     // On each mbedtls upgrade, verify the format against the previous version and update both.
-    private val previous = MbedtlsVersion(4, 1, 0)
-    private val upgradableTo = MbedtlsVersion(4, 2, 0)
+    private const val PREVIOUS = 0x04010000
+    private const val UPGRADABLE_TO = 0x04020000
+
+    @JvmStatic
+    val current: Int = MbedtlsApi.mbedtls_version_get_number()
 
     /**
      * Version of mbedtls that stored the session, or null when the session is too short.
      */
     @JvmStatic
-    fun of(session: ByteArray): MbedtlsVersion? {
+    fun of(session: ByteArray): Int? {
         if (session.size < VERSION_LEN) return null
-        return MbedtlsVersion(session[0].toUByte().toInt(), session[1].toUByte().toInt(), session[2].toUByte().toInt())
+        return ((session[0].toInt() and 0xFF) shl 24) or ((session[1].toInt() and 0xFF) shl 16) or ((session[2].toInt() and 0xFF) shl 8)
     }
 
     /**
@@ -52,11 +48,11 @@ object StoredSessionVersion {
      */
     @JvmStatic
     fun upgrade(session: ByteArray): ByteArray {
-        if (current != upgradableTo || of(session) != previous) return session
+        if (current != UPGRADABLE_TO || of(session) != PREVIOUS) return session
 
-        session[0] = current.major.toByte()
-        session[1] = current.minor.toByte()
-        session[2] = current.patch.toByte()
+        session[0] = (current ushr 24).toByte()
+        session[1] = (current ushr 16).toByte()
+        session[2] = (current ushr 8).toByte()
         return session
     }
 }

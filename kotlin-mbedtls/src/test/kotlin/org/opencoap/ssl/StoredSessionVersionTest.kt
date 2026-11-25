@@ -46,14 +46,14 @@ class StoredSessionVersionTest {
 
     @Test
     fun `should read mbedtls version of stored session`() {
-        assertEquals(MbedtlsVersion(4, 1, 0), StoredSessionVersion.of(v410.srvSession))
-        assertEquals(MbedtlsVersion(4, 1, 0), StoredSessionVersion.of(v410.cliSession))
+        assertEquals(0x04010000, StoredSessionVersion.of(v410.srvSession))
+        assertEquals(0x04010000, StoredSessionVersion.of(v410.cliSession))
     }
 
     @Test
     fun `should read running mbedtls version of freshly saved session`() {
         assertEquals(StoredSessionVersion.current, StoredSessionVersion.of(StoredSessionPair.srvSession))
-        assertEquals("4.2.0", StoredSessionVersion.current.toString())
+        assertEquals(0x04020000, StoredSessionVersion.current)
     }
 
     @Test
