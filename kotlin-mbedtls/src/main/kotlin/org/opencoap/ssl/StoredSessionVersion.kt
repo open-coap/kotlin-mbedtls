@@ -16,15 +16,10 @@
 
 package org.opencoap.ssl
 
-/**
- * mbedtls version, encoded as in `mbedtls_version_get_number()`: 0xMMNNPP00, e.g. 0x04020000 for 4.2.0.
- */
+// 0xMMNNPP00 as returned by mbedtls_version_get_number(), so the running version needs no conversion
 typealias MbedtlsVersion = Int
 
-/**
- * Upgrades a session stored by mbedtls [from] to the format of mbedtls [to].
- * Rewriting the version in the header is enough while the serialisation format does not change.
- */
+// Rewriting the version in the header is enough while the serialisation format does not change
 internal class Upgrade(val from: MbedtlsVersion, val to: MbedtlsVersion) {
     fun apply(session: ByteArray): ByteArray {
         session[0] = (to ushr 24).toByte()
@@ -51,18 +46,13 @@ object StoredSessionVersion {
     @JvmStatic
     val current: MbedtlsVersion = MbedtlsApi.mbedtls_version_get_number()
 
-    /**
-     * Version of mbedtls that stored the session, or null when the session is too short.
-     */
     @JvmStatic
     fun of(session: ByteArray): MbedtlsVersion? {
         if (session.size < VERSION_LEN) return null
         return ((session[0].toInt() and 0xFF) shl 24) or ((session[1].toInt() and 0xFF) shl 16) or ((session[2].toInt() and 0xFF) shl 8)
     }
 
-    /**
-     * Upgrades the session in place, so the running mbedtls can load it. Leaves it unchanged when it can't be upgraded.
-     */
+    // In place, as callers do not use the stored session after loading it
     @JvmStatic
     fun upgrade(session: ByteArray): ByteArray = upgrade(session, upgrades, current)
 
