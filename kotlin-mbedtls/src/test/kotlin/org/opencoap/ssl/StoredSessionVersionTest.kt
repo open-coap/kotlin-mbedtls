@@ -22,17 +22,13 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.DynamicTest
-import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestFactory
 import org.opencoap.ssl.transport.decodeToString
 import org.opencoap.ssl.transport.toByteBuffer
 import org.opencoap.ssl.util.Certs
 import org.opencoap.ssl.util.StoredSessionPair
 import org.opencoap.ssl.util.decodeHex
 import org.opencoap.ssl.util.localAddress
-import java.io.File
 import java.nio.ByteBuffer
 
 class StoredSessionVersionTest {
@@ -40,7 +36,7 @@ class StoredSessionVersionTest {
     private val clientConf = SslConfig.client(CertificateAuth.trusted(Certs.root.asX509()), cipherSuites = listOf("TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256"))
     private val noSend: (ByteBuffer) -> Unit = { throw IllegalStateException() }
 
-    private val v410 = StoredSessions.load(fixture("mbedtls-4.1.0.txt"))
+    private val v410 = StoredSessions.load("mbedtls-4.1.0.txt")
 
     @AfterEach
     fun tearDown() {
@@ -139,26 +135,19 @@ class StoredSessionVersionTest {
     // When this fails after an mbedtls upgrade: compare serialisation (mbedtls_ssl_context_save/load) of the
     // previous and the new mbedtls version, add an Upgrade to StoredSessionVersion.upgrades and add a
     // stored-sessions fixture saved by the previous version.
-    @TestFactory
-    fun `should load sessions stored by older mbedtls versions and exchange data`(): List<DynamicTest> = fixture("").listFiles()!!.sorted().map { file ->
-        dynamicTest(file.name) {
-            // given
-            val stored = StoredSessions.load(file)
+    @Test
+    fun `should load sessions stored by previous mbedtls version and exchange data`() {
+        // when
+        val clientSession = clientConf.loadSession(byteArrayOf(), v410.cliSession, localAddress(2_5684))
+        val serverSession = serverConf.loadSession(byteArrayOf(), v410.srvSession, localAddress(1_5684))
 
-            // when
-            val clientSession = clientConf.loadSession(byteArrayOf(), stored.cliSession, localAddress(2_5684))
-            val serverSession = serverConf.loadSession(byteArrayOf(), stored.srvSession, localAddress(1_5684))
+        // then
+        assertEquals("perse", serverSession.decrypt(clientSession.encrypt("perse".toByteBuffer()), noSend).decodeToString())
+        assertEquals("dupa", clientSession.decrypt(serverSession.encrypt("dupa".toByteBuffer()), noSend).decodeToString())
 
-            // then
-            assertEquals("perse", serverSession.decrypt(clientSession.encrypt("perse".toByteBuffer()), noSend).decodeToString())
-            assertEquals("dupa", clientSession.decrypt(serverSession.encrypt("dupa".toByteBuffer()), noSend).decodeToString())
-
-            clientSession.close()
-            serverSession.close()
-        }
+        clientSession.close()
+        serverSession.close()
     }
-
-    private fun fixture(name: String): File = File(checkNotNull(javaClass.getResource("/stored-sessions/$name")).toURI())
 
     private fun ByteArray.withVersion(major: Int, minor: Int, patch: Int): ByteArray = copyOf().also {
         it[0] = major.toByte()
@@ -168,8 +157,9 @@ class StoredSessionVersionTest {
 
     private class StoredSessions(val cliSession: ByteArray, val srvSession: ByteArray) {
         companion object {
-            fun load(file: File): StoredSessions {
-                val values = file.readLines()
+            fun load(name: String): StoredSessions {
+                val values = checkNotNull(StoredSessionVersionTest::class.java.getResource("/stored-sessions/$name")).readText()
+                    .lines()
                     .filter { it.isNotBlank() && !it.startsWith("#") }
                     .associate { it.substringBefore('=') to it.substringAfter('=').decodeHex() }
                 return StoredSessions(values.getValue("cli"), values.getValue("srv"))
