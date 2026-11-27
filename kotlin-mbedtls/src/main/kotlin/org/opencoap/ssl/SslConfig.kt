@@ -92,7 +92,8 @@ class SslConfig(
         val sslContext = Memory(MbedtlsSizeOf.mbedtls_ssl_context).apply(MbedtlsApi::mbedtls_ssl_init)
 
         mbedtls_ssl_setup(sslContext, conf).verify()
-        mbedtls_ssl_context_load(sslContext, session, session.size).verify()
+        val upgradedSession = StoredSessionVersion.upgrade(session)
+        mbedtls_ssl_context_load(sslContext, upgradedSession, upgradedSession.size).verify()
         mbedtls_ssl_set_bio(sslContext, Pointer.NULL, SendCallback, null, ReceiveCallback)
 
         return SslSession(this, sslContext, cid, true).also {
